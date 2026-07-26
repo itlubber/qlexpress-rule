@@ -4,9 +4,12 @@ import request from '@/api/request'
 import {
   executeRule,
   approveRuleRevision,
+  createDraftRevision,
   ensureDraftRevision,
+  getRuleRevisionRepairPreview,
   preflightRuleRevision,
   publishRuleRevision,
+  repairRuleRevision,
   migrateReferences,
   refreshFields,
   scanAllReferenceIntegrity,
@@ -37,6 +40,33 @@ describe('definition API', () => {
     expect(request).toHaveBeenNthCalledWith(4, {
       url: '/rule/definition/16/revisions/3/publish', method: 'post',
       data: { comment: '发布' }
+    })
+  })
+
+  test('显式创建草稿携带基线修订 ID', async () => {
+    await createDraftRevision(16, 3)
+
+    expect(request).toHaveBeenCalledWith({
+      url: '/rule/definition/16/revisions/draft',
+      method: 'post',
+      data: { baseRevisionId: 3 },
+    })
+  })
+
+  test('历史规则修订只通过预览和显式修复接口治理', async () => {
+    const repair = { sourceRevisionId: 3, execute: true }
+
+    await getRuleRevisionRepairPreview(16)
+    await repairRuleRevision(16, repair)
+
+    expect(request).toHaveBeenNthCalledWith(1, {
+      url: '/rule/definition/16/revisions/repair-preview',
+      method: 'get',
+    })
+    expect(request).toHaveBeenNthCalledWith(2, {
+      url: '/rule/definition/16/revisions/repair',
+      method: 'post',
+      data: repair,
     })
   })
 

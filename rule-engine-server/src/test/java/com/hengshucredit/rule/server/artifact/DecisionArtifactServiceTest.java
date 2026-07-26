@@ -3,7 +3,11 @@ package com.hengshucredit.rule.server.artifact;
 import com.hengshucredit.rule.model.dto.RulePreflightReport;
 import com.hengshucredit.rule.model.entity.DecisionArtifact;
 import com.hengshucredit.rule.model.entity.DecisionArtifactComponent;
+import com.hengshucredit.rule.model.entity.RuleDefinition;
+import com.hengshucredit.rule.model.entity.RuleDefinitionInputField;
+import com.hengshucredit.rule.model.entity.RuleDefinitionOutputField;
 import com.hengshucredit.rule.model.entity.RuleRevision;
+import com.hengshucredit.rule.server.service.RuleFieldAnalyzer;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -38,10 +42,13 @@ public class DecisionArtifactServiceTest {
         Assert.assertNotNull(decoded.getArtifactPackage().getComponent("rule/compiled.ql"));
         Assert.assertNotNull(decoded.getArtifactPackage().getComponent("runtime/compiled.ql"));
         Assert.assertNotNull(decoded.getArtifactPackage().getComponent("schemas/input.schema.json"));
+        Assert.assertNotNull(decoded.getArtifactPackage().getComponent("rule/input-fields.json"));
+        Assert.assertNotNull(decoded.getArtifactPackage().getComponent("rule/output-fields.json"));
+        Assert.assertNotNull(decoded.getArtifactPackage().getComponent("rule/field-resolution.json"));
         Assert.assertNotNull(decoded.getArtifactPackage().getComponent("variables/7.json"));
         Assert.assertNotNull(decoded.getArtifactPackage().getComponent("validation/report.json"));
         Assert.assertNotNull(decoded.getArtifactPackage().getComponent("rule/open-api.json"));
-        Assert.assertEquals(8, service.components.size());
+        Assert.assertEquals(11, service.components.size());
     }
 
     @Test
@@ -76,13 +83,88 @@ public class DecisionArtifactServiceTest {
         Assert.assertEquals("DB_DATASOURCE", binding.getMetadata().get("targetResourceType"));
     }
 
+    @Test
+    public void approvedArtifactUsesOnlyFieldsResolvedFromItsRevision() {
+        FixtureService service = new FixtureService();
+        service.trackRevisionFields = true;
+        service.resolved = resolvedWithLocalOutput("revision_input", "credit_score_v1");
+
+        DecisionArtifact first = service.buildApprovedArtifact(200L, "alice");
+        service.existing = first;
+        DecisionArtifact second = service.buildApprovedArtifact(200L, "bob");
+
+        Assert.assertSame(first, second);
+        Assert.assertEquals(0, service.persistedInputLoadCount);
+        Assert.assertEquals(0, service.persistedOutputLoadCount);
+        Assert.assertEquals(0, service.legacyDependencyResolveCount);
+        Assert.assertEquals(2, service.revisionFieldResolveCount);
+        Assert.assertEquals(2, service.revisionDependencyResolveCount);
+        Assert.assertSame(service.resolved, service.lastDependencyFields);
+        DecisionArtifactPackage artifactPackage = new DecisionArtifactPackageCodec()
+                .decode(first.getPackageContent()).getArtifactPackage();
+        String inputFields = componentText(artifactPackage, "rule/input-fields.json");
+        String outputFields = componentText(artifactPackage, "rule/output-fields.json");
+        Assert.assertTrue(inputFields.contains("revision_input"));
+        Assert.assertTrue(outputFields.contains("credit_score_v1"));
+        Assert.assertFalse(inputFields.contains("stale_projection"));
+        Assert.assertFalse(outputFields.contains("stale_projection"));
+        Assert.assertEquals(first.getArtifactDigest(), second.getArtifactDigest());
+        Assert.assertEquals(first.getPackageDigest(), second.getPackageDigest());
+        Assert.assertEquals(1, service.insertCount);
+    }
+
+    private static RuleFieldAnalyzer.ResolvedFields resolvedWithLocalOutput(
+            String inputName, String outputName) {
+        return new RuleFieldAnalyzer.ResolvedFields(
+                Collections.singletonList(input(inputName)),
+                Collections.singletonList(localOutput(outputName)),
+                Collections.emptyList(), Collections.singleton(outputName),
+                Collections.emptyMap(), Collections.emptyMap());
+    }
+
+    private static RuleDefinitionInputField input(String name) {
+        RuleDefinitionInputField field = new RuleDefinitionInputField();
+        field.setFieldName(name);
+        field.setScriptName(name);
+        field.setFieldType("STRING");
+        field.setVarId(7L);
+        field.setRefType("VARIABLE");
+        field.setStatus(1);
+        return field;
+    }
+
+    private static RuleDefinitionOutputField localOutput(String name) {
+        RuleDefinitionOutputField field = new RuleDefinitionOutputField();
+        field.setFieldName(name);
+        field.setScriptName(name);
+        field.setFieldType("NUMBER");
+        field.setStatus(1);
+        return field;
+    }
+
+    private static String componentText(DecisionArtifactPackage artifactPackage, String path) {
+        DecisionArtifactPackage.Component component = artifactPackage.getComponent(path);
+        Assert.assertNotNull(component);
+        return new String(component.getContent(), StandardCharsets.UTF_8);
+    }
+
     private static final class FixtureService extends DecisionArtifactService {
         private final RuleRevision revision = new RuleRevision();
+        private final RuleDefinition definition = new RuleDefinition();
         private final RulePreflightReport report = new RulePreflightReport();
         private RuleDependencyClosureService.DependencyClosure closure =
                 RuleDependencyClosureService.DependencyClosure.of(Collections.emptyList(), Collections.emptyList());
+        private RuleFieldAnalyzer.ResolvedFields resolved =
+                new RuleFieldAnalyzer.ResolvedFields(Collections.emptyList(), Collections.emptyList());
         private DecisionArtifact existing;
         private int insertCount;
+        private boolean trackRevisionFields;
+        private int persistedInputLoadCount;
+        private int persistedOutputLoadCount;
+        private int legacyDependencyResolveCount;
+        private int revisionFieldResolveCount;
+        private int revisionDependencyResolveCount;
+        private RuleFieldAnalyzer.ResolvedFields lastDependencyFields;
         private final List<DecisionArtifactComponent> components = new ArrayList<>();
 
         private FixtureService() {
@@ -91,6 +173,9 @@ public class DecisionArtifactServiceTest {
             revision.setState("REVIEW");
             revision.setModelJson("{\"type\":\"TABLE\"}");
             revision.setOpenApiConfigJson("{\"enabled\":false}");
+            definition.setId(100L);
+            definition.setProjectId(9L);
+            definition.setModelType("SCRIPT");
             report.setRevisionId(200L);
             report.setValid(true);
             report.setCompiledScript("return true;");
@@ -108,6 +193,18 @@ public class DecisionArtifactServiceTest {
         }
 
         @Override
+        protected RuleDefinition loadDefinition(Long definitionId) {
+            return definition;
+        }
+
+        @Override
+        protected RuleFieldAnalyzer.ResolvedFields resolveFields(
+                RuleDefinition currentDefinition, RuleRevision currentRevision) {
+            revisionFieldResolveCount++;
+            return resolved;
+        }
+
+        @Override
         protected RulePreflightReport preflight(Long revisionId) {
             return report;
         }
@@ -115,7 +212,39 @@ public class DecisionArtifactServiceTest {
         @Override
         protected RuleDependencyClosureService.DependencyClosure resolveDependencies(
                 Long definitionId, Long revisionId) {
+            legacyDependencyResolveCount++;
             return closure;
+        }
+
+        @Override
+        protected RuleDependencyClosureService.DependencyClosure resolveDependencies(
+                Long definitionId, Long revisionId, RuleFieldAnalyzer.ResolvedFields fields) {
+            revisionDependencyResolveCount++;
+            lastDependencyFields = fields;
+            if (trackRevisionFields && (fields.getOutputFields().isEmpty()
+                    || !fields.isLocalOutput(fields.getOutputFields().get(0)))) {
+                return RuleDependencyClosureService.DependencyClosure.of(
+                        Collections.emptyList(), Collections.singletonList(
+                                com.hengshucredit.rule.model.dto.RuleValidationIssue.error(
+                                        "MISSING_REFERENCE_ID", "output", "局部输出未被识别")));
+            }
+            return closure;
+        }
+
+        @Override
+        protected List<RuleDefinitionInputField> loadInputFields(Long definitionId) {
+            persistedInputLoadCount++;
+            return trackRevisionFields
+                    ? Collections.singletonList(input("stale_projection"))
+                    : Collections.emptyList();
+        }
+
+        @Override
+        protected List<RuleDefinitionOutputField> loadOutputFields(Long definitionId) {
+            persistedOutputLoadCount++;
+            return trackRevisionFields
+                    ? Collections.singletonList(localOutput("stale_projection"))
+                    : Collections.emptyList();
         }
 
         @Override

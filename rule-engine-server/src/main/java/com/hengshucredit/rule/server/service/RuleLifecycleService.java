@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.hengshucredit.rule.model.dto.RuleLifecycleActionRequest;
 import com.hengshucredit.rule.model.dto.RulePreflightReport;
 import com.hengshucredit.rule.model.dto.RulePushMessage;
+import com.hengshucredit.rule.model.dto.RuleValidationIssue;
 import com.hengshucredit.rule.model.entity.DecisionArtifact;
 import com.hengshucredit.rule.model.entity.RuleDefinition;
 import com.hengshucredit.rule.model.entity.RuleDefinitionContent;
@@ -21,7 +22,9 @@ import com.hengshucredit.rule.server.artifact.CanonicalJson;
 import com.hengshucredit.rule.server.artifact.DecisionArtifactService;
 import com.hengshucredit.rule.server.artifact.RulePreflightValidationService;
 import com.hengshucredit.rule.server.artifact.Sha256Digests;
+import com.hengshucredit.rule.server.common.RuleGovernanceException;
 import com.hengshucredit.rule.server.mapper.RuleDefinitionVersionMapper;
+import com.hengshucredit.rule.server.mapper.RuleDefinitionMapper;
 import com.hengshucredit.rule.server.mapper.RuleLifecycleEventMapper;
 import com.hengshucredit.rule.server.mapper.RulePublishedMapper;
 import com.hengshucredit.rule.server.mapper.RulePublishOutboxMapper;
@@ -29,6 +32,7 @@ import com.hengshucredit.rule.server.mapper.RuleRevisionMapper;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DuplicateKeyException;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -42,6 +46,8 @@ import java.util.stream.Collectors;
 public class RuleLifecycleService {
     @Resource
     private RuleRevisionMapper revisionMapper;
+    @Resource
+    private RuleDefinitionMapper definitionMapper;
     @Resource
     private RuleLifecycleEventMapper eventMapper;
     @Resource
@@ -63,17 +69,42 @@ public class RuleLifecycleService {
 
     @Transactional
     public RuleRevision ensureDraft(Long definitionId) {
+        return createDraft(definitionId, null);
+    }
+
+    @Transactional
+    public RuleRevision createDraft(Long definitionId, Long baseRevisionId) {
+        RuleDefinition definition = lockDefinition(definitionId);
+        if (definition == null) {
+            throw new IllegalArgumentException("规则定义不存在");
+        }
         RuleRevision existing = findDraft(definitionId);
-        if (existing != null) return existing;
+        if (existing != null) {
+            if (baseRevisionId == null
+                    || baseRevisionId.equals(existing.getBaseRevisionId())) {
+                return existing;
+            }
+            throw governance(409, "DRAFT_BASE_MISMATCH",
+                    "已有草稿的基线与本次请求不一致");
+        }
         RuleRevision pending = findPendingRevision(definitionId);
         if (pending != null) {
-            throw new IllegalStateException("规则已有不可编辑修订 " + pending.getState()
-                    + "，请先完成或退回该修订");
+            throw governance(409, "DRAFT_CREATION_BLOCKED",
+                    "规则已有 REVIEW 修订，请先完成或退回该修订");
         }
-        RuleDefinition definition = loadDefinition(definitionId);
-        if (definition == null) throw new IllegalArgumentException("规则定义不存在");
         RuleDefinitionContent content = loadContent(definitionId);
-        RuleRevision base = findPublishedRevision(definitionId);
+        RuleRevision base = baseRevisionId == null
+                ? findLatestRevision(definitionId, RuleRevisionState.APPROVED)
+                : loadRevision(baseRevisionId);
+        if (baseRevisionId == null && base == null) {
+            base = findPublishedRevision(definitionId);
+        }
+        if (baseRevisionId != null) {
+            validateDraftBase(definitionId, baseRevisionId, base);
+        } else if (base == null && findLatestAnyRevision(definitionId) != null) {
+            throw governance(409, "BASE_REVISION_REQUIRED",
+                    "规则已有历史修订，请显式指定草稿基线");
+        }
         RuleRevision draft = new RuleRevision();
         draft.setDefinitionId(definitionId);
         draft.setRevisionNo(nextRevisionNo(definitionId));
@@ -94,15 +125,31 @@ public class RuleLifecycleService {
         draft.setCreateTime(LocalDateTime.now());
         draft.setUpdateBy(actor());
         draft.setUpdateTime(LocalDateTime.now());
-        insertRevision(draft);
-        insertEvent(event(draft, "CREATE_DRAFT", null, "DRAFT", null));
+        try {
+            insertRevision(draft);
+        } catch (DuplicateKeyException conflict) {
+            RuleRevision concurrent = findDraft(definitionId);
+            if (concurrent != null
+                    && (baseRevisionId == null
+                    || baseRevisionId.equals(
+                    concurrent.getBaseRevisionId()))) {
+                return concurrent;
+            }
+            throw governance(409, "DRAFT_BASE_MISMATCH",
+                    "并发创建的草稿基线与本次请求不一致");
+        }
+        RuleLifecycleEvent created =
+                event(draft, "CREATE_DRAFT", null, "DRAFT", null);
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("baseRevisionId", draft.getBaseRevisionId());
+        created.setDetailsJson(JSON.toJSONString(details));
+        insertEvent(created);
         return draft;
     }
 
     @Transactional
     public RuleRevision submit(Long revisionId, RuleLifecycleActionRequest request) {
         RuleRevision revision = requireState(revisionId, RuleRevisionState.DRAFT);
-        synchronizeDraftContent(revision);
         RulePreflightReport report = preflight(revisionId);
         assertPreflightValid(report);
         applyPreflight(revision, report);
@@ -203,7 +250,29 @@ public class RuleLifecycleService {
     }
 
     public RuleRevision requireEditableDraft(Long definitionId) {
-        return ensureDraft(definitionId);
+        RuleRevision draft = findDraft(definitionId);
+        if (draft == null) {
+            throw governance(409, "FROZEN_REVISION_WRITE_REJECTED",
+                    "规则没有可编辑的 DRAFT 修订");
+        }
+        return requireEditableDraft(definitionId, draft.getId());
+    }
+
+    public RuleRevision requireEditableDraft(Long definitionId, Long revisionId) {
+        RuleRevision revision = loadRevision(revisionId);
+        if (revision == null) {
+            throw governance(409, "FROZEN_REVISION_WRITE_REJECTED",
+                    "指定修订不存在或已冻结");
+        }
+        if (!definitionId.equals(revision.getDefinitionId())) {
+            throw governance(400, "REVISION_DEFINITION_MISMATCH",
+                    "修订不属于指定规则");
+        }
+        if (!RuleRevisionState.DRAFT.name().equals(revision.getState())) {
+            throw governance(409, "FROZEN_REVISION_WRITE_REJECTED",
+                    "只能修改 DRAFT 状态的规则修订");
+        }
+        return revision;
     }
 
     public RulePreflightReport preflightReport(Long definitionId, Long revisionId) {
@@ -287,16 +356,6 @@ public class RuleLifecycleService {
         return revision;
     }
 
-    private void synchronizeDraftContent(RuleRevision revision) {
-        RuleDefinitionContent content = loadContent(revision.getDefinitionId());
-        if (content == null) return;
-        revision.setModelJson(content.getModelJson());
-        revision.setCompiledScript(content.getCompiledScript());
-        revision.setCompiledType(content.getCompiledType());
-        revision.setOpenApiConfigJson(content.getOpenApiConfigJson());
-        persistRevisionSnapshot(revision);
-    }
-
     private void applyPreflight(RuleRevision revision, RulePreflightReport report) {
         revision.setCompiledScript(report.getCompiledScript());
         revision.setCompiledType(report.getCompiledType());
@@ -348,12 +407,44 @@ public class RuleLifecycleService {
         return value == null || value.trim().isEmpty() ? null : value.trim();
     }
 
+    private void validateDraftBase(Long definitionId, Long baseRevisionId,
+                                   RuleRevision base) {
+        if (base == null || !definitionId.equals(base.getDefinitionId())) {
+            throw governance(400, "BASE_REVISION_INVALID",
+                    "基线修订不存在或不属于当前规则");
+        }
+        if (!RuleRevisionState.APPROVED.name().equals(base.getState())
+                && !RuleRevisionState.PUBLISHED.name().equals(base.getState())
+                && !RuleRevisionState.OFFLINE.name().equals(base.getState())) {
+            throw governance(400, "BASE_REVISION_INVALID",
+                    "基线修订必须为 APPROVED、PUBLISHED 或 OFFLINE");
+        }
+        if (!baseRevisionId.equals(base.getId())) {
+            throw governance(400, "BASE_REVISION_INVALID",
+                    "基线修订身份不匹配");
+        }
+    }
+
+    private RuleGovernanceException governance(int httpStatus, String code,
+                                               String message) {
+        return new RuleGovernanceException(httpStatus, code, message,
+                Collections.singletonList(
+                        RuleValidationIssue.error(code, "$", message)));
+    }
+
     protected String actor() {
         return operatorResolver.resolve();
     }
 
     protected RuleDefinition loadDefinition(Long definitionId) {
         return definitionService.getById(definitionId);
+    }
+
+    protected RuleDefinition lockDefinition(Long definitionId) {
+        return definitionMapper.selectOne(
+                new LambdaQueryWrapper<RuleDefinition>()
+                        .eq(RuleDefinition::getId, definitionId)
+                        .last("FOR UPDATE"));
     }
 
     protected RuleDefinitionContent loadContent(Long definitionId) {
@@ -382,8 +473,7 @@ public class RuleLifecycleService {
         if (revisionMapper == null) return null;
         return revisionMapper.selectOne(new LambdaQueryWrapper<RuleRevision>()
                 .eq(RuleRevision::getDefinitionId, definitionId)
-                .in(RuleRevision::getState, RuleRevisionState.REVIEW.name(),
-                        RuleRevisionState.APPROVED.name())
+                .eq(RuleRevision::getState, RuleRevisionState.REVIEW.name())
                 .orderByDesc(RuleRevision::getRevisionNo).last("LIMIT 1"));
     }
 
@@ -391,6 +481,13 @@ public class RuleLifecycleService {
         return revisionMapper.selectOne(new LambdaQueryWrapper<RuleRevision>()
                 .eq(RuleRevision::getDefinitionId, definitionId)
                 .eq(RuleRevision::getState, state.name())
+                .orderByDesc(RuleRevision::getRevisionNo).last("LIMIT 1"));
+    }
+
+    protected RuleRevision findLatestAnyRevision(Long definitionId) {
+        if (revisionMapper == null) return null;
+        return revisionMapper.selectOne(new LambdaQueryWrapper<RuleRevision>()
+                .eq(RuleRevision::getDefinitionId, definitionId)
                 .orderByDesc(RuleRevision::getRevisionNo).last("LIMIT 1"));
     }
 
@@ -402,7 +499,9 @@ public class RuleLifecycleService {
     }
 
     protected void insertRevision(RuleRevision revision) {
-        revisionMapper.insert(revision);
+        if (revisionMapper.insert(revision) != 1) {
+            throw new IllegalStateException("创建规则草稿失败");
+        }
     }
 
     protected void persistRevisionSnapshot(RuleRevision revision) {

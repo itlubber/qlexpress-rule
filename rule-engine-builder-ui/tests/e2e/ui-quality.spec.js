@@ -4,6 +4,7 @@ const {
   createDesignerApiData,
 } = require('./support/designerFixtures.cjs')
 const { createDetailApiData } = require('./support/detailFixtures.cjs')
+const { createDocsApiData } = require('./support/docsFixtures.cjs')
 
 const businessRoutes = [
   '/project',
@@ -304,6 +305,141 @@ test('关键控件的默认、hover、focus 与语义色均保持清晰反馈', 
     (element) => getComputedStyle(element).backgroundColor
   )
   expect(rowHover).not.toBe(rowBefore)
+
+  assertClean()
+})
+
+test('列表操作按查看、编辑、执行、发布和危险动作展示稳定语义色', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1600, height: 1000 })
+  const { assertClean } = await installDistRoutes(page, {
+    apiData: createDocsApiData(),
+  })
+  const pages = [
+    {
+      route: '/variable',
+      actions: [
+        ['编辑', 'warning'],
+        ['详情', 'primary'],
+        ['测试', 'success'],
+        ['转为全局', 'success'],
+        ['删除', 'danger'],
+      ],
+    },
+    {
+      route: '/rule',
+      actions: [
+        ['详情', 'primary'],
+        ['设计', 'warning'],
+        ['生命周期', 'info'],
+        ['删除', 'danger'],
+      ],
+    },
+    {
+      route: '/project/1',
+      actions: [
+        ['设计', 'warning'],
+        ['重新发布', 'success'],
+        ['下线', 'warning'],
+        ['删除', 'danger'],
+      ],
+    },
+    {
+      route: '/datasource',
+      actions: [
+        ['编辑', 'warning'],
+        ['测试', 'success'],
+        ['加接口', 'primary'],
+        ['删除', 'danger'],
+      ],
+    },
+    {
+      route: '/database',
+      actions: [
+        ['编辑', 'warning'],
+        ['测试', 'success'],
+        ['查询', 'primary'],
+        ['删除', 'danger'],
+      ],
+    },
+    {
+      route: '/model',
+      actions: [
+        ['详情', 'primary'],
+        ['编辑', 'warning'],
+        ['重新发布', 'success'],
+        ['下线', 'warning'],
+        ['删除', 'danger'],
+      ],
+    },
+    {
+      route: '/function',
+      actions: [
+        ['测试', 'success'],
+        ['编辑', 'warning'],
+        ['版本', 'info'],
+        ['删除', 'danger'],
+      ],
+    },
+  ]
+
+  for (const item of pages) {
+    await page.goto(`http://tianshu.local/index.html#${item.route}`)
+    await expect(page.getByRole('main')).toBeVisible()
+    const visibleActions = page.locator(
+      '.el-table__body .el-button.is-link:visible'
+    )
+    await expect(visibleActions.first()).toBeVisible()
+
+    for (const [label, type] of item.actions) {
+      const button = page
+        .getByRole('button', { name: label, exact: true })
+        .filter({ visible: true })
+        .first()
+      await expect(button, `${item.route} 的「${label}」缺少语义类型`).toHaveClass(
+        new RegExp(`el-button--${type}`)
+      )
+    }
+
+    const colors = await visibleActions.evaluateAll(
+      (buttons) =>
+        buttons
+          .filter((button) => button.getClientRects().length > 0)
+          .map((button) => getComputedStyle(button).color)
+    )
+    expect(
+      new Set(colors).size,
+      `${item.route} 的操作按钮仍被渲染为同一颜色`
+    ).toBeGreaterThanOrEqual(3)
+  }
+
+  await page.goto('http://tianshu.local/index.html#/designer/cross/101')
+  const deleteCrossRow = page.getByRole('button', {
+    name: '删除此行',
+    exact: true,
+  })
+  await expect(deleteCrossRow).toHaveClass(/el-button--danger/)
+  const addCrossRow = page
+    .locator('.add-row-trigger')
+    .getByRole('button', { name: '添加行', exact: true })
+  await expect(addCrossRow).toHaveClass(/el-button--primary/)
+
+  await page.goto('http://tianshu.local/index.html#/model')
+  const modelTypeContent = page
+    .locator('.el-table__body .el-tag__content:visible')
+    .filter({ hasText: 'NeuralNet（神经网络）' })
+    .first()
+  await expect(modelTypeContent).toBeVisible()
+  const modelTypeClipped = await modelTypeContent.evaluate((content) => {
+    const cell = content.closest('td')
+    if (!cell) return true
+    return (
+      content.scrollWidth > content.clientWidth + 1 ||
+      content.getBoundingClientRect().right > cell.getBoundingClientRect().right - 4
+    )
+  })
+  expect(modelTypeClipped, '模型大类标签在桌面宽度下被截断').toBe(false)
 
   assertClean()
 })

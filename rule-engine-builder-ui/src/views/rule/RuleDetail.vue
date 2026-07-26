@@ -307,7 +307,7 @@
                 <el-button
                   link
                   size="small"
-                  style="color: #67c23a"
+                  type="success"
                   :loading="row._saving"
                   @click="saveInputField(row, $index)"
                   >保存</el-button
@@ -315,7 +315,7 @@
                 <el-button
                   link
                   size="small"
-                  style="color: #64748b"
+                  type="info"
                   @click="cancelEditInput(row)"
                   >取消</el-button
                 >
@@ -324,6 +324,7 @@
                 v-else
                 link
                 size="small"
+                type="warning"
                 @click="editInputField(row)"
               >
                 <el-icon><el-icon-edit /></el-icon> 编辑
@@ -453,7 +454,7 @@
                 <el-button
                   link
                   size="small"
-                  style="color: #67c23a"
+                  type="success"
                   :loading="row._saving"
                   @click="saveOutputField(row, $index)"
                   >保存</el-button
@@ -461,7 +462,7 @@
                 <el-button
                   link
                   size="small"
-                  style="color: #64748b"
+                  type="info"
                   @click="cancelEditOutput(row)"
                   >取消</el-button
                 >
@@ -470,6 +471,7 @@
                 v-else
                 link
                 size="small"
+                type="warning"
                 @click="editOutputField(row)"
               >
                 <el-icon><el-icon-edit /></el-icon> 编辑
@@ -619,6 +621,7 @@
                   ><el-button
                     link
                     size="small"
+                    type="danger"
                     class="btn-delete"
                     @click="removeOpenRequestMapping($index)"
                     >删除</el-button
@@ -685,6 +688,7 @@
                   ><el-button
                     link
                     size="small"
+                    type="danger"
                     class="btn-delete"
                     @click="removeOpenResponseMapping($index)"
                     >删除</el-button
@@ -1081,11 +1085,16 @@
             <el-button
               link
               size="small"
+              type="info"
               :disabled="$index === versions.length - 1"
               @click="compareVersion(row, versions[$index + 1])"
               >对比上一版</el-button
             >
-            <el-button link size="small" @click="rollbackVersion(row)"
+            <el-button
+              link
+              size="small"
+              type="warning"
+              @click="rollbackVersion(row)"
               >回滚</el-button
             >
           </template>

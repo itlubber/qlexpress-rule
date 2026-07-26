@@ -134,15 +134,24 @@
       </el-table-column>
       <el-table-column label="操作" width="190" align="center" fixed="right">
         <template v-slot="{ row }">
-          <el-button link size="small" @click="handleTest(row)"
+          <el-button
+            link
+            size="small"
+            type="success"
+            @click="handleTest(row)"
             >执行</el-button
           >
-          <el-button link size="small" @click="handleEdit(row)"
+          <el-button
+            link
+            size="small"
+            type="primary"
+            @click="handleEdit(row)"
             >详情</el-button
           >
           <el-button
             link
             size="small"
+            type="danger"
             class="btn-delete"
             @click="handleDelete(row)"
             >删除</el-button
@@ -341,7 +350,11 @@
           ></el-table-column>
           <el-table-column label="操作" width="80" align="center">
             <template v-slot="{ row }">
-              <el-button link size="small" @click="removeGroup(row)"
+              <el-button
+                link
+                size="small"
+                type="danger"
+                @click="removeGroup(row)"
                 >删除</el-button
               >
             </template>
@@ -438,7 +451,11 @@
           ></el-table-column>
           <el-table-column label="操作" width="80" align="center"
             ><template v-slot="{ row }"
-              ><el-button link size="small" @click="removeGroup(row)"
+              ><el-button
+                link
+                size="small"
+                type="danger"
+                @click="removeGroup(row)"
                 >删除</el-button
               ></template
             ></el-table-column

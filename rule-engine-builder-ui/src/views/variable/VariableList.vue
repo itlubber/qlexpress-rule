@@ -258,13 +258,18 @@
             </el-table-column>
             <el-table-column label="操作" width="250" align="center" fixed="right">
               <template v-slot="{ row }">
-                <el-button link size="small" @click="handleEdit(row)"
+                <el-button
+                  link
+                  size="small"
+                  type="warning"
+                  @click="handleEdit(row)"
                   >编辑</el-button
                 >
                 <el-button
                   v-if="isTestableSource(row)"
                   link
                   size="small"
+                  type="primary"
                   @click="handleViewSourceDetail(row)"
                   >详情</el-button
                 >
@@ -272,12 +277,14 @@
                   v-if="isTestableSource(row)"
                   link
                   size="small"
+                  type="success"
                   @click="handleTestVariable(row)"
                   >测试</el-button
                 >
                 <el-button
                   link
                   size="small"
+                  type="info"
                   @click="handleOptions(row)"
                   v-if="row.varType === 'ENUM'"
                   >选项</el-button
@@ -286,12 +293,14 @@
                   v-if="row.scope === 'PROJECT'"
                   link
                   size="small"
+                  type="success"
                   @click="handleToGlobal(row)"
                   >转为全局</el-button
                 >
                 <el-button
                   link
                   size="small"
+                  type="danger"
                   class="btn-delete"
                   @click="handleDelete(row)"
                   >删除</el-button
@@ -559,12 +568,14 @@
                     <el-button
                       link
                       size="small"
+                      type="warning"
                       @click="handleEditObjectField(row, node)"
                       >编辑</el-button
                     >
                     <el-button
                       link
                       size="small"
+                      type="info"
                       @click="handleOptions(row, true)"
                       v-if="row.varType === 'ENUM'"
                       >选项</el-button
@@ -572,6 +583,7 @@
                     <el-button
                       link
                       size="small"
+                      type="danger"
                       class="btn-delete"
                       @click="handleDeleteObjectField(row)"
                       >删除</el-button
@@ -755,19 +767,25 @@
           </el-table-column>
           <el-table-column label="操作" width="180" align="center" fixed="right">
             <template v-slot="{ row }">
-              <el-button link size="small" @click="handleEdit(row)"
+              <el-button
+                link
+                size="small"
+                type="warning"
+                @click="handleEdit(row)"
                 >编辑</el-button
               >
               <el-button
                 v-if="row.scope === 'PROJECT'"
                 link
                 size="small"
+                type="success"
                 @click="handleToGlobal(row)"
                 >转为全局</el-button
               >
               <el-button
                 link
                 size="small"
+                type="danger"
                 class="btn-delete"
                 @click="handleDelete(row)"
                 >删除</el-button
@@ -952,6 +970,7 @@
                 v-if="!row.builtIn"
                 link
                 size="small"
+                type="warning"
                 @click="editFieldValidation(row)"
                 >编辑</el-button
               >
@@ -959,6 +978,7 @@
                 v-if="!row.builtIn"
                 link
                 size="small"
+                type="danger"
                 class="btn-delete"
                 @click="removeFieldValidation(row)"
                 >删除</el-button
@@ -1627,7 +1647,7 @@
             ><el-button
               link
               size="small"
-              style="color: #f76e6c"
+              type="danger"
               @click="optionList.splice($index, 1)"
               >移除</el-button
             ></template
@@ -4964,18 +4984,5 @@ export default {
   box-shadow: none !important;
   background-color: transparent !important;
   border-color: #dcdfe6 !important;
-}
-.el-button.is-link,
-.el-button.is-link:hover,
-.el-button.is-link:focus,
-.el-button.is-link:active,
-.el-button.is-link:focus-visible {
-  color: #606266 !important;
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-}
-.el-button.is-link:hover {
-  color: var(--el-color-primary) !important;
 }
 </style>

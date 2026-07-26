@@ -151,15 +151,24 @@
           </el-table-column>
           <el-table-column label="执行操作" width="160" align="center">
             <template v-slot="{ row }">
-              <el-button link size="small" @click="handleEdit(row)"
+              <el-button
+                link
+                size="small"
+                type="warning"
+                @click="handleEdit(row)"
                 >修改</el-button
               >
-              <el-button link size="small" @click="handleTrace(row)"
+              <el-button
+                link
+                size="small"
+                type="primary"
+                @click="handleTrace(row)"
                 >追踪</el-button
               >
               <el-button
                 link
                 size="small"
+                type="danger"
                 class="btn-delete"
                 @click="handleDelete(row)"
                 >删除</el-button

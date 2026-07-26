@@ -11,7 +11,7 @@
     <div v-if="activeView === 'logs'">
       <div class="uiue-search-container">
         <el-form :inline="true" size="small" @keyup.enter="handleQuery">
-          <el-form-item label="来源">
+          <el-form-item label="来源" style="width: 150px">
             <el-select
               v-model="qp.source"
               clearable
@@ -59,7 +59,7 @@
               />
             </el-select>
           </el-form-item>
-          <el-form-item label="模型类型">
+          <el-form-item label="模型类型" style="width: 170px">
             <el-select v-model="qp.modelType" clearable placeholder="全部类型">
               <el-option label="决策表" value="TABLE" />
               <el-option label="决策树" value="TREE" />
@@ -252,7 +252,11 @@
         </el-table-column>
         <el-table-column label="操作" width="70" align="center" fixed="right">
           <template v-slot="{ row }"
-            ><el-button link size="small" @click="handleViewDetail(row)"
+            ><el-button
+              link
+              size="small"
+              type="primary"
+              @click="handleViewDetail(row)"
               >详情</el-button
             ></template
           >

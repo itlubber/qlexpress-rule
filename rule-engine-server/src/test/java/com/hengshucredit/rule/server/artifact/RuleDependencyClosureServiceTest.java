@@ -11,11 +11,13 @@ import com.hengshucredit.rule.model.entity.RuleModelVersion;
 import com.hengshucredit.rule.model.entity.RulePublished;
 import com.hengshucredit.rule.model.entity.RuleRevision;
 import com.hengshucredit.rule.model.entity.RuleVariable;
+import com.hengshucredit.rule.server.service.RuleFieldAnalyzer;
 import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -51,7 +53,9 @@ public class RuleDependencyClosureServiceTest {
         service.revision.setModelJson("{\"kind\":\"REFERENCE\",\"refType\":\"VARIABLE\","
                 + "\"code\":\"customerId\"}");
 
-        RuleDependencyClosureService.DependencyClosure closure = service.resolve(100L, 200L);
+        RuleDependencyClosureService.DependencyClosure closure = service.resolve(
+                100L, 200L, new RuleFieldAnalyzer.ResolvedFields(
+                        Collections.emptyList(), Collections.emptyList()));
 
         Assert.assertTrue(closure.hasErrors());
         Assert.assertTrue(closure.getIssues().stream()
@@ -144,21 +148,120 @@ public class RuleDependencyClosureServiceTest {
         service.childPublished.setModelJson("{\"kind\":\"REFERENCE\",\"refType\":\"VARIABLE\","
                 + "\"refId\":7,\"code\":\"publishedValue\"}");
         service.childPublished.setCompiledScript("publishedValue");
+        service.childPublishedFields = new RuleFieldAnalyzer.ResolvedFields(
+                Collections.singletonList(field("VARIABLE", 7L)),
+                Collections.emptyList(), Collections.emptyList(), Collections.emptySet(),
+                Collections.emptyMap(), Collections.emptyMap(), "SCRIPT");
+        service.inputs = Collections.singletonList(field("VARIABLE", 8L));
         service.variables.put(7L, variable(7L, 1));
         service.variables.put(8L, variable(8L, 1));
 
-        RuleDependencyClosureService.DependencyClosure closure = service.resolve(100L, 200L);
+        RuleDependencyClosureService.DependencyClosure closure = service.resolve(
+                100L, 200L, new RuleFieldAnalyzer.ResolvedFields(
+                        Collections.emptyList(), Collections.emptyList()));
 
         Assert.assertFalse(closure.getIssues().toString(), closure.hasErrors());
         Assert.assertTrue(closure.getDependencies().stream()
                 .anyMatch(value -> "VARIABLE:7".equals(value.getComponentId())));
         Assert.assertFalse(closure.getDependencies().stream()
                 .anyMatch(value -> "VARIABLE:8".equals(value.getComponentId())));
+        Assert.assertEquals("发布生命周期不得查询子规则当前字段投影", 0,
+                service.inputFieldLoadCount);
         ArtifactDependency child = closure.getDependencies().stream()
                 .filter(value -> "RULE:101:2".equals(value.getComponentId()))
                 .findFirst().orElseThrow();
         Assert.assertTrue(new String(child.getContent(), java.nio.charset.StandardCharsets.UTF_8)
                 .contains("publishedValue"));
+        Assert.assertTrue(new String(child.getContent(), java.nio.charset.StandardCharsets.UTF_8)
+                .contains("\"modelType\":\"SCRIPT\""));
+
+        service.inputs = Collections.singletonList(field("VARIABLE", 9L));
+        service.childDefinition.setRuleName("renamed current definition");
+        service.childDefinition.setModelType("FLOW");
+        RuleDependencyClosureService.DependencyClosure afterProjectionChange = service.resolve(
+                100L, 200L, new RuleFieldAnalyzer.ResolvedFields(
+                        Collections.emptyList(), Collections.emptyList()));
+        Assert.assertEquals(closure.getDependencyDigest(),
+                afterProjectionChange.getDependencyDigest());
+        ArtifactDependency unchangedChild = afterProjectionChange.getDependencies().stream()
+                .filter(value -> "RULE:101:2".equals(value.getComponentId()))
+                .findFirst().orElseThrow();
+        Assert.assertArrayEquals(child.getContent(), unchangedChild.getContent());
+        Assert.assertEquals(0, service.inputFieldLoadCount);
+    }
+
+    @Test
+    public void localQlResultFieldWithoutReferenceIsNotDependency() {
+        FixtureService service = new FixtureService();
+        RuleFieldAnalyzer.ResolvedFields fields =
+                resolvedWithLocalOutput("credit_score_v1");
+
+        RuleDependencyClosureService.DependencyClosure closure =
+                service.resolve(100L, 200L, fields);
+
+        Assert.assertFalse(closure.getIssues().stream()
+                .anyMatch(issue -> "MISSING_REFERENCE_ID".equals(issue.getCode())));
+    }
+
+    @Test
+    public void missingFrozenChildFieldSnapshotBlocksClosure() {
+        FixtureService service = new FixtureService();
+        service.revision.setModelJson("{\"kind\":\"RULE_CALL\",\"ruleId\":101}");
+        service.childDefinition = new RuleDefinition();
+        service.childDefinition.setId(101L);
+        service.childDefinition.setProjectId(9L);
+        service.childDefinition.setStatus(1);
+        service.childPublished = new RulePublished();
+        service.childPublished.setDefinitionId(101L);
+        service.childPublished.setRevisionId(301L);
+        service.childPublished.setVersion(2);
+        service.childPublished.setStatus(1);
+        service.childPublishedFields = new RuleFieldAnalyzer.ResolvedFields(
+                Collections.emptyList(), Collections.emptyList(),
+                Collections.singletonList(com.hengshucredit.rule.model.dto.RuleValidationIssue.error(
+                        "FROZEN_REVISION_FIELD_SNAPSHOT_MISSING", "$.ruleFields",
+                        "RULE", 101L, "字段快照缺失").withRevisionId(301L)),
+                Collections.emptySet(), Collections.emptyMap(), Collections.emptyMap());
+
+        RuleDependencyClosureService.DependencyClosure closure = service.resolve(
+                100L, 200L, new RuleFieldAnalyzer.ResolvedFields(
+                        Collections.emptyList(), Collections.emptyList()));
+
+        Assert.assertTrue(closure.hasErrors());
+        Assert.assertTrue(closure.getIssues().stream().anyMatch(issue ->
+                "FROZEN_REVISION_FIELD_SNAPSHOT_MISSING".equals(issue.getCode())));
+        Assert.assertFalse(closure.getDependencies().stream().anyMatch(dependency ->
+                dependency.getComponentId().startsWith("RULE:101:")));
+        Assert.assertEquals(0, service.inputFieldLoadCount);
+    }
+
+    @Test
+    public void structuredOutputWithoutReferenceStillRequiresStableId() {
+        FixtureService service = new FixtureService();
+        RuleFieldAnalyzer.ResolvedFields fields = new RuleFieldAnalyzer.ResolvedFields(
+                Collections.emptyList(), Collections.singletonList(output("credit_score_v1")));
+
+        RuleDependencyClosureService.DependencyClosure closure =
+                service.resolve(100L, 200L, fields);
+
+        Assert.assertTrue(closure.getIssues().stream()
+                .anyMatch(issue -> "MISSING_REFERENCE_ID".equals(issue.getCode())));
+    }
+
+    private static RuleFieldAnalyzer.ResolvedFields resolvedWithLocalOutput(String name) {
+        return new RuleFieldAnalyzer.ResolvedFields(
+                Collections.emptyList(), Collections.singletonList(output(name)),
+                Collections.emptyList(), new LinkedHashSet<>(Collections.singletonList(name)),
+                Collections.emptyMap(), Collections.emptyMap());
+    }
+
+    private static RuleDefinitionOutputField output(String name) {
+        RuleDefinitionOutputField field = new RuleDefinitionOutputField();
+        field.setFieldName(name);
+        field.setScriptName(name);
+        field.setFieldType("NUMBER");
+        field.setStatus(1);
+        return field;
     }
 
     private static RuleDefinitionInputField field(String refType, Long refId) {
@@ -222,9 +325,11 @@ public class RuleDependencyClosureServiceTest {
         private final Map<String, RuleModelVersion> versions = new HashMap<>();
         private final Map<Long, RuleFunction> functions = new HashMap<>();
         private int variableLoadCount;
+        private int inputFieldLoadCount;
         private RuleDefinition childDefinition;
         private RuleDefinitionContent childContent;
         private RulePublished childPublished;
+        private RuleFieldAnalyzer.ResolvedFields childPublishedFields;
 
         private FixtureService() {
             definition.setId(100L);
@@ -256,7 +361,13 @@ public class RuleDependencyClosureServiceTest {
         }
 
         @Override
+        protected RuleFieldAnalyzer.ResolvedFields resolvePublishedFields(RulePublished published) {
+            return childPublishedFields;
+        }
+
+        @Override
         protected List<RuleDefinitionInputField> loadInputFields(Long definitionId) {
+            inputFieldLoadCount++;
             return inputs;
         }
 

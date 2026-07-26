@@ -98,13 +98,18 @@
           <el-table-column label="操作" width="220" align="center" fixed="right">
             <template v-slot="{ row }">
               <div class="auth-row-actions">
-                <el-button link size="small" @click="viewFullAuth(row)"
+                <el-button
+                  link
+                  size="small"
+                  type="primary"
+                  @click="viewFullAuth(row)"
                   >完整值</el-button
                 >
                 <el-button
                   v-if="row.authType !== 'LEGACY_TOKEN'"
                   link
                   size="small"
+                  type="warning"
                   @click="openEditAuth(row)"
                   >编辑</el-button
                 >
@@ -114,6 +119,7 @@
                   "
                   link
                   size="small"
+                  type="warning"
                   @click="regenerateAuth(row)"
                   >重置密钥</el-button
                 >
@@ -121,13 +127,23 @@
                   v-if="row.authType === 'LEGACY_TOKEN'"
                   link
                   size="small"
+                  type="warning"
                   @click="regenerateLegacyToken(row)"
                   >重置令牌</el-button
                 >
-                <el-button link size="small" @click="openTokens(row)"
+                <el-button
+                  link
+                  size="small"
+                  type="info"
+                  @click="openTokens(row)"
                   >Token</el-button
                 >
-                <el-button link size="small" @click="toggleAuth(row)">{{
+                <el-button
+                  link
+                  size="small"
+                  :type="row.status === 1 ? 'warning' : 'success'"
+                  @click="toggleAuth(row)"
+                  >{{
                   row.status === 1 ? '停用' : '启用'
                 }}</el-button>
               </div>
@@ -186,7 +202,11 @@
           </el-table-column>
           <el-table-column label="操作" width="125" align="center">
             <template v-slot="{ row }">
-              <el-button link size="small" @click="viewFullToken(row)"
+              <el-button
+                link
+                size="small"
+                type="primary"
+                @click="viewFullToken(row)"
                 >完整值</el-button
               >
               <el-button
@@ -194,6 +214,7 @@
                 class="btn-delete"
                 link
                 size="small"
+                type="danger"
                 @click="revokeToken(row)"
                 >撤销</el-button
               >

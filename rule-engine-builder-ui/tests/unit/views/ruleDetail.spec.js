@@ -38,6 +38,87 @@ describe('RuleDetail 生命周期治理', () => {
     expect(definitionApi.listRuleRevisions).toHaveBeenCalledWith(1)
     expect(definitionApi.getRuleLifecycleTimeline).toHaveBeenCalledWith(1)
     expect(wrapper.vm.activeRevision.state).toBe('DRAFT')
+    wrapper.unmount()
+  })
+
+  test('打开规则详情只调用查询接口', async () => {
+    const wrapper = await mountAndWait()
+    expect(definitionApi.refreshFields).not.toHaveBeenCalled()
+    expect(definitionApi.ensureDraftRevision).not.toHaveBeenCalled()
+    expect(definitionApi.preflightRuleRevision).not.toHaveBeenCalled()
+    expect(definitionApi.getDefinitionDetail).toHaveBeenCalledWith(1)
+    expect(definitionApi.listRuleRevisions).toHaveBeenCalledWith(1)
+    expect(definitionApi.getRuleLifecycleTimeline).toHaveBeenCalledWith(1)
+    wrapper.unmount()
+  })
+
+  test.each(['REVIEW', 'APPROVED', 'PUBLISHED', 'OFFLINE'])(
+    '%s 规则可以只读打开且不创建草稿',
+    async (state) => {
+      const frozenWrapper = await mountAndWait(undefined, [
+        { id: 8, definitionId: 1, revisionNo: 2, state },
+      ])
+      expect(frozenWrapper.text()).toContain(
+        {
+          REVIEW: '评审中',
+          APPROVED: '已批准',
+          PUBLISHED: '已发布',
+          OFFLINE: '已下线',
+        }[state]
+      )
+      expect(definitionApi.refreshFields).not.toHaveBeenCalled()
+      expect(definitionApi.ensureDraftRevision).not.toHaveBeenCalled()
+      frozenWrapper.unmount()
+    }
+  )
+
+  test('无 revision 的历史规则显示治理提示且不自动创建草稿', async () => {
+    const legacyWrapper = await mountAndWait(undefined, [])
+    expect(legacyWrapper.find('[data-testid="legacy-governance"]').exists()).toBe(true)
+    expect(definitionApi.ensureDraftRevision).not.toHaveBeenCalled()
+    legacyWrapper.unmount()
+  })
+
+  test('APPROVED 点击创建下一版草稿时携带基线 revision ID', async () => {
+    const approved = {
+      id: 8,
+      definitionId: 1,
+      revisionNo: 2,
+      state: 'APPROVED',
+    }
+    const wrapper = await mountAndWait(undefined, [approved])
+    definitionApi.createDraftRevision.mockResolvedValueOnce({
+      data: { id: 9, definitionId: 1, revisionNo: 3, state: 'DRAFT' },
+    })
+    await wrapper.vm.handleLifecycleAction({ action: 'create-draft' })
+    expect(definitionApi.createDraftRevision).toHaveBeenCalledWith(1, approved.id)
+    wrapper.unmount()
+  })
+
+  test('发布请求始终携带当前 APPROVED revision ID', async () => {
+    const approved = {
+      id: 8,
+      definitionId: 1,
+      revisionNo: 2,
+      state: 'APPROVED',
+    }
+    const draft = {
+      id: 9,
+      definitionId: 1,
+      revisionNo: 3,
+      state: 'DRAFT',
+    }
+    const wrapper = await mountAndWait(undefined, [draft, approved])
+    wrapper.vm.lifecycleRevisionId = approved.id
+    await nextTick()
+    definitionApi.publishRuleRevision.mockResolvedValueOnce({})
+    await wrapper.vm.handleLifecycleAction({ action: 'publish' })
+    expect(definitionApi.publishRuleRevision).toHaveBeenCalledWith(
+      1,
+      approved.id,
+      expect.any(Object)
+    )
+    wrapper.unmount()
   })
 })
 
@@ -66,14 +147,21 @@ function makeSlotStub(tag) {
   }
 }
 
-async function mountAndWait(content = { modelJson: '{}', openApiConfigJson: null }) {
-  // load() 先调用 refreshFields 重新解析字段，再调用 getDefinitionDetail 获取详情
-  definitionApi.refreshFields.mockResolvedValueOnce({ data: {} })
+async function mountAndWait(
+  content = { modelJson: '{}', openApiConfigJson: null },
+  revisions = [
+    {
+      id: 5,
+      definitionId: 1,
+      revisionNo: 1,
+      state: 'DRAFT',
+      lockVersion: 0,
+    },
+  ]
+) {
   definitionApi.getDefinitionDetail.mockResolvedValueOnce({ data: mockRuleDetail(1) })
   definitionApi.getContent.mockResolvedValueOnce({ data: content })
-  definitionApi.listRuleRevisions.mockResolvedValueOnce({ data: [{
-    id: 5, definitionId: 1, revisionNo: 1, state: 'DRAFT'
-  }] })
+  definitionApi.listRuleRevisions.mockResolvedValueOnce({ data: revisions })
   definitionApi.getRuleLifecycleTimeline.mockResolvedValueOnce({ data: [] })
   variableApi.listVariablesByProject.mockResolvedValueOnce({ data: mockVariables() })
   variableApi.listVariables.mockResolvedValueOnce({ data: { records: [] } })
@@ -264,7 +352,19 @@ describe('RuleDetail — 开放接口契约', () => {
       responseHeaders: { 'X-Business-Code': '${status.code}' }
     }
     const wrapper = await mountAndWait({ modelJson: '{"type":"table"}', openApiConfigJson: JSON.stringify(contract) })
-    definitionApi.saveContent.mockResolvedValueOnce({})
+    definitionApi.saveContent.mockResolvedValueOnce({
+      data: {
+        revision: {
+          id: 5,
+          definitionId: 1,
+          revisionNo: 1,
+          state: 'DRAFT',
+          lockVersion: 1,
+        },
+        issues: [],
+        compileSuccess: true,
+      },
+    })
 
     expect(wrapper.vm.openApiForm.requestMappings[0].targetKey).toBe('VARIABLE:1')
     expect(wrapper.vm.openApiForm.responseMappings[0].sourceKey).toBe('VARIABLE:3')
@@ -273,6 +373,12 @@ describe('RuleDetail — 开放接口契约', () => {
 
     const payload = definitionApi.saveContent.mock.calls[0][0]
     const saved = JSON.parse(payload.openApiConfigJson)
+    expect(payload).toEqual(expect.objectContaining({
+      definitionId: 1,
+      revisionId: 5,
+      lockVersion: 0,
+    }))
+    expect(wrapper.vm.activeRevision.lockVersion).toBe(1)
     expect(payload.modelJson).toBe('{"type":"table"}')
     expect(saved.requestMappings[0]).toEqual(expect.objectContaining({
       targetVarId: 1,

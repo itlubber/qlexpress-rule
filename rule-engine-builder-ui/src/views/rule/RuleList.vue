@@ -194,16 +194,31 @@
       <el-table-column prop="updateTime" label="更新时间" min-width="160" />
       <el-table-column label="操作" width="250" align="center" fixed="right">
         <template v-slot="{ row }">
-          <el-button link size="small" @click="handleDetail(row)"
-            >详情</el-button
-          >
-          <el-button link size="small" @click="handleDesign(row)"
-            >设计</el-button
-          >
-          <el-button link size="small" @click="handleGovernance(row)">生命周期</el-button>
           <el-button
             link
             size="small"
+            type="primary"
+            @click="handleDetail(row)"
+            >详情</el-button
+          >
+          <el-button
+            link
+            size="small"
+            type="warning"
+            @click="handleDesign(row)"
+            >设计</el-button
+          >
+          <el-button
+            link
+            size="small"
+            type="info"
+            @click="handleGovernance(row)"
+            >生命周期</el-button
+          >
+          <el-button
+            link
+            size="small"
+            type="danger"
             class="btn-delete"
             @click="handleDelete(row)"
             >删除</el-button

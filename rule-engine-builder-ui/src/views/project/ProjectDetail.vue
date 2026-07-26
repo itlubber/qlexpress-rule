@@ -184,13 +184,16 @@
       </el-table-column>
       <el-table-column label="操作" width="180" align="center" fixed="right">
         <template v-slot="{ row }">
-          <el-button link size="small" @click="go(row)">设计</el-button>
-          <el-button link size="small" @click="pub(row)">{{
+          <el-button link size="small" type="warning" @click="go(row)"
+            >设计</el-button
+          >
+          <el-button link size="small" type="success" @click="pub(row)">{{
             row.status === 1 ? '重新发布' : '发布'
           }}</el-button>
           <el-button
             link
             size="small"
+            type="warning"
             v-if="row.status === 1"
             @click="unpub(row)"
             >下线</el-button
@@ -198,6 +201,7 @@
           <el-button
             link
             size="small"
+            type="danger"
             class="btn-delete"
             @click="del(row)"
             >删除</el-button
@@ -363,7 +367,11 @@
         </el-table-column>
         <el-table-column label="操作" width="80" align="center">
           <template v-slot="{ row }">
-            <el-button link size="small" @click="addGlobalToProject(row)"
+            <el-button
+              link
+              size="small"
+              type="success"
+              @click="addGlobalToProject(row)"
               >添加</el-button
             >
           </template>

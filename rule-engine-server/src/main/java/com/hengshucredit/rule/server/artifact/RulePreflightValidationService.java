@@ -13,6 +13,7 @@ import com.hengshucredit.rule.server.mapper.RulePublishedMapper;
 import com.hengshucredit.rule.server.mapper.RuleRevisionMapper;
 import com.hengshucredit.rule.server.service.RuleCompileService;
 import com.hengshucredit.rule.server.service.RuleDefinitionService;
+import com.hengshucredit.rule.server.service.RuleFieldAnalyzer;
 import com.hengshucredit.rule.server.service.RuleReferenceIntegrityService;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
@@ -37,6 +38,8 @@ public class RulePreflightValidationService {
     private RuleCompileService compileService;
     @Resource
     private RuleDependencyClosureService dependencyClosureService;
+    @Resource
+    private RuleFieldAnalyzer ruleFieldAnalyzer;
 
     private final RuleSchemaService schemaService = new RuleSchemaService();
     private final RuleSchemaCompatibilityService compatibilityService =
@@ -58,6 +61,10 @@ public class RulePreflightValidationService {
             return report;
         }
 
+        RuleFieldAnalyzer.ResolvedFields fields = resolveFields(definition, revision);
+        fields.getDiagnostics().forEach(issue -> issue.setRevisionId(revision.getId()));
+        fields.getDiagnostics().forEach(issue -> addIssue(report, issue));
+
         RuleReferenceIntegrityService.AuditReport audit = auditReferences(definition, revision);
         for (RuleReferenceIntegrityService.ReferenceIssue issue : audit.getIssues()) {
             report.getErrors().add(RuleValidationIssue.error("REFERENCE_" + issue.getReason(),
@@ -73,7 +80,8 @@ public class RulePreflightValidationService {
             report.setCompiledType(compileResult.getCompiledType());
         }
 
-        RuleDependencyClosureService.DependencyClosure closure = resolveDependencies(definition, revision);
+        RuleDependencyClosureService.DependencyClosure closure =
+                resolveDependencies(definition, revision, fields);
         report.setDependencyDigest(closure.getDependencyDigest());
         for (RuleValidationIssue issue : closure.getIssues()) {
             addIssue(report, issue);
@@ -81,13 +89,15 @@ public class RulePreflightValidationService {
 
         RuleSchemaService.SchemaSnapshot schemas;
         try {
-            schemas = schemaService.build(loadInputFields(definition.getId()),
-                    loadOutputFields(definition.getId()));
+            schemas = schemaService.build(fields.getInputFields(), fields.getOutputFields(),
+                    propertySchemas(fields.getInputPropertySchemas()),
+                    propertySchemas(fields.getOutputPropertySchemas()));
             report.setInputSchemaJson(schemas.getInputSchemaJson());
             report.setOutputSchemaJson(schemas.getOutputSchemaJson());
         } catch (IllegalArgumentException e) {
             report.getErrors().add(RuleValidationIssue.error("SCHEMA_INVALID", "$", e.getMessage()));
-            schemas = schemaService.build(Collections.emptyList(), Collections.emptyList());
+            schemas = schemaService.build(Collections.emptyList(), Collections.emptyList(),
+                    Collections.emptyMap(), Collections.emptyMap());
             report.setInputSchemaJson(schemas.getInputSchemaJson());
             report.setOutputSchemaJson(schemas.getOutputSchemaJson());
         }
@@ -141,6 +151,78 @@ public class RulePreflightValidationService {
         return value == null || value.isBlank();
     }
 
+    private Map<String, Map<String, Object>> propertySchemas(Map<String, Object> schemas) {
+        if (schemas == null || schemas.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<String, Map<String, Object>> result = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : schemas.entrySet()) {
+            String fieldName = entry.getKey();
+            if (fieldName == null || fieldName.isBlank()) {
+                throw new IllegalArgumentException("Schema 覆盖字段名不能为空");
+            }
+            Object value = entry.getValue();
+            if (value instanceof Map<?, ?> map) {
+                result.put(fieldName, deepCopySchemaMap(map));
+            } else if (value instanceof String type) {
+                result.put(fieldName, schemaForRuleType(type));
+            } else {
+                throw new IllegalArgumentException("Schema 覆盖必须是对象或已知字段类型: " + fieldName);
+            }
+        }
+        return result;
+    }
+
+    private Map<String, Object> schemaForRuleType(String ruleType) {
+        if (ruleType == null || ruleType.isBlank()) {
+            throw new IllegalArgumentException("Schema 字段类型不能为空");
+        }
+        String normalized = ruleType.toUpperCase(java.util.Locale.ROOT);
+        Map<String, Object> schema = new LinkedHashMap<>();
+        String jsonType = switch (normalized) {
+            case "INTEGER", "LONG", "SHORT", "BYTE" -> "integer";
+            case "NUMBER", "DOUBLE", "FLOAT", "DECIMAL", "BIGDECIMAL" -> "number";
+            case "BOOLEAN", "BOOL" -> "boolean";
+            case "ARRAY", "LIST", "SET" -> "array";
+            case "OBJECT", "MAP" -> "object";
+            case "STRING", "DATE", "DATETIME", "LOCALDATETIME" -> "string";
+            default -> throw new IllegalArgumentException("未知的 Schema 字段类型: " + ruleType);
+        };
+        schema.put("type", jsonType);
+        if ("DATE".equals(normalized)) {
+            schema.put("format", "date");
+        } else if ("DATETIME".equals(normalized) || "LOCALDATETIME".equals(normalized)) {
+            schema.put("format", "date-time");
+        }
+        schema.put("x-rule-type", ruleType);
+        return schema;
+    }
+
+    private Map<String, Object> deepCopySchemaMap(Map<?, ?> source) {
+        Map<String, Object> copy = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : source.entrySet()) {
+            if (!(entry.getKey() instanceof String key)) {
+                throw new IllegalArgumentException("Schema 覆盖对象键必须是字符串");
+            }
+            copy.put(key, deepCopySchemaValue(entry.getValue()));
+        }
+        return copy;
+    }
+
+    private Object deepCopySchemaValue(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            return deepCopySchemaMap(map);
+        }
+        if (value instanceof List<?> list) {
+            List<Object> copy = new ArrayList<>(list.size());
+            for (Object item : list) {
+                copy.add(deepCopySchemaValue(item));
+            }
+            return copy;
+        }
+        return value;
+    }
+
     protected RuleRevision loadRevision(Long revisionId) {
         return revisionMapper.selectById(revisionId);
     }
@@ -173,9 +255,16 @@ public class RulePreflightValidationService {
         return compileService.compilePreview(definition.getId(), revision.getModelJson(), definition.getModelType());
     }
 
-    protected RuleDependencyClosureService.DependencyClosure resolveDependencies(
+    protected RuleFieldAnalyzer.ResolvedFields resolveFields(
             RuleDefinition definition, RuleRevision revision) {
-        return dependencyClosureService.resolve(definition.getId(), revision.getId());
+        return ruleFieldAnalyzer.resolveFields(null, revision.getModelJson(),
+                definition.getModelType(), definition.getProjectId());
+    }
+
+    protected RuleDependencyClosureService.DependencyClosure resolveDependencies(
+            RuleDefinition definition, RuleRevision revision,
+            RuleFieldAnalyzer.ResolvedFields fields) {
+        return dependencyClosureService.resolve(definition.getId(), revision.getId(), fields);
     }
 
     protected List<RuleDefinitionInputField> loadInputFields(Long definitionId) {

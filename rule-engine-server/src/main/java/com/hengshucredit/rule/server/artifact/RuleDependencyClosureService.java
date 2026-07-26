@@ -31,6 +31,7 @@ import com.hengshucredit.rule.server.mapper.RuleRevisionMapper;
 import com.hengshucredit.rule.server.mapper.RuleVariableMapper;
 import com.hengshucredit.rule.server.service.OperandDependencyCollector;
 import com.hengshucredit.rule.server.service.RuleDefinitionService;
+import com.hengshucredit.rule.server.service.RuleFieldAnalyzer;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
@@ -70,8 +71,15 @@ public class RuleDependencyClosureService {
     private RuleDataObjectMapper dataObjectMapper;
     @Resource
     private RulePublishedMapper publishedMapper;
+    @Resource
+    private PublishedRuleFieldSnapshotResolver publishedFieldSnapshotResolver;
 
     public DependencyClosure resolve(Long definitionId, Long revisionId) {
+        return resolve(definitionId, revisionId, null);
+    }
+
+    public DependencyClosure resolve(Long definitionId, Long revisionId,
+                                     RuleFieldAnalyzer.ResolvedFields rootFields) {
         List<RuleValidationIssue> issues = new ArrayList<>();
         Map<String, ArtifactDependency> dependencies = new TreeMap<>();
         RuleRevision revision = revisionId == null ? null : loadRevision(revisionId);
@@ -83,12 +91,13 @@ public class RuleDependencyClosureService {
             issues.add(RuleValidationIssue.error("REVISION_DEFINITION_MISMATCH", "$", "修订不属于指定规则"));
             return DependencyClosure.of(Collections.emptyList(), issues);
         }
-        collectDefinition(definitionId, revision, dependencies, issues,
+        collectDefinition(definitionId, revision, rootFields, dependencies, issues,
                 new LinkedHashSet<>(), new LinkedHashSet<>());
         return DependencyClosure.of(new ArrayList<>(dependencies.values()), issues);
     }
 
     private void collectDefinition(Long definitionId, RuleRevision revision,
+                                   RuleFieldAnalyzer.ResolvedFields resolvedFields,
                                    Map<String, ArtifactDependency> dependencies,
                                    List<RuleValidationIssue> issues,
                                    Set<Long> visitingRules, Set<Long> visitedRules) {
@@ -124,8 +133,15 @@ public class RuleDependencyClosureService {
                 visitingRules.remove(definitionId);
                 return;
             }
+            resolvedFields = resolvePublishedFields(published);
+            issues.addAll(resolvedFields.getDiagnostics());
+            if (resolvedFields.getDiagnostics().stream()
+                    .anyMatch(issue -> "ERROR".equals(issue.getSeverity()))) {
+                visitingRules.remove(definitionId);
+                return;
+            }
             modelJson = published.getModelJson();
-            addRuleSnapshot(definition, published, dependencies);
+            addRuleSnapshot(definition, published, resolvedFields, dependencies);
         }
         if (modelJson == null || modelJson.isBlank()) {
             issues.add(RuleValidationIssue.error("EMPTY_RULE_CONTENT", "$", "RULE", definitionId,
@@ -134,14 +150,21 @@ public class RuleDependencyClosureService {
             collectStructuredReferences(modelJson, definition.getProjectId(), dependencies,
                     issues, visitingRules, visitedRules);
         }
-        for (RuleDefinitionInputField field : safe(loadInputFields(definitionId))) {
+        List<RuleDefinitionInputField> inputFields = resolvedFields == null
+                ? loadInputFields(definitionId) : resolvedFields.getInputFields();
+        for (RuleDefinitionInputField field : safe(inputFields)) {
             if (active(field.getStatus())) {
                 collectFieldReference(field.getRefType(), field.getVarId(), definition.getProjectId(),
                         "input." + field.getFieldName(), dependencies, issues);
             }
         }
-        for (RuleDefinitionOutputField field : safe(loadOutputFields(definitionId))) {
+        List<RuleDefinitionOutputField> outputFields = resolvedFields == null
+                ? loadOutputFields(definitionId) : resolvedFields.getOutputFields();
+        for (RuleDefinitionOutputField field : safe(outputFields)) {
             if (active(field.getStatus())) {
+                if (resolvedFields != null && resolvedFields.isLocalOutput(field)) {
+                    continue;
+                }
                 collectFieldReference(field.getRefType(), field.getVarId(), definition.getProjectId(),
                         "output." + field.getFieldName(), dependencies, issues);
             }
@@ -180,7 +203,7 @@ public class RuleDependencyClosureService {
                     issues.add(RuleValidationIssue.error("MISSING_RULE_ID", reference.getPath(),
                             "规则调用缺少 ruleId，禁止通过规则编码关联"));
                 } else {
-                    collectDefinition(reference.getRefId(), null, dependencies, issues,
+                    collectDefinition(reference.getRefId(), null, null, dependencies, issues,
                             visitingRules, visitedRules);
                 }
             } else {
@@ -480,18 +503,20 @@ public class RuleDependencyClosureService {
     }
 
     private void addRuleSnapshot(RuleDefinition definition, RulePublished published,
+                                 RuleFieldAnalyzer.ResolvedFields resolvedFields,
                                  Map<String, ArtifactDependency> dependencies) {
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("definitionId", definition.getId());
         snapshot.put("ruleCode", published.getRuleCode());
-        snapshot.put("ruleName", definition.getRuleName());
-        snapshot.put("modelType", definition.getModelType());
+        if (resolvedFields.getSnapshotModelType() != null) {
+            snapshot.put("modelType", resolvedFields.getSnapshotModelType());
+        }
         snapshot.put("version", published.getVersion());
         snapshot.put("modelJson", published.getModelJson());
         snapshot.put("compiledScript", published.getCompiledScript());
         snapshot.put("compiledType", published.getCompiledType());
-        snapshot.put("inputFields", beanMaps(loadInputFields(definition.getId())));
-        snapshot.put("outputFields", beanMaps(loadOutputFields(definition.getId())));
+        snapshot.put("inputFields", beanMaps(resolvedFields.getInputFields()));
+        snapshot.put("outputFields", beanMaps(resolvedFields.getOutputFields()));
         Integer version = published.getVersion();
         String componentId = "RULE:" + definition.getId() + ":" + (version == null ? 0 : version);
         addJsonDependency(componentId, "RULE", definition.getId(), version,
@@ -577,6 +602,21 @@ public class RuleDependencyClosureService {
                 .eq(RulePublished::getDefinitionId, definitionId)
                 .eq(RulePublished::getStatus, 1)
                 .last("LIMIT 1"));
+    }
+
+    protected RuleFieldAnalyzer.ResolvedFields resolvePublishedFields(RulePublished published) {
+        if (publishedFieldSnapshotResolver == null) {
+            RuleValidationIssue issue = RuleValidationIssue.error(
+                    "FROZEN_REVISION_FIELD_SNAPSHOT_MISSING", "$.ruleFields",
+                    "RULE", published == null ? null : published.getDefinitionId(),
+                    "已发布规则字段快照解析器不可用")
+                    .withRevisionId(published == null ? null : published.getRevisionId());
+            return new RuleFieldAnalyzer.ResolvedFields(
+                    Collections.emptyList(), Collections.emptyList(),
+                    Collections.singletonList(issue), Collections.emptySet(),
+                    Collections.emptyMap(), Collections.emptyMap());
+        }
+        return publishedFieldSnapshotResolver.resolve(published);
     }
 
     protected RuleDefinitionContent loadContent(Long definitionId) {

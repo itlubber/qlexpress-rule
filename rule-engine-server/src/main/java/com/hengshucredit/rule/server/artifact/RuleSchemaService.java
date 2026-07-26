@@ -4,6 +4,7 @@ import com.hengshucredit.rule.model.entity.RuleDefinitionInputField;
 import com.hengshucredit.rule.model.entity.RuleDefinitionOutputField;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -15,6 +16,15 @@ public class RuleSchemaService {
 
     public SchemaSnapshot build(List<RuleDefinitionInputField> inputFields,
                                 List<RuleDefinitionOutputField> outputFields) {
+        return build(inputFields, outputFields,
+                Collections.emptyMap(), Collections.emptyMap());
+    }
+
+    public SchemaSnapshot build(
+            List<RuleDefinitionInputField> inputFields,
+            List<RuleDefinitionOutputField> outputFields,
+            Map<String, Map<String, Object>> inputOverrides,
+            Map<String, Map<String, Object>> outputOverrides) {
         Map<String, Object> inputProperties = new TreeMap<>();
         List<String> requiredInputs = new ArrayList<>();
         if (inputFields != null) {
@@ -22,7 +32,9 @@ public class RuleSchemaService {
                 if (!active(field.getStatus())) {
                     continue;
                 }
-                putExactField(inputProperties, field.getFieldName(), field.getFieldLabel(), field.getFieldType());
+                putExactField(inputProperties, field.getFieldName(),
+                        field.getFieldLabel(), field.getFieldType(),
+                        override(inputOverrides, field.getFieldName()));
                 if (field.getDefaultValue() == null || field.getDefaultValue().isBlank()) {
                     requiredInputs.add(field.getFieldName());
                 }
@@ -36,7 +48,9 @@ public class RuleSchemaService {
                 if (!active(field.getStatus())) {
                     continue;
                 }
-                putExactField(outputProperties, field.getFieldName(), field.getFieldLabel(), field.getFieldType());
+                putExactField(outputProperties, field.getFieldName(),
+                        field.getFieldLabel(), field.getFieldType(),
+                        override(outputOverrides, field.getFieldName()));
                 requiredOutputs.add(field.getFieldName());
             }
         }
@@ -47,17 +61,24 @@ public class RuleSchemaService {
     }
 
     private void putExactField(Map<String, Object> properties, String fieldName,
-                               String fieldLabel, String fieldType) {
+                               String fieldLabel, String fieldType,
+                               Map<String, Object> override) {
         if (fieldName == null || fieldName.isBlank()) {
             throw new IllegalArgumentException("Schema 字段名不能为空");
         }
-        Map<String, Object> property = property(fieldType);
+        Map<String, Object> property = override == null
+                ? property(fieldType) : deepCopyMap(override);
         if (fieldLabel != null && !fieldLabel.isBlank()) {
-            property.put("title", fieldLabel);
+            property.putIfAbsent("title", fieldLabel);
         }
         if (properties.put(fieldName, property) != null) {
             throw new IllegalArgumentException("Schema 字段名重复: " + fieldName);
         }
+    }
+
+    private Map<String, Object> override(
+            Map<String, Map<String, Object>> overrides, String fieldName) {
+        return overrides == null || fieldName == null ? null : overrides.get(fieldName);
     }
 
     private Map<String, Object> property(String fieldType) {
@@ -95,21 +116,44 @@ public class RuleSchemaService {
         return status == null || status != 0;
     }
 
+    @SuppressWarnings("unchecked")
+    private static <T> T deepCopy(T value) {
+        if (value instanceof Map) {
+            Map<Object, Object> copy = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+                copy.put(entry.getKey(), deepCopy(entry.getValue()));
+            }
+            return (T) copy;
+        }
+        if (value instanceof List) {
+            List<Object> copy = new ArrayList<>();
+            for (Object item : (List<?>) value) {
+                copy.add(deepCopy(item));
+            }
+            return (T) copy;
+        }
+        return value;
+    }
+
+    private static Map<String, Object> deepCopyMap(Map<String, Object> value) {
+        return value == null ? new LinkedHashMap<>() : deepCopy(value);
+    }
+
     public static final class SchemaSnapshot {
         private final Map<String, Object> inputSchema;
         private final Map<String, Object> outputSchema;
 
         private SchemaSnapshot(Map<String, Object> inputSchema, Map<String, Object> outputSchema) {
-            this.inputSchema = inputSchema;
-            this.outputSchema = outputSchema;
+            this.inputSchema = deepCopyMap(inputSchema);
+            this.outputSchema = deepCopyMap(outputSchema);
         }
 
         public Map<String, Object> getInputSchema() {
-            return inputSchema;
+            return deepCopyMap(inputSchema);
         }
 
         public Map<String, Object> getOutputSchema() {
-            return outputSchema;
+            return deepCopyMap(outputSchema);
         }
 
         public String getInputSchemaJson() {

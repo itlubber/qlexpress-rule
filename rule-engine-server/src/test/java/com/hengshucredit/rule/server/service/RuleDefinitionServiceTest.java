@@ -6,13 +6,20 @@ import com.hengshucredit.rule.model.entity.RuleDefinitionContent;
 import com.hengshucredit.rule.model.entity.RuleDefinitionInputField;
 import com.hengshucredit.rule.model.entity.RuleDefinitionOutputField;
 import com.hengshucredit.rule.model.entity.RuleDefinitionVersion;
+import com.hengshucredit.rule.model.entity.RuleRevision;
 import com.hengshucredit.rule.model.dto.RuleQueryDTO;
+import com.hengshucredit.rule.model.dto.RuleDraftSaveRequest;
+import com.hengshucredit.rule.model.dto.RuleDraftSaveResponse;
+import com.hengshucredit.rule.model.dto.RuleValidationIssue;
 import com.hengshucredit.rule.server.mapper.RuleDefinitionContentMapper;
 import com.hengshucredit.rule.server.mapper.RuleDefinitionInputFieldMapper;
 import com.hengshucredit.rule.server.mapper.RuleDefinitionMapper;
 import com.hengshucredit.rule.server.mapper.RuleDefinitionOutputFieldMapper;
 import com.hengshucredit.rule.server.mapper.RuleDefinitionRefMapper;
 import com.hengshucredit.rule.server.mapper.RuleDefinitionVersionMapper;
+import com.hengshucredit.rule.server.common.RuleGovernanceException;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import org.junit.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -196,20 +203,21 @@ public class RuleDefinitionServiceTest {
         RuleDefinitionVersion snapshot = version(2, "{\"rules\":[]}", "return 2;");
         snapshot.setCompiledType("QL");
         snapshot.setOpenApiConfigJson("{\"enabled\":true}");
-        RecordingRuleFieldAnalyzer analyzer = new RecordingRuleFieldAnalyzer();
+        RuleRevision draft = new RuleRevision();
+        draft.setId(6L);
+        draft.setDefinitionId(10L);
+        draft.setState("DRAFT");
+        draft.setLockVersion(2);
         final RuleDefinitionContent[] updatedContent = {null};
-        final RuleDefinition[] updatedDefinition = {null};
+        final RuleDraftSaveRequest[] savedRequest = {null};
 
         ReflectionTestUtils.setField(service, "baseMapper", mapper(RuleDefinitionMapper.class, (proxy, method, args) -> {
             if ("selectById".equals(method.getName())) return definition;
-            if ("updateById".equals(method.getName())) {
-                updatedDefinition[0] = (RuleDefinition) args[0];
-                return 1;
-            }
             return defaultValue(method.getReturnType());
         }));
         ReflectionTestUtils.setField(service, "contentMapper", mapper(RuleDefinitionContentMapper.class, (proxy, method, args) -> {
             if ("selectOne".equals(method.getName())) return content;
+            if ("selectList".equals(method.getName())) return Collections.emptyList();
             if ("updateById".equals(method.getName())) {
                 updatedContent[0] = (RuleDefinitionContent) args[0];
                 return 1;
@@ -220,55 +228,124 @@ public class RuleDefinitionServiceTest {
             if ("selectOne".equals(method.getName())) return snapshot;
             return defaultValue(method.getReturnType());
         }));
-        ReflectionTestUtils.setField(service, "fieldAnalyzer", analyzer);
+        ReflectionTestUtils.setField(service, "lifecycleService",
+                new RuleLifecycleService() {
+                    @Override
+                    public RuleRevision createDraft(
+                            Long definitionId, Long baseRevisionId) {
+                        return draft;
+                    }
+                });
+        ReflectionTestUtils.setField(service, "ruleDraftService",
+                new RuleDraftService() {
+                    @Override
+                    public RuleDraftSaveResponse save(
+                            RuleDraftSaveRequest request) {
+                        savedRequest[0] = request;
+                        return new RuleDraftSaveResponse();
+                    }
+                });
 
         service.rollbackToVersion(10L, 2);
 
+        assertEquals(Long.valueOf(10L), savedRequest[0].getDefinitionId());
+        assertEquals(Long.valueOf(6L), savedRequest[0].getRevisionId());
+        assertEquals(Integer.valueOf(2), savedRequest[0].getLockVersion());
+        assertEquals("{\"rules\":[]}", savedRequest[0].getModelJson());
+        assertEquals("{\"enabled\":true}",
+                savedRequest[0].getOpenApiConfigJson());
+        assertEquals(Boolean.TRUE,
+                savedRequest[0].getUpdateOpenApiConfig());
         assertSame(content, updatedContent[0]);
-        assertEquals("{\"rules\":[]}", updatedContent[0].getModelJson());
-        assertEquals("return 2;", updatedContent[0].getCompiledScript());
-        assertEquals("QL", updatedContent[0].getCompiledType());
-        assertEquals("{\"enabled\":true}", updatedContent[0].getOpenApiConfigJson());
-        assertEquals(Integer.valueOf(1), updatedContent[0].getCompileStatus());
         assertEquals("rollback to v2", updatedContent[0].getCompileMessage());
-        assertSame(definition, updatedDefinition[0]);
-        assertEquals(Integer.valueOf(4), updatedDefinition[0].getCurrentVersion());
-        assertEquals(Long.valueOf(10L), analyzer.definitionId);
-        assertEquals("{\"rules\":[]}", analyzer.modelJson);
-        assertEquals("DECISION_TABLE", analyzer.modelType);
-        assertEquals(Long.valueOf(7L), analyzer.projectId);
     }
 
     @Test
-    public void saveScriptStoresDraftWithoutMutatingPublishedArtifact() {
+    public void saveScriptDelegatesCallerSuppliedAtomicSaveContract() {
         RuleDefinitionService service = new RuleDefinitionService();
-        RuleDefinition definition = new RuleDefinition();
-        definition.setId(10L);
-        definition.setRuleCode("risk_rule");
-        definition.setModelType("SCRIPT");
-        definition.setStatus(1);
-        RuleDefinitionContent content = new RuleDefinitionContent();
-        content.setId(20L);
-        content.setDefinitionId(10L);
-        final RuleDefinitionContent[] updatedContent = {null};
+        final RuleDraftSaveRequest[] saved = {null};
+        ReflectionTestUtils.setField(service, "ruleDraftService",
+                new RuleDraftService() {
+                    @Override
+                    public RuleDraftSaveResponse save(
+                            RuleDraftSaveRequest request) {
+                        saved[0] = request;
+                        return new RuleDraftSaveResponse();
+                    }
+                });
+        RuleDraftSaveRequest request = new RuleDraftSaveRequest();
+        request.setDefinitionId(10L);
+        request.setRevisionId(6L);
+        request.setLockVersion(3);
+        request.setModelJson("{\"script\":\"score = amount * 2\","
+                + "\"scriptVarRefs\":[{\"varId\":9,"
+                + "\"refType\":\"VARIABLE\",\"refCode\":\"amount\"}]}");
 
-        ReflectionTestUtils.setField(service, "baseMapper", mapper(RuleDefinitionMapper.class, (proxy, method, args) -> {
-            if ("selectById".equals(method.getName())) return definition;
-            return defaultValue(method.getReturnType());
-        }));
-        ReflectionTestUtils.setField(service, "contentMapper", mapper(RuleDefinitionContentMapper.class, (proxy, method, args) -> {
-            if ("selectOne".equals(method.getName())) return content;
-            if ("updateById".equals(method.getName())) {
-                updatedContent[0] = (RuleDefinitionContent) args[0];
-                return 1;
-            }
-            return defaultValue(method.getReturnType());
-        }));
-        service.saveScript(10L, "score = amount * 2");
+        service.saveScript(request);
 
-        assertTrue(updatedContent[0].getCompiledScript().contains("\"score\": score"));
-        assertEquals(Integer.valueOf(1), updatedContent[0].getCompileStatus());
-        assertEquals("script", updatedContent[0].getScriptMode());
+        assertSame(request, saved[0]);
+        JSONObject model = JSON.parseObject(request.getModelJson());
+        assertEquals("score = amount * 2", model.getString("script"));
+        assertEquals(Long.valueOf(9L), model.getJSONArray("scriptVarRefs")
+                .getJSONObject(0).getLong("varId"));
+    }
+
+    @Test
+    public void legacySaveAndRefreshSignaturesRequireExplicitDraftContract() {
+        RuleDefinitionService service = new RuleDefinitionService();
+        ReflectionTestUtils.setField(service, "ruleDraftService",
+                new RuleDraftService() {
+                    @Override
+                    public RuleDraftSaveResponse save(
+                            RuleDraftSaveRequest request) {
+                        throw new AssertionError(
+                                "frozen revisions must not be saved");
+                    }
+                });
+
+        RuleGovernanceException saveError = org.junit.Assert.assertThrows(
+                RuleGovernanceException.class,
+                () -> service.saveContent(10L, "{}"));
+        RuleGovernanceException refreshError = org.junit.Assert.assertThrows(
+                RuleGovernanceException.class,
+                () -> service.refreshFields(10L, "{}", "SCRIPT"));
+        RuleGovernanceException scriptError = org.junit.Assert.assertThrows(
+                RuleGovernanceException.class,
+                () -> service.saveScript(10L, "score = 1"));
+
+        assertEquals(400, saveError.getHttpStatus());
+        assertEquals("DRAFT_SAVE_CONTRACT_REQUIRED",
+                saveError.getCode());
+        assertEquals("DRAFT_SAVE_CONTRACT_REQUIRED",
+                refreshError.getCode());
+        assertEquals("DRAFT_SAVE_CONTRACT_REQUIRED",
+                scriptError.getCode());
+    }
+
+    @Test
+    public void refreshFieldsDelegatesCompleteCallerSuppliedContract() {
+        RuleDefinitionService service = new RuleDefinitionService();
+        final RuleDraftSaveRequest[] saved = {null};
+        RuleDraftSaveResponse expected = new RuleDraftSaveResponse();
+        ReflectionTestUtils.setField(service, "ruleDraftService",
+                new RuleDraftService() {
+                    @Override
+                    public RuleDraftSaveResponse save(
+                            RuleDraftSaveRequest request) {
+                        saved[0] = request;
+                        return expected;
+                    }
+                });
+        RuleDraftSaveRequest request = new RuleDraftSaveRequest();
+        request.setDefinitionId(10L);
+        request.setRevisionId(6L);
+        request.setLockVersion(3);
+        request.setModelJson("{\"script\":\"score = 1\"}");
+
+        RuleDraftSaveResponse actual = service.refreshFields(request);
+
+        assertSame(expected, actual);
+        assertSame(request, saved[0]);
     }
 
     @Test

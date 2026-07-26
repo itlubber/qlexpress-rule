@@ -208,18 +208,31 @@
           </el-table-column>
           <el-table-column label="操作" width="180" align="center" fixed="right">
             <template v-slot="{ row }">
-              <el-button link size="small" @click="handleEdit(row)"
+              <el-button
+                link
+                size="small"
+                type="warning"
+                @click="handleEdit(row)"
                 >编辑</el-button
               >
-              <el-button link size="small" @click="handleTest(row)"
+              <el-button
+                link
+                size="small"
+                type="success"
+                @click="handleTest(row)"
                 >测试</el-button
               >
-              <el-button link size="small" @click="openQuery(row)"
+              <el-button
+                link
+                size="small"
+                type="primary"
+                @click="openQuery(row)"
                 >查询</el-button
               >
               <el-button
                 link
                 size="small"
+                type="danger"
                 class="btn-delete"
                 @click="handleDelete(row)"
                 >删除</el-button

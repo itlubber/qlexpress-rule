@@ -403,7 +403,11 @@
       </el-table-column>
       <el-table-column label="操作" width="80" align="center" fixed="right">
         <template v-slot="{ row }">
-          <el-button link size="small" @click="openDetail(row)"
+          <el-button
+            link
+            size="small"
+            type="primary"
+            @click="openDetail(row)"
             >详情</el-button
           >
         </template>

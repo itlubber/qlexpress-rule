@@ -215,6 +215,7 @@
                   <el-button
                     link
                     size="small"
+                    type="danger"
                     :icon="ElIconClose"
                     class="delete-row-btn"
                     aria-label="删除此行"
@@ -257,8 +258,8 @@
               <el-button
                 link
                 size="small"
+                type="primary"
                 :icon="ElIconPlus"
-                style="color: var(--el-color-primary)"
                 >添加行</el-button
               >
             </td>
@@ -860,12 +861,8 @@ export default {
 }
 .delete-row-btn {
   flex-shrink: 0;
-  color: #ccc !important;
   padding: 0 !important;
   font-size: 13px;
-  &:hover {
-    color: #f76e6c !important;
-  }
 }
 .data-cell {
   background: #fff;

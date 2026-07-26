@@ -124,7 +124,7 @@
                 :key="testCase.id"
                 class="fixed-case-row"
               >
-                <el-checkbox :label="testCase.id">{{
+                <el-checkbox :value="testCase.id">{{
                   testCase.scenarioName
                 }}</el-checkbox>
                 <el-button

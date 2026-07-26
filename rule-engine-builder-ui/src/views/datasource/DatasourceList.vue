@@ -198,21 +198,28 @@
               <el-button
                 link
                 size="small"
+                type="warning"
                 @click="handleEditDatasource(row)"
                 >编辑</el-button
               >
               <el-button
                 link
                 size="small"
+                type="success"
                 @click="handleTestDatasource(row)"
                 >测试</el-button
               >
-              <el-button link size="small" @click="handleCreateApi(row)"
+              <el-button
+                link
+                size="small"
+                type="primary"
+                @click="handleCreateApi(row)"
                 >加接口</el-button
               >
               <el-button
                 link
                 size="small"
+                type="danger"
                 class="btn-delete"
                 @click="handleDeleteDatasource(row)"
                 >删除</el-button
@@ -403,15 +410,24 @@
           </el-table-column>
           <el-table-column label="操作" width="120" align="center" fixed="right">
             <template v-slot="{ row }">
-              <el-button link size="small" @click="handleEditApi(row)"
+              <el-button
+                link
+                size="small"
+                type="warning"
+                @click="handleEditApi(row)"
                 >编辑</el-button
               >
-              <el-button link size="small" @click="handleInvokeApi(row)"
+              <el-button
+                link
+                size="small"
+                type="success"
+                @click="handleInvokeApi(row)"
                 >测试</el-button
               >
               <el-button
                 link
                 size="small"
+                type="danger"
                 class="btn-delete"
                 @click="handleDeleteApi(row)"
                 >删除</el-button

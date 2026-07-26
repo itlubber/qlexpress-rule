@@ -7,6 +7,7 @@ import com.hengshucredit.rule.model.entity.RuleDefinitionOutputField;
 import com.hengshucredit.rule.model.entity.RuleDataObject;
 import com.hengshucredit.rule.model.entity.RuleDataObjectField;
 import com.hengshucredit.rule.model.entity.RuleExternalApiConfig;
+import com.hengshucredit.rule.model.entity.RuleExternalDatasource;
 import com.hengshucredit.rule.model.entity.RuleModel;
 import com.hengshucredit.rule.model.entity.RuleModelInputField;
 import com.hengshucredit.rule.model.entity.RuleModelOutputField;
@@ -16,9 +17,11 @@ import com.hengshucredit.rule.server.mapper.RuleDataObjectMapper;
 import com.hengshucredit.rule.server.mapper.RuleDefinitionInputFieldMapper;
 import com.hengshucredit.rule.server.mapper.RuleDefinitionOutputFieldMapper;
 import com.hengshucredit.rule.server.mapper.RuleExternalApiConfigMapper;
+import com.hengshucredit.rule.server.mapper.RuleExternalDatasourceMapper;
 import com.hengshucredit.rule.server.mapper.RuleModelMapper;
 import com.hengshucredit.rule.server.mapper.RuleModelOutputFieldMapper;
 import com.hengshucredit.rule.server.mapper.RuleVariableMapper;
+import com.hengshucredit.rule.server.artifact.PublishedRuleFieldSnapshotResolver;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.apache.ibatis.session.Configuration;
 import org.junit.Test;
@@ -34,6 +37,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
@@ -44,6 +48,121 @@ import static org.junit.Assert.assertTrue;
 public class RuleFieldAnalyzerTest {
 
     private final RuleFieldAnalyzer analyzer = new RuleFieldAnalyzer();
+
+    @Test
+    public void persistResolvedFieldsReplacesProjectionWithoutResolvingAgain()
+            throws Exception {
+        List<String> writes = new ArrayList<>();
+        List<RuleDefinitionInputField> insertedInputs = new ArrayList<>();
+        List<RuleDefinitionOutputField> insertedOutputs = new ArrayList<>();
+        setField(analyzer, "inputFieldMapper",
+                mapper(RuleDefinitionInputFieldMapper.class,
+                        (proxy, method, args) -> {
+                            if ("delete".equals(method.getName())) {
+                                writes.add("delete-inputs");
+                                return 1;
+                            }
+                            if ("insert".equals(method.getName())) {
+                                writes.add("insert-input");
+                                insertedInputs.add(
+                                        (RuleDefinitionInputField) args[0]);
+                                return 1;
+                            }
+                            return null;
+                        }));
+        setField(analyzer, "outputFieldMapper",
+                mapper(RuleDefinitionOutputFieldMapper.class,
+                        (proxy, method, args) -> {
+                            if ("delete".equals(method.getName())) {
+                                writes.add("delete-outputs");
+                                return 1;
+                            }
+                            if ("insert".equals(method.getName())) {
+                                writes.add("insert-output");
+                                insertedOutputs.add(
+                                        (RuleDefinitionOutputField) args[0]);
+                                return 1;
+                            }
+                            return null;
+                        }));
+        RuleDefinitionInputField input = new RuleDefinitionInputField();
+        input.setFieldName("request.score");
+        input.setScriptName("request.score");
+        input.setVarId(91L);
+        input.setRefType("DATA_OBJECT");
+        RuleDefinitionOutputField output =
+                new RuleDefinitionOutputField();
+        output.setFieldName("decision");
+        output.setScriptName("decision");
+        RuleFieldAnalyzer.ResolvedFields fields =
+                new RuleFieldAnalyzer.ResolvedFields(
+                        Collections.singletonList(input),
+                        Collections.singletonList(output));
+
+        analyzer.persistResolvedFields(30L, fields);
+
+        assertEquals(Arrays.asList("delete-inputs", "delete-outputs",
+                "insert-input", "insert-output"), writes);
+        assertEquals(Long.valueOf(91L), insertedInputs.get(0).getVarId());
+        assertEquals("request.score",
+                insertedInputs.get(0).getScriptName());
+        assertEquals(Long.valueOf(30L),
+                insertedInputs.get(0).getDefinitionId());
+        assertEquals(Integer.valueOf(0),
+                insertedInputs.get(0).getSortOrder());
+        assertEquals("decision",
+                insertedOutputs.get(0).getScriptName());
+    }
+
+    @Test
+    public void persistResolvedFieldsRejectsZeroInputInsert()
+            throws Exception {
+        RuleFieldAnalyzer target = new RuleFieldAnalyzer();
+        setField(target, "inputFieldMapper",
+                mapper(RuleDefinitionInputFieldMapper.class,
+                        (proxy, method, args) -> "insert".equals(
+                                method.getName()) ? 0 : 1));
+        setField(target, "outputFieldMapper",
+                mapper(RuleDefinitionOutputFieldMapper.class,
+                        (proxy, method, args) -> 1));
+        RuleDefinitionInputField input =
+                new RuleDefinitionInputField();
+        input.setFieldName("score");
+
+        IllegalStateException error = org.junit.Assert.assertThrows(
+                IllegalStateException.class,
+                () -> target.persistResolvedFields(
+                        30L, new RuleFieldAnalyzer.ResolvedFields(
+                                Collections.singletonList(input),
+                                Collections.emptyList())));
+
+        assertTrue(error.getMessage().contains("输入字段"));
+    }
+
+    @Test
+    public void persistResolvedFieldsRejectsZeroOutputInsert()
+            throws Exception {
+        RuleFieldAnalyzer target = new RuleFieldAnalyzer();
+        setField(target, "inputFieldMapper",
+                mapper(RuleDefinitionInputFieldMapper.class,
+                        (proxy, method, args) -> 1));
+        setField(target, "outputFieldMapper",
+                mapper(RuleDefinitionOutputFieldMapper.class,
+                        (proxy, method, args) -> "insert".equals(
+                                method.getName()) ? 0 : 1));
+        RuleDefinitionOutputField output =
+                new RuleDefinitionOutputField();
+        output.setFieldName("decision");
+
+        IllegalStateException error = org.junit.Assert.assertThrows(
+                IllegalStateException.class,
+                () -> target.persistResolvedFields(
+                        30L, new RuleFieldAnalyzer.ResolvedFields(
+                                Collections.emptyList(),
+                                Collections.singletonList(output))));
+
+        assertTrue(error.getMessage().contains("输出字段"));
+    }
 
     @Test
     @SuppressWarnings("unchecked")
@@ -144,7 +263,8 @@ public class RuleFieldAnalyzerTest {
     }
 
     @Test
-    public void scriptExtractsInputsFromRightHandSide() {
+    public void scriptExtractsInputsFromRightHandSide() throws Exception {
+        setField(analyzer, "qlScriptFieldResolver", scriptResolver(Collections.emptyMap()));
         String json = "{"
                 + "\"script\":\"riskScore = request.params.score + modelScore\\nresult.level = riskScore >= 60 ? \\\"PASS\\\" : \\\"REJECT\\\"\","
                 + "\"scriptVarRefs\":["
@@ -166,11 +286,12 @@ public class RuleFieldAnalyzerTest {
         assertFalse(inputs.contains("riskScore"));
         assertFalse(inputs.contains("result.level"));
         assertTrue(outputs.contains("riskScore"));
-        assertTrue(outputs.contains("result.level"));
+        assertFalse(outputs.contains("result.level"));
     }
 
     @Test
-    public void scriptExplicitResultMapExtractsReturnedKeysAsOutputs() {
+    public void scriptExplicitResultMapExtractsReturnedKeysAsOutputs() throws Exception {
+        setField(analyzer, "qlScriptFieldResolver", scriptResolver(Collections.emptyMap()));
         String json = "{"
                 + "\"script\":\"score = request.score + offset\\n_result = {\\\"riskScore\\\": score, \\\"riskLevel\\\": level}\\n_result\","
                 + "\"scriptVarRefs\":["
@@ -191,6 +312,315 @@ public class RuleFieldAnalyzerTest {
         assertEquals(java.util.Arrays.asList("riskScore", "riskLevel"), outputs);
         assertFalse(outputs.contains("_result"));
         assertFalse(outputs.contains("score"));
+    }
+
+    @Test
+    public void scriptInputWithoutStableReferenceIsNotExpandedByMatchingVariableCode() throws Exception {
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new Configuration(), ""), RuleModel.class);
+        RuleVariable variable = new RuleVariable();
+        variable.setId(302L);
+        variable.setProjectId(4L);
+        variable.setScope("PROJECT");
+        variable.setVarCode("api_score");
+        variable.setScriptName("api_score");
+        variable.setVarType("NUMBER");
+        variable.setVarSource("API");
+        variable.setSourceConfig("{\"paramMapping\":{\"id\":\"$.request.id\"}}");
+        variable.setStatus(1);
+        Map<Long, RuleVariable> variables = Collections.singletonMap(302L, variable);
+        setField(analyzer, "qlScriptFieldResolver", scriptResolver(variables));
+        setField(analyzer, "ruleVariableMapper", mapper(RuleVariableMapper.class,
+                (proxy, method, args) -> {
+                    if ("selectList".equals(method.getName())) return Collections.singletonList(variable);
+                    if ("selectById".equals(method.getName())) return variables.get(((Number) args[0]).longValue());
+                    return null;
+                }));
+        setField(analyzer, "dataObjectFieldMapper", mapper(RuleDataObjectFieldMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.emptyList() : null));
+        setField(analyzer, "dataObjectMapper", mapper(RuleDataObjectMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.emptyList() : null));
+        setField(analyzer, "modelMapper", mapper(RuleModelMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.emptyList() : null));
+        setField(analyzer, "modelOutputFieldMapper", mapper(RuleModelOutputFieldMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.emptyList() : null));
+        setField(analyzer, "variableSourceResolver", new VariableSourceResolver());
+        String json = "{\"script\":\"risk = api_score; risk\",\"scriptVarRefs\":[]}";
+
+        RuleFieldAnalyzer.ResolvedFields fields =
+                analyzer.resolveFields(null, json, "SCRIPT", 4L);
+
+        assertEquals(Collections.singletonList("api_score"), names(fields.getInputFields()));
+        assertNull(fields.getInputFields().get(0).getVarId());
+        assertTrue(fields.getDiagnostics().stream()
+                .anyMatch(issue -> "SCRIPT_INPUT_REF_MISSING".equals(issue.getCode())));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void scriptObjectLeafTypesAndResultOutputsFollowStableFieldIdsWithoutInvokingApi()
+            throws Exception {
+        ScriptShapeFixture fixture = new ScriptShapeFixture(analyzer);
+        fixture.apiObjectVariable(302L, "icekredit_vn_credit_profile_features", 7L);
+        fixture.apiResponseObject(7L, 10L);
+        fixture.fields(
+                apiShapeField(101L, 10L, null, "credit_score_v1", "NUMBER"),
+                apiShapeField(113L, 10L, null, "credit_apply_count_1m", "INTEGER"));
+        fixture.configure();
+        String script = "credit_score_v1 = "
+                + "icekredit_vn_credit_profile_features.credit_score_v1;\n"
+                + "credit_apply_count_1m = "
+                + "icekredit_vn_credit_profile_features.credit_apply_count_1m;\n"
+                + "_result = {\"credit_score_v1\": credit_score_v1,"
+                + "\"credit_apply_count_1m\": credit_apply_count_1m}\n_result";
+        String json = "{\"script\":" + com.alibaba.fastjson.JSON.toJSONString(script)
+                + ",\"scriptVarRefs\":[{\"refCode\":\"icekredit_vn_credit_profile_features\","
+                + "\"varId\":302,\"refType\":\"VARIABLE\"}]}";
+
+        RuleFieldAnalyzer.ResolvedFields fields =
+                analyzer.resolveFields(null, json, "SCRIPT", 4L);
+
+        assertEquals("NUMBER", ((Map<String, Object>) fields.getInputPropertySchemas().get(
+                "icekredit_vn_credit_profile_features.credit_score_v1")).get("x-rule-type"));
+        assertEquals("INTEGER", ((Map<String, Object>) fields.getInputPropertySchemas().get(
+                "icekredit_vn_credit_profile_features.credit_apply_count_1m")).get("x-rule-type"));
+        assertEquals("NUMBER", outputType(fields, "credit_score_v1"));
+        assertEquals("INTEGER", outputType(fields, "credit_apply_count_1m"));
+        assertEquals(0, fixture.apiInvocations.get());
+    }
+
+    @Test
+    public void scriptReadBelowOpenObjectRequiresStableDescendantFieldId() throws Exception {
+        ScriptShapeFixture fixture = new ScriptShapeFixture(analyzer);
+        fixture.apiObjectVariable(302L, "api_features", 7L);
+        fixture.apiResponseObject(7L, 10L);
+        fixture.configure();
+        String json = "{\"script\":\"value = api_features.unknown_descendant;"
+                + "_result = {\\\"value\\\": value}; _result\","
+                + "\"scriptVarRefs\":[{\"refCode\":\"api_features\",\"varId\":302,"
+                + "\"refType\":\"VARIABLE\"}]}";
+
+        RuleFieldAnalyzer.ResolvedFields fields =
+                analyzer.resolveFields(null, json, "SCRIPT", 4L);
+
+        assertTrue(fields.getDiagnostics().stream()
+                .anyMatch(issue -> "OBJECT_SHAPE_INCOMPLETE".equals(issue.getCode())
+                        && "WARNING".equals(issue.getSeverity())));
+        assertTrue(fields.getDiagnostics().stream()
+                .anyMatch(issue -> "SCRIPT_INPUT_REF_MISSING".equals(issue.getCode())
+                        && "ERROR".equals(issue.getSeverity())));
+        assertEquals(0, fixture.apiInvocations.get());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void scriptInlineListElementLeafTypeUsesNormalizedIndexPath() throws Exception {
+        ScriptShapeFixture fixture = new ScriptShapeFixture(analyzer);
+        fixture.apiObjectVariable(302L, "api_features", 7L);
+        fixture.apiResponseObject(7L, 10L);
+        RuleDataObjectField list = apiShapeField(
+                142L, 10L, null, "app_list", "LIST");
+        RuleDataObjectField child = apiShapeField(
+                143L, 10L, 142L, "app_name", "STRING");
+        fixture.fields(list, child);
+        fixture.configure();
+        String json = "{\"script\":\"appName = api_features.app_list[0].app_name;"
+                + "_result = {\\\"appName\\\": appName}; _result\","
+                + "\"scriptVarRefs\":[{\"refCode\":\"api_features\",\"varId\":302,"
+                + "\"refType\":\"VARIABLE\"}]}";
+
+        RuleFieldAnalyzer.ResolvedFields fields =
+                analyzer.resolveFields(null, json, "SCRIPT", 4L);
+
+        Map<String, Object> property = (Map<String, Object>)
+                fields.getInputPropertySchemas().get("api_features.app_list[0].app_name");
+        assertEquals("STRING", property.get("x-rule-type"));
+        assertEquals("STRING", outputType(fields, "appName"));
+        assertFalse(fields.getDiagnostics().stream()
+                .anyMatch(issue -> "SCRIPT_INPUT_REF_MISSING".equals(issue.getCode())));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void scriptDynamicListIndexKeepsOpenListShapeWithoutGuessingStringOutput()
+            throws Exception {
+        ScriptShapeFixture fixture = new ScriptShapeFixture(analyzer);
+        fixture.apiObjectVariable(302L, "api_features", 7L);
+        fixture.apiResponseObject(7L, 10L);
+        fixture.fields(
+                apiShapeField(142L, 10L, null, "app_list", "LIST"),
+                apiShapeField(143L, 10L, 142L, "app_name", "STRING"));
+        fixture.configure();
+        String json = "{\"script\":\"index = 0;"
+                + "appName = api_features.app_list[index].app_name;"
+                + "_result = {\\\"appName\\\": appName}; _result\","
+                + "\"scriptVarRefs\":[{\"refCode\":\"api_features\",\"varId\":302,"
+                + "\"refType\":\"VARIABLE\"}]}";
+
+        RuleFieldAnalyzer.ResolvedFields fields =
+                analyzer.resolveFields(null, json, "SCRIPT", 4L);
+
+        Map<String, Object> property = (Map<String, Object>)
+                fields.getInputPropertySchemas().get("api_features.app_list");
+        assertEquals("LIST", property.get("x-rule-type"));
+        assertTrue(fields.getDiagnostics().stream()
+                .anyMatch(issue -> "OBJECT_SHAPE_INCOMPLETE".equals(issue.getCode())
+                        && "WARNING".equals(issue.getSeverity())));
+        assertFalse(fields.getDiagnostics().stream()
+                .anyMatch(issue -> "SCRIPT_INPUT_REF_MISSING".equals(issue.getCode())
+                        && "$.script.api_features.app_list".equals(issue.getPath())));
+        assertNull(outputType(fields, "appName"));
+    }
+
+    @Test
+    public void scriptApiShapeRejectsDisabledApiConfigWithoutInvokingApi()
+            throws Exception {
+        ScriptShapeFixture fixture = scoreApiFixture();
+        fixture.apiConfigStatus(7L, 0);
+
+        RuleFieldAnalyzer.ResolvedFields fields = resolveScoreScript(fixture);
+
+        assertFalse(fields.getInputPropertySchemas().containsKey("api_features.score"));
+        assertNull(outputType(fields, "score"));
+        assertDiagnostic(fields, "REFERENCE_TYPE_MISMATCH", "$.apiConfig.7");
+        assertEquals(0, fixture.apiInvocations.get());
+    }
+
+    @Test
+    public void scriptApiShapeRejectsDisabledDatasourceWithoutInvokingApi()
+            throws Exception {
+        ScriptShapeFixture fixture = scoreApiFixture();
+        fixture.datasourceStatus(70L, 0);
+
+        RuleFieldAnalyzer.ResolvedFields fields = resolveScoreScript(fixture);
+
+        assertFalse(fields.getInputPropertySchemas().containsKey("api_features.score"));
+        assertNull(outputType(fields, "score"));
+        assertDiagnostic(fields, "REFERENCE_TYPE_MISMATCH", "$.datasource.70");
+        assertEquals(0, fixture.apiInvocations.get());
+    }
+
+    @Test
+    public void scriptApiShapeRejectsCrossProjectDatasourceWithoutInvokingApi()
+            throws Exception {
+        ScriptShapeFixture fixture = scoreApiFixture();
+        fixture.datasourceProject(70L, 9L, "PROJECT");
+
+        RuleFieldAnalyzer.ResolvedFields fields = resolveScoreScript(fixture);
+
+        assertFalse(fields.getInputPropertySchemas().containsKey("api_features.score"));
+        assertNull(outputType(fields, "score"));
+        assertDiagnostic(fields, "REFERENCE_TYPE_MISMATCH", "$.datasource.70");
+        assertEquals(0, fixture.apiInvocations.get());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void scriptApiShapeAcceptsActiveSameProjectDatasourceWithoutInvokingApi()
+            throws Exception {
+        ScriptShapeFixture fixture = scoreApiFixture();
+
+        RuleFieldAnalyzer.ResolvedFields fields = resolveScoreScript(fixture);
+
+        assertEquals("NUMBER", ((Map<String, Object>) fields
+                .getInputPropertySchemas().get("api_features.score")).get("x-rule-type"));
+        assertEquals("NUMBER", outputType(fields, "score"));
+        assertFalse(fields.getDiagnostics().stream()
+                .anyMatch(issue -> "REFERENCE_TYPE_MISMATCH".equals(issue.getCode())));
+        assertEquals(0, fixture.apiInvocations.get());
+    }
+
+    @Test
+    public void scriptExplicitResultTypeUsesAssignmentBeforeResultInsteadOfLateWrite()
+            throws Exception {
+        ScriptShapeFixture fixture = scoreApiFixture();
+        fixture.configure();
+        String json = scriptJson(
+                "x = api_features.score; _result = {\"x\": x};"
+                        + " x = \"late\"; _result");
+
+        RuleFieldAnalyzer.ResolvedFields fields =
+                analyzer.resolveFields(null, json, "SCRIPT", 4L);
+
+        assertEquals("NUMBER", outputType(fields, "x"));
+        assertEquals(0, fixture.apiInvocations.get());
+    }
+
+    @Test
+    public void scriptExplicitResultTypeDoesNotResolveFutureAssignment()
+            throws Exception {
+        ScriptShapeFixture fixture = scoreApiFixture();
+        fixture.configure();
+        String json = scriptJson(
+                "_result = {\"x\": x}; x = api_features.score; _result");
+
+        RuleFieldAnalyzer.ResolvedFields fields =
+                analyzer.resolveFields(null, json, "SCRIPT", 4L);
+
+        assertNull(outputType(fields, "x"));
+        assertEquals(0, fixture.apiInvocations.get());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void scriptNestedConstantListIndexUsesStableLeafType()
+            throws Exception {
+        ScriptShapeFixture fixture = nestedListApiFixture();
+        fixture.configure();
+        String json = scriptJson(
+                "value = api_features.outer.items[0].score;"
+                        + " _result = {\"value\": value}; _result");
+
+        RuleFieldAnalyzer.ResolvedFields fields =
+                analyzer.resolveFields(null, json, "SCRIPT", 4L);
+
+        assertEquals("NUMBER", ((Map<String, Object>) fields.getInputPropertySchemas()
+                .get("api_features.outer.items[0].score")).get("x-rule-type"));
+        assertEquals("NUMBER", outputType(fields, "value"));
+        assertFalse(fields.getDiagnostics().stream()
+                .anyMatch(issue -> "SCRIPT_INPUT_REF_MISSING".equals(issue.getCode())));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void scriptNestedDynamicListIndexRecognizesStableIntermediateButKeepsOutputOpen()
+            throws Exception {
+        ScriptShapeFixture fixture = nestedListApiFixture();
+        fixture.configure();
+        String json = scriptJson(
+                "index = 0; value = api_features.outer.items[index].score;"
+                        + " _result = {\"value\": value}; _result");
+
+        RuleFieldAnalyzer.ResolvedFields fields =
+                analyzer.resolveFields(null, json, "SCRIPT", 4L);
+
+        assertEquals("LIST", ((Map<String, Object>) fields.getInputPropertySchemas()
+                .get("api_features.outer.items")).get("x-rule-type"));
+        assertFalse(fields.getDiagnostics().stream()
+                .anyMatch(issue -> "SCRIPT_INPUT_REF_MISSING".equals(issue.getCode())
+                        && "$.script.api_features.outer.items".equals(issue.getPath())));
+        assertNull(outputType(fields, "value"));
+    }
+
+    @Test
+    public void scriptApiResponseRootNameConflictIsDiagnosedAndKeepsLowestStableId()
+            throws Exception {
+        ScriptShapeFixture fixture = new ScriptShapeFixture(analyzer);
+        fixture.apiObjectVariable(302L, "api_features", 7L);
+        fixture.apiResponseObject(7L, 10L);
+        fixture.fields(
+                apiShapeField(101L, 10L, null, "score", "NUMBER"),
+                apiShapeField(113L, 10L, null, "score", "STRING"));
+
+        RuleFieldAnalyzer.ResolvedFields fields = resolveScoreScript(fixture);
+
+        assertDiagnostic(fields, "OBJECT_SHAPE_CONFLICT", "$.field.113");
+        assertEquals("NUMBER", outputType(fields, "score"));
+        assertEquals(0, fixture.apiInvocations.get());
     }
 
     @Test
@@ -601,7 +1031,18 @@ public class RuleFieldAnalyzerTest {
     }
 
     @Test
-    public void directApiObjectPropertyKeepsItsStableVariableReferenceForRuntimeResolution() {
+    public void directApiObjectPropertyKeepsItsStableVariableReferenceForRuntimeResolution() throws Exception {
+        RuleVariable variable = new RuleVariable();
+        variable.setId(101L);
+        variable.setProjectId(4L);
+        variable.setScope("PROJECT");
+        variable.setScriptName("api_features");
+        variable.setVarCode("api_features");
+        variable.setVarType("OBJECT");
+        variable.setVarSource("API");
+        variable.setStatus(1);
+        setField(analyzer, "qlScriptFieldResolver",
+                scriptResolver(Collections.singletonMap(101L, variable)));
         String json = "{\"script\":\"credit_score_v1 = api_features.credit_score_v1;\","
                 + "\"scriptVarRefs\":[{\"refCode\":\"api_features\",\"varId\":101,"
                 + "\"refType\":\"VARIABLE\"}]}";
@@ -726,6 +1167,90 @@ public class RuleFieldAnalyzerTest {
 
         assertFalse("当前规则已计算的中间变量不应作为测试入参", names(filtered).contains("age"));
         assertTrue(names(filtered).contains("HYBASE_X115"));
+    }
+
+    @Test
+    public void lifecycleRuleCallExpansionUsesFrozenSnapshotWithoutMainProjectionQuery()
+            throws Exception {
+        AtomicInteger currentProjectionLoads = new AtomicInteger();
+        RuleDefinitionInputField stale = inputField(
+                "stale_projection", "VARIABLE", "INPUT", 8L);
+        setField(analyzer, "inputFieldMapper", mapper(
+                RuleDefinitionInputFieldMapper.class, (proxy, method, args) -> {
+                    if ("selectList".equals(method.getName())) {
+                        currentProjectionLoads.incrementAndGet();
+                        return Collections.singletonList(stale);
+                    }
+                    return null;
+                }));
+        setField(analyzer, "outputFieldMapper", outputFieldMapper(Collections.emptyList()));
+        setField(analyzer, "ruleVariableMapper", mapper(RuleVariableMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.emptyList() : null));
+        setField(analyzer, "dataObjectMapper", mapper(RuleDataObjectMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.emptyList() : null));
+        setField(analyzer, "dataObjectFieldMapper", mapper(RuleDataObjectFieldMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.emptyList() : null));
+        setField(analyzer, "modelMapper", mapper(RuleModelMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.emptyList() : null));
+        RuleDefinitionInputField frozen = inputField(
+                "frozen_input", "VARIABLE", "INPUT", 7L);
+        setField(analyzer, "publishedFieldSnapshotResolver",
+                new PublishedRuleFieldSnapshotResolver() {
+                    @Override
+                    public RuleFieldAnalyzer.ResolvedFields resolve(Long definitionId) {
+                        return new RuleFieldAnalyzer.ResolvedFields(
+                                Collections.singletonList(frozen), Collections.emptyList());
+                    }
+                });
+
+        RuleFieldAnalyzer.ResolvedFields fields = analyzer.resolveFields(
+                null,
+                "{\"nodes\":[{\"actionData\":[{\"type\":\"rule-call\",\"ruleId\":101}]}]}",
+                "FLOW", 4L);
+
+        assertTrue(names(fields.getInputFields()).contains("frozen_input"));
+        assertFalse(names(fields.getInputFields()).contains("stale_projection"));
+        assertEquals(0, currentProjectionLoads.get());
+    }
+
+    @Test
+    public void parentStructuredOutputIsNotMadeLocalBySameNamedScriptChildOutput()
+            throws Exception {
+        configureEmptyStructuredFieldMetadata();
+        RuleDefinitionOutputField childLocal = new RuleDefinitionOutputField();
+        childLocal.setFieldName("shared_result");
+        childLocal.setScriptName("shared_result");
+        childLocal.setFieldType("NUMBER");
+        childLocal.setStatus(1);
+        setField(analyzer, "publishedFieldSnapshotResolver",
+                new PublishedRuleFieldSnapshotResolver() {
+                    @Override
+                    public RuleFieldAnalyzer.ResolvedFields resolve(Long definitionId) {
+                        return new RuleFieldAnalyzer.ResolvedFields(
+                                Collections.emptyList(),
+                                Collections.singletonList(childLocal),
+                                Collections.emptyList(),
+                                Collections.singleton("shared_result"),
+                                Collections.emptyMap(), Collections.emptyMap());
+                    }
+                });
+
+        RuleFieldAnalyzer.ResolvedFields fields = analyzer.resolveFields(
+                null,
+                "{\"nodes\":[{\"actionData\":["
+                        + "{\"type\":\"assign\",\"target\":\"shared_result\",\"value\":\"1\"},"
+                        + "{\"type\":\"rule-call\",\"ruleId\":101}]}]}",
+                "FLOW", 4L);
+
+        RuleDefinitionOutputField retained = fields.getOutputFields().stream()
+                .filter(field -> "shared_result".equals(field.getScriptName()))
+                .findFirst().orElseThrow();
+        assertFalse(fields.isLocalOutput(retained));
+        assertFalse(fields.getLocalOutputNames().contains("shared_result"));
     }
 
     @Test
@@ -879,6 +1404,32 @@ public class RuleFieldAnalyzerTest {
         return meta;
     }
 
+    private static RuleDataObjectField apiShapeField(Long id, Long objectId,
+                                                     Long parentId, String code,
+                                                     String type) {
+        RuleDataObjectField field = new RuleDataObjectField();
+        field.setId(id);
+        field.setProjectId(4L);
+        field.setScope("PROJECT");
+        field.setObjectId(objectId);
+        field.setParentFieldId(parentId);
+        field.setVarCode(code);
+        field.setVarLabel(code);
+        field.setScriptName(code);
+        field.setVarType(type);
+        field.setSortOrder(id.intValue());
+        field.setStatus(1);
+        return field;
+    }
+
+    private static String outputType(RuleFieldAnalyzer.ResolvedFields fields, String name) {
+        return fields.getOutputFields().stream()
+                .filter(field -> name.equals(field.getScriptName()))
+                .findFirst()
+                .map(RuleDefinitionOutputField::getFieldType)
+                .orElse(null);
+    }
+
     private static RuleDefinitionInputFieldMapper inputFieldMapper(List<RuleDefinitionInputField> fields) {
         return (RuleDefinitionInputFieldMapper) Proxy.newProxyInstance(
                 RuleDefinitionInputFieldMapper.class.getClassLoader(),
@@ -896,6 +1447,238 @@ public class RuleFieldAnalyzerTest {
     @SuppressWarnings("unchecked")
     private static <T> T mapper(Class<T> type, InvocationHandler handler) {
         return (T) Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[]{type}, handler);
+    }
+
+    private static QLScriptFieldResolver scriptResolver(Map<Long, RuleVariable> variables) {
+        return new QLScriptFieldResolver(
+                mapper(RuleVariableMapper.class,
+                        (proxy, method, args) -> "selectById".equals(method.getName())
+                                ? variables.get(((Number) args[0]).longValue()) : null),
+                mapper(RuleDataObjectMapper.class, (proxy, method, args) -> null),
+                mapper(RuleDataObjectFieldMapper.class, (proxy, method, args) -> null),
+                mapper(RuleModelMapper.class, (proxy, method, args) -> null),
+                mapper(RuleModelOutputFieldMapper.class, (proxy, method, args) -> null));
+    }
+
+    private void configureEmptyStructuredFieldMetadata() throws Exception {
+        setField(analyzer, "ruleVariableMapper", mapper(RuleVariableMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.emptyList() : null));
+        setField(analyzer, "dataObjectMapper", mapper(RuleDataObjectMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.emptyList() : null));
+        setField(analyzer, "dataObjectFieldMapper", mapper(RuleDataObjectFieldMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.emptyList() : null));
+        setField(analyzer, "modelMapper", mapper(RuleModelMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.emptyList() : null));
+        setField(analyzer, "modelOutputFieldMapper", mapper(
+                RuleModelOutputFieldMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.emptyList() : null));
+    }
+
+    private ScriptShapeFixture scoreApiFixture() {
+        ScriptShapeFixture fixture = new ScriptShapeFixture(analyzer);
+        fixture.apiObjectVariable(302L, "api_features", 7L);
+        fixture.apiResponseObject(7L, 10L);
+        fixture.fields(apiShapeField(
+                101L, 10L, null, "score", "NUMBER"));
+        return fixture;
+    }
+
+    private ScriptShapeFixture nestedListApiFixture() {
+        ScriptShapeFixture fixture = new ScriptShapeFixture(analyzer);
+        fixture.apiObjectVariable(302L, "api_features", 7L);
+        fixture.apiResponseObject(7L, 10L);
+        fixture.fields(
+                apiShapeField(141L, 10L, null, "outer", "OBJECT"),
+                apiShapeField(142L, 10L, 141L, "items", "LIST"),
+                apiShapeField(143L, 10L, 142L, "score", "NUMBER"));
+        return fixture;
+    }
+
+    private RuleFieldAnalyzer.ResolvedFields resolveScoreScript(
+            ScriptShapeFixture fixture) throws Exception {
+        fixture.configure();
+        return analyzer.resolveFields(
+                null,
+                scriptJson("score = api_features.score;"
+                        + " _result = {\"score\": score}; _result"),
+                "SCRIPT", 4L);
+    }
+
+    private static String scriptJson(String script) {
+        return "{\"script\":" + com.alibaba.fastjson.JSON.toJSONString(script)
+                + ",\"scriptVarRefs\":[{\"refCode\":\"api_features\","
+                + "\"varId\":302,\"refType\":\"VARIABLE\"}]}";
+    }
+
+    private static void assertDiagnostic(
+            RuleFieldAnalyzer.ResolvedFields fields,
+            String code,
+            String path) {
+        assertTrue(fields.getDiagnostics().stream()
+                .anyMatch(issue -> code.equals(issue.getCode())
+                        && path.equals(issue.getPath())));
+    }
+
+    private static final class ScriptShapeFixture {
+
+        private final RuleFieldAnalyzer analyzer;
+        private final Map<Long, RuleVariable> variables = new HashMap<>();
+        private final Map<Long, RuleDataObject> objects = new HashMap<>();
+        private final Map<Long, RuleDataObjectField> fields = new HashMap<>();
+        private final Map<Long, RuleExternalApiConfig> apiConfigs = new HashMap<>();
+        private final Map<Long, RuleExternalDatasource> datasources = new HashMap<>();
+        private final AtomicInteger apiInvocations = new AtomicInteger();
+
+        private ScriptShapeFixture(RuleFieldAnalyzer analyzer) {
+            this.analyzer = analyzer;
+        }
+
+        private void apiObjectVariable(Long id, String scriptName, Long apiConfigId) {
+            RuleVariable variable = new RuleVariable();
+            variable.setId(id);
+            variable.setProjectId(4L);
+            variable.setScope("PROJECT");
+            variable.setVarCode(scriptName);
+            variable.setScriptName(scriptName);
+            variable.setVarType("OBJECT");
+            variable.setVarSource("API");
+            variable.setSourceConfig("{\"apiConfigId\":" + apiConfigId + "}");
+            variable.setStatus(1);
+            variables.put(id, variable);
+        }
+
+        private void apiResponseObject(Long apiConfigId, Long objectId) {
+            RuleExternalApiConfig config = new RuleExternalApiConfig();
+            config.setId(apiConfigId);
+            config.setDatasourceId(70L);
+            config.setResponseObjectId(objectId);
+            config.setStatus(1);
+            apiConfigs.put(apiConfigId, config);
+
+            RuleExternalDatasource datasource = new RuleExternalDatasource();
+            datasource.setId(70L);
+            datasource.setProjectId(4L);
+            datasource.setScope("PROJECT");
+            datasource.setDatasourceCode("datasource_70");
+            datasource.setDatasourceName("datasource_70");
+            datasource.setStatus(1);
+            datasources.put(70L, datasource);
+
+            RuleDataObject object = new RuleDataObject();
+            object.setId(objectId);
+            object.setProjectId(4L);
+            object.setScope("PROJECT");
+            object.setObjectCode("response_" + objectId);
+            object.setScriptName("response_" + objectId);
+            object.setStatus(1);
+            objects.put(objectId, object);
+        }
+
+        private void apiConfigStatus(Long apiConfigId, Integer status) {
+            apiConfigs.get(apiConfigId).setStatus(status);
+        }
+
+        private void datasourceStatus(Long datasourceId, Integer status) {
+            datasources.get(datasourceId).setStatus(status);
+        }
+
+        private void datasourceProject(
+                Long datasourceId, Long projectId, String scope) {
+            RuleExternalDatasource datasource = datasources.get(datasourceId);
+            datasource.setProjectId(projectId);
+            datasource.setScope(scope);
+        }
+
+        private void fields(RuleDataObjectField... values) {
+            Arrays.stream(values).forEach(value -> fields.put(value.getId(), value));
+        }
+
+        private void configure() throws Exception {
+            TableInfoHelper.initTableInfo(
+                    new MapperBuilderAssistant(new Configuration(), ""), RuleVariable.class);
+            TableInfoHelper.initTableInfo(
+                    new MapperBuilderAssistant(new Configuration(), ""), RuleDataObject.class);
+            TableInfoHelper.initTableInfo(
+                    new MapperBuilderAssistant(new Configuration(), ""), RuleDataObjectField.class);
+            TableInfoHelper.initTableInfo(
+                    new MapperBuilderAssistant(new Configuration(), ""), RuleModel.class);
+            RuleVariableMapper variableMapper = mapper(RuleVariableMapper.class,
+                    (proxy, method, args) -> {
+                        if ("selectById".equals(method.getName())) {
+                            return variables.get(((Number) args[0]).longValue());
+                        }
+                        return "selectList".equals(method.getName())
+                                ? new ArrayList<>(variables.values()) : null;
+                    });
+            RuleDataObjectMapper objectMapper = mapper(RuleDataObjectMapper.class,
+                    (proxy, method, args) -> {
+                        if ("selectById".equals(method.getName())) {
+                            return objects.get(((Number) args[0]).longValue());
+                        }
+                        return "selectList".equals(method.getName())
+                                ? new ArrayList<>(objects.values()) : null;
+                    });
+            RuleDataObjectFieldMapper fieldMapper = mapper(RuleDataObjectFieldMapper.class,
+                    (proxy, method, args) -> {
+                        if ("selectById".equals(method.getName())) {
+                            return fields.get(((Number) args[0]).longValue());
+                        }
+                        return "selectList".equals(method.getName())
+                                ? new ArrayList<>(fields.values()) : null;
+                    });
+            RuleExternalApiConfigMapper apiMapper =
+                    mapper(RuleExternalApiConfigMapper.class,
+                            (proxy, method, args) -> "selectById".equals(method.getName())
+                                    ? apiConfigs.get(((Number) args[0]).longValue()) : null);
+            RuleExternalDatasourceMapper datasourceMapper =
+                    mapper(RuleExternalDatasourceMapper.class,
+                            (proxy, method, args) -> "selectById".equals(method.getName())
+                                    ? datasources.get(((Number) args[0]).longValue()) : null);
+            RuleModelMapper ruleModelMapper = mapper(RuleModelMapper.class,
+                    (proxy, method, args) -> "selectList".equals(method.getName())
+                            ? Collections.emptyList() : null);
+            RuleModelOutputFieldMapper outputMapper =
+                    mapper(RuleModelOutputFieldMapper.class,
+                            (proxy, method, args) -> "selectList".equals(method.getName())
+                                    ? Collections.emptyList() : null);
+            VariableSourceResolver sourceResolver = new VariableSourceResolver();
+            setField(sourceResolver, "apiConfigMapper", apiMapper);
+            setField(sourceResolver, "externalApiInvokeService",
+                    new ExternalApiInvokeService() {
+                        @Override
+                        public Map<String, Object> invoke(
+                                Long apiConfigId, Map<String, Object> params) {
+                            apiInvocations.incrementAndGet();
+                            return Collections.emptyMap();
+                        }
+
+                        @Override
+                        public Map<String, Object> invoke(
+                                RuleExternalApiConfig apiConfig, Map<String, Object> params) {
+                            apiInvocations.incrementAndGet();
+                            return Collections.emptyMap();
+                        }
+                    });
+
+            setField(analyzer, "ruleVariableMapper", variableMapper);
+            setField(analyzer, "dataObjectMapper", objectMapper);
+            setField(analyzer, "dataObjectFieldMapper", fieldMapper);
+            setField(analyzer, "externalApiConfigMapper", apiMapper);
+            setField(analyzer, "externalDatasourceMapper", datasourceMapper);
+            setField(analyzer, "modelMapper", ruleModelMapper);
+            setField(analyzer, "modelOutputFieldMapper", outputMapper);
+            setField(analyzer, "variableSourceResolver", sourceResolver);
+            setField(analyzer, "qlScriptFieldResolver", new QLScriptFieldResolver(
+                    variableMapper, objectMapper, fieldMapper,
+                    ruleModelMapper, outputMapper));
+            setField(analyzer, "dataObjectSchemaResolver",
+                    new DataObjectSchemaResolver(objectMapper, fieldMapper));
+        }
     }
 
     private static List<String> names(List<RuleDefinitionInputField> fields) {

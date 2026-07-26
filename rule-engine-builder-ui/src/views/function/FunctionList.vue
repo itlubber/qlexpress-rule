@@ -172,18 +172,31 @@
       </el-table-column>
       <el-table-column label="操作" width="230" align="center">
         <template v-slot="{ row }">
-          <el-button link size="small" @click="handleTestFunction(row)"
+          <el-button
+            link
+            size="small"
+            type="success"
+            @click="handleTestFunction(row)"
             >测试</el-button
           >
-          <el-button link size="small" @click="handleEdit(row)"
+          <el-button
+            link
+            size="small"
+            type="warning"
+            @click="handleEdit(row)"
             >编辑</el-button
           >
-          <el-button link size="small" @click="openVersionDialog(row)"
+          <el-button
+            link
+            size="small"
+            type="info"
+            @click="openVersionDialog(row)"
             >版本</el-button
           >
           <el-button
             link
             size="small"
+            type="danger"
             class="btn-delete"
             @click="handleDelete(row)"
             >删除</el-button
@@ -439,19 +452,25 @@
         <el-table-column prop="publishTime" label="时间" width="170" />
         <el-table-column label="操作" width="220" align="center">
           <template v-slot="{ row, $index }">
-            <el-button link size="small" @click="viewVersion(row)"
+            <el-button
+              link
+              size="small"
+              type="primary"
+              @click="viewVersion(row)"
               >查看</el-button
             >
             <el-button
               v-if="$index < versionList.length - 1"
               link
               size="small"
+              type="info"
               @click="compareWithNext(row, $index)"
               >对比</el-button
             >
             <el-button
               link
               size="small"
+              type="warning"
               @click="rollbackFunctionVersion(row)"
               >回滚</el-button
             >

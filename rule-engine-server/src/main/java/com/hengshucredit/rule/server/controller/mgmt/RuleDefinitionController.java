@@ -2,19 +2,26 @@ package com.hengshucredit.rule.server.controller.mgmt;
 
 import com.hengshucredit.rule.core.compiler.CompileResult;
 import com.hengshucredit.rule.model.dto.RuleQueryDTO;
+import com.hengshucredit.rule.model.dto.RuleDraftSaveRequest;
+import com.hengshucredit.rule.model.dto.RuleDraftSaveResponse;
 import com.hengshucredit.rule.model.dto.RuleResult;
 import com.hengshucredit.rule.model.dto.RuleLifecycleActionRequest;
 import com.hengshucredit.rule.model.dto.RulePreflightReport;
+import com.hengshucredit.rule.model.dto.RuleRevisionRepairRequest;
+import com.hengshucredit.rule.model.dto.RuleValidationIssue;
 import com.hengshucredit.rule.model.entity.*;
 import com.hengshucredit.rule.server.common.R;
+import com.hengshucredit.rule.server.common.RuleGovernanceException;
 import com.hengshucredit.rule.server.service.RuleCompileService;
 import com.hengshucredit.rule.server.service.RuleCallCycleService;
 import com.hengshucredit.rule.server.service.RuleDefinitionService;
+import com.hengshucredit.rule.server.service.RuleDraftService;
 import com.hengshucredit.rule.server.service.RuleExecuteService;
 import com.hengshucredit.rule.server.service.RulePublishService;
 import com.hengshucredit.rule.server.service.RuleLifecycleService;
 import com.hengshucredit.rule.server.service.RuleArtifactMigrationService;
 import com.hengshucredit.rule.server.service.RuleReferenceIntegrityService;
+import com.hengshucredit.rule.server.service.RuleRevisionRepairService;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import org.springframework.web.bind.annotation.*;
 
@@ -32,6 +39,9 @@ public class RuleDefinitionController {
 
     @Resource
     private RuleDefinitionService definitionService;
+
+    @Resource
+    private RuleDraftService ruleDraftService;
 
     @Resource
     private RuleCompileService compileService;
@@ -53,6 +63,9 @@ public class RuleDefinitionController {
 
     @Resource
     private RuleArtifactMigrationService artifactMigrationService;
+
+    @Resource
+    private RuleRevisionRepairService revisionRepairService;
 
     @GetMapping("/list")
     public R<IPage<RuleDefinition>> list(
@@ -192,18 +205,12 @@ public class RuleDefinitionController {
     }
 
     @PostMapping("/save")
-    public R<Void> saveContent(@RequestBody Map<String, Object> body) {
-        Long definitionId = Long.valueOf(body.get("definitionId").toString());
-        String modelJson = normalizeModelJson(body.get("modelJson").toString());
-        if (body.containsKey("openApiConfigJson")) {
-            Object config = body.get("openApiConfigJson");
-            String configJson = config == null ? null
-                    : (config instanceof String ? (String) config : com.alibaba.fastjson.JSON.toJSONString(config));
-            definitionService.saveContent(definitionId, modelJson, configJson);
-        } else {
-            definitionService.saveContent(definitionId, modelJson);
-        }
-        return R.ok();
+    public R<RuleDraftSaveResponse> saveContent(
+            @RequestBody(required = false)
+            RuleDraftSaveRequest request) {
+        requireSaveRequest(request, null);
+        request.setModelJson(normalizeModelJson(request.getModelJson()));
+        return R.ok(ruleDraftService.save(request));
     }
 
     @PostMapping("/compile/{definitionId}")
@@ -261,13 +268,44 @@ public class RuleDefinitionController {
     }
 
     @PostMapping("/{definitionId}/revisions/draft")
-    public R<RuleRevision> ensureDraft(@PathVariable Long definitionId) {
+    public R<RuleRevision> createDraft(
+            @PathVariable Long definitionId,
+            @RequestBody(required = false) Map<String, Long> body) {
+        Long baseRevisionId =
+                body == null ? null : body.get("baseRevisionId");
+        return R.ok(lifecycleService.createDraft(
+                definitionId, baseRevisionId));
+    }
+
+    @GetMapping("/{definitionId}/revisions/repair-preview")
+    public R<RuleRevisionRepairService.RepairPreview>
+    repairPreview(@PathVariable Long definitionId) {
+        return R.ok(revisionRepairService.preview(definitionId));
+    }
+
+    @PostMapping("/{definitionId}/revisions/repair")
+    public R<RuleRevision> repairRevision(
+            @PathVariable Long definitionId,
+            @RequestBody(required = false)
+            RuleRevisionRepairRequest request) {
         try {
-            return R.ok(lifecycleService.ensureDraft(definitionId));
-        } catch (IllegalArgumentException e) {
-            return R.fail(400, e.getMessage());
-        } catch (IllegalStateException e) {
-            return R.fail(409, e.getMessage());
+            return R.ok(revisionRepairService.repair(
+                    definitionId, request));
+        } catch (RuleGovernanceException error) {
+            throw error;
+        } catch (RuleRevisionRepairService
+                .RepairPreviewChangedException error) {
+            RuleValidationIssue issue =
+                    RuleValidationIssue.error(
+                            "REPAIR_PREVIEW_CHANGED", "$",
+                            error.getMessage())
+                            .withRevisionId(request == null
+                                    ? null
+                                    : request.getSourceRevisionId());
+            throw new RuleGovernanceException(
+                    409, "REPAIR_PREVIEW_CHANGED",
+                    error.getMessage(),
+                    Collections.singletonList(issue));
         }
     }
 
@@ -410,19 +448,15 @@ public class RuleDefinitionController {
         }
     }
 
-    /**
-     * 技术人员直接保存脚本（脚本模式），跳过可视化编译器。
-     * 请求体: { "script": "..." }
-     */
     @PostMapping("/script/{definitionId:\\d+}")
-    public R<Void> saveScript(@PathVariable Long definitionId,
-                               @RequestBody Map<String, String> body) {
-        String script = body.get("script");
-        if (script == null || script.trim().isEmpty()) {
-            return R.fail("脚本内容不能为空");
-        }
-        definitionService.saveScript(definitionId, script.trim());
-        return R.ok();
+    public R<RuleDraftSaveResponse> saveScript(
+            @PathVariable Long definitionId,
+            @RequestBody(required = false)
+            RuleDraftSaveRequest request) {
+        requireSaveRequest(request, definitionId);
+        request.setModelJson(
+                normalizeModelJson(request.getModelJson()));
+        return R.ok(definitionService.saveScript(request));
     }
 
     /**
@@ -499,29 +533,39 @@ public class RuleDefinitionController {
     }
 
 
-    /**
-     * 刷新规则的输入/输出字段（从当前模型内容解析并持久化）。
-     * 支持传入 modelJson（用于设计器保存后立即刷新，避免事务未提交导致的脏读）；
-     * 不传 modelJson 时从数据库读取（用于技术人员手动刷新场景）。
-     */
     @PostMapping("/refreshFields/{definitionId}")
-    public R<RuleDefinition> refreshFields(@PathVariable Long definitionId,
-                                          @RequestBody(required = false) String modelJson) {
-        RuleDefinition definition = definitionService.getById(definitionId);
-        if (definition == null) {
-            return R.fail("规则不存在");
+    public R<RuleDraftSaveResponse> refreshFields(
+            @PathVariable Long definitionId,
+            @RequestBody(required = false)
+            RuleDraftSaveRequest request) {
+        requireSaveRequest(request, definitionId);
+        request.setModelJson(
+                normalizeModelJson(request.getModelJson()));
+        return R.ok(definitionService.refreshFields(request));
+    }
+
+    private void requireSaveRequest(
+            RuleDraftSaveRequest request, Long pathDefinitionId) {
+        if (request == null) {
+            throw governance(400, "DRAFT_SAVE_REQUEST_REQUIRED",
+                    "保存请求不能为空");
         }
-        // 优先使用传入的 modelJson（设计器场景）；无传入则从数据库读取（手动刷新场景）
-        String jsonToParse = normalizeModelJson(modelJson);
-        if (jsonToParse == null || jsonToParse.isEmpty()) {
-            RuleDefinitionContent content = definitionService.getContent(definitionId);
-            if (content == null || content.getModelJson() == null) {
-                return R.fail("规则内容不存在");
-            }
-            jsonToParse = content.getModelJson();
+        if (pathDefinitionId != null
+                && !pathDefinitionId.equals(
+                request.getDefinitionId())) {
+            throw governance(400,
+                    "DRAFT_SAVE_CONTRACT_INVALID",
+                    "路径中的规则 ID 与保存请求不一致");
         }
-        definitionService.refreshFields(definitionId, jsonToParse, definition.getModelType());
-        return R.ok(definitionService.getDetail(definitionId));
+    }
+
+    private RuleGovernanceException governance(
+            int status, String code, String message) {
+        return new RuleGovernanceException(
+                status, code, message,
+                Collections.singletonList(
+                        RuleValidationIssue.error(
+                                code, "$", message)));
     }
 
     private String normalizeModelJson(String modelJson) {

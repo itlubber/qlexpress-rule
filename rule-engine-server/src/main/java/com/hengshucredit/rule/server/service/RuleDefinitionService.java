@@ -1,17 +1,17 @@
 package com.hengshucredit.rule.server.service;
 
 import com.hengshucredit.rule.model.entity.*;
+import com.hengshucredit.rule.model.dto.RuleDraftSaveRequest;
+import com.hengshucredit.rule.model.dto.RuleDraftSaveResponse;
+import com.hengshucredit.rule.model.dto.RuleValidationIssue;
 import com.hengshucredit.rule.model.dto.RuleQueryDTO;
-import com.hengshucredit.rule.core.compiler.CompileResult;
-import com.hengshucredit.rule.core.compiler.ScriptPassthroughCompiler;
-import com.hengshucredit.rule.core.engine.QLExpressEngineFactory;
+import com.hengshucredit.rule.server.common.RuleGovernanceException;
 import com.hengshucredit.rule.server.mapper.*;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.alibaba.fastjson.JSON;
-import com.hengshucredit.rule.server.openapi.OpenApiContractCodec;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.annotation.Lazy;
@@ -36,6 +36,10 @@ public class RuleDefinitionService extends ServiceImpl<RuleDefinitionMapper, Rul
     @Resource
     @Lazy
     private RuleLifecycleService lifecycleService;
+
+    @Resource
+    @Lazy
+    private RuleDraftService ruleDraftService;
 
     @Resource
     private RuleProjectService projectService;
@@ -209,45 +213,19 @@ public class RuleDefinitionService extends ServiceImpl<RuleDefinitionMapper, Rul
     }
 
     public void saveContent(Long definitionId, String modelJson) {
-        saveContent(definitionId, modelJson, null, false);
+        throw draftContractRequired();
     }
 
     public void saveContent(Long definitionId, String modelJson, String openApiConfigJson) {
-        saveContent(definitionId, modelJson, openApiConfigJson, true);
+        throw draftContractRequired();
     }
 
-    private void saveContent(Long definitionId, String modelJson, String openApiConfigJson,
-                             boolean updateOpenApiConfig) {
-        RuleDefinition definition = getById(definitionId);
-        if (definition != null) {
-            if (lifecycleService != null) {
-                lifecycleService.ensureDraft(definitionId);
-            }
-            if (referenceIntegrityService != null) {
-                referenceIntegrityService.assertValid(definitionId, definition.getProjectId(), modelJson);
-            }
-            String cycleError = ruleCallCycleService.validateNoCycle(definitionId, modelJson);
-            if (cycleError != null) {
-                throw new IllegalArgumentException(cycleError);
-            }
-        }
-        RuleDefinitionContent content = getContent(definitionId);
-        if (content != null) {
-            content.setModelJson(modelJson);
-            if (updateOpenApiConfig) {
-                content.setOpenApiConfigJson(OpenApiContractCodec.validateAndNormalize(openApiConfigJson));
-            }
-            content.setCompileStatus(0);
-            contentMapper.updateById(content);
-        }
-        if (definition != null) {
-            definition.setCurrentVersion(definition.getCurrentVersion() + 1);
-            updateById(definition);
-            // 从模型内容中解析输入/输出字段并持久化到独立字段表
-            // 从变量管理表补充真实元信息（varLabel / varType / scriptName）
-            fieldAnalyzer.analyzeAndPersist(definitionId, modelJson, definition.getModelType(), definition.getProjectId());
-            refreshParentFields(definitionId);
-        }
+    public RuleDraftSaveResponse saveContent(
+            RuleDraftSaveRequest request) {
+        RuleDraftSaveResponse saved =
+                ruleDraftService.save(request);
+        refreshParentFields(request.getDefinitionId());
+        return saved;
     }
 
     public List<RuleDefinitionVersion> listVersions(Long definitionId) {
@@ -283,36 +261,20 @@ public class RuleDefinitionService extends ServiceImpl<RuleDefinitionMapper, Rul
         if (definition == null) {
             throw new IllegalArgumentException("Rule not found");
         }
-        if (lifecycleService != null) {
-            lifecycleService.ensureDraft(definitionId);
-        }
+        RuleRevision draft = lifecycleService.createDraft(definitionId, null);
         RuleDefinitionVersion snapshot = getVersion(definitionId, version);
         if (snapshot == null) {
             throw new IllegalArgumentException("Version not found");
         }
 
-        RuleDefinitionContent content = getContent(definitionId);
-        boolean newContent = content == null;
-        if (newContent) {
-            content = new RuleDefinitionContent();
-            content.setDefinitionId(definitionId);
+        ruleDraftService.save(draftRequest(
+                draft, snapshot.getModelJson(),
+                snapshot.getOpenApiConfigJson(), true));
+        RuleDefinitionContent saved = getContent(definitionId);
+        if (saved != null) {
+            saved.setCompileMessage("rollback to v" + version);
+            contentMapper.updateById(saved);
         }
-        content.setModelJson(snapshot.getModelJson());
-        content.setCompiledScript(snapshot.getCompiledScript());
-        content.setCompiledType(snapshot.getCompiledType());
-        content.setOpenApiConfigJson(snapshot.getOpenApiConfigJson());
-        content.setCompileStatus(1);
-        content.setCompileMessage("rollback to v" + version);
-        content.setCompileTime(LocalDateTime.now());
-        if (newContent) {
-            contentMapper.insert(content);
-        } else {
-            contentMapper.updateById(content);
-        }
-
-        definition.setCurrentVersion((definition.getCurrentVersion() == null ? 0 : definition.getCurrentVersion()) + 1);
-        updateById(definition);
-        fieldAnalyzer.analyzeAndPersist(definitionId, snapshot.getModelJson(), definition.getModelType(), definition.getProjectId());
         refreshParentFields(definitionId);
     }
 
@@ -328,13 +290,12 @@ public class RuleDefinitionService extends ServiceImpl<RuleDefinitionMapper, Rul
      * 用于刷新规则详情页的字段列表。
      */
     public void refreshFields(Long definitionId, String modelJson, String modelType) {
-        if (lifecycleService != null) {
-            lifecycleService.requireEditableDraft(definitionId);
-        }
-        RuleDefinition definition = getById(definitionId);
-        Long projectId = (definition != null) ? definition.getProjectId() : null;
-        fieldAnalyzer.analyzeAndPersist(definitionId, modelJson, modelType, projectId);
-        refreshParentFields(definitionId);
+        throw draftContractRequired();
+    }
+
+    public RuleDraftSaveResponse refreshFields(
+            RuleDraftSaveRequest request) {
+        return saveContent(request);
     }
 
     /**
@@ -344,51 +305,36 @@ public class RuleDefinitionService extends ServiceImpl<RuleDefinitionMapper, Rul
      */
     @Transactional
     public void saveScript(Long definitionId, String script) {
-        if (lifecycleService != null) {
-            lifecycleService.ensureDraft(definitionId);
-        }
-        RuleDefinitionContent content = getContent(definitionId);
-        if (content == null) {
-            throw new IllegalArgumentException("规则内容不存在，definitionId=" + definitionId);
-        }
-        CompileResult compileResult = compileManualScript(script);
-        String compiledScript = compileResult.getCompiledScript();
-        content.setCompiledScript(compiledScript);
-        content.setCompiledType("QLEXPRESS");
-        content.setCompileStatus(1);
-        content.setCompileMessage("手动编辑脚本（已校验并包装结果）");
-        content.setCompileTime(LocalDateTime.now());
-        content.setScriptMode("script");
-        contentMapper.updateById(content);
-
+        throw draftContractRequired();
     }
 
-    private CompileResult compileManualScript(String script) {
-        CompileResult compileResult = new ScriptPassthroughCompiler().compile(script);
-        if (!compileResult.isSuccess()) {
-            throw new IllegalArgumentException(compileResult.getErrorMessage());
-        }
-        validateCompiledScript(compileResult.getCompiledScript());
-        return compileResult;
+    @Transactional
+    public RuleDraftSaveResponse saveScript(
+            RuleDraftSaveRequest request) {
+        return saveContent(request);
     }
 
-    private void validateCompiledScript(String script) {
-        try {
-            QLExpressEngineFactory.getInstance().execute(script, Collections.emptyMap(),
-                    com.alibaba.qlexpress4.QLOptions.builder().cache(false).build());
-        } catch (Exception e) {
-            String msg = e.getMessage() != null ? e.getMessage() : "";
-            if (isScriptSyntaxError(msg)) {
-                throw new IllegalArgumentException(msg, e);
-            }
-        }
+    private RuleGovernanceException draftContractRequired() {
+        String code = "DRAFT_SAVE_CONTRACT_REQUIRED";
+        String message = "写操作必须显式提供 revisionId、lockVersion 和 modelJson";
+        return new RuleGovernanceException(
+                400, code, message,
+                Collections.singletonList(
+                        RuleValidationIssue.error(
+                                code, "$", message)));
     }
 
-    private boolean isScriptSyntaxError(String msg) {
-        String lower = msg.toLowerCase();
-        return lower.contains("parse") || lower.contains("syntax")
-                || lower.contains("unexpected") || lower.contains("token")
-                || lower.contains("瑙ｆ瀽") || lower.contains("璇硶");
+    private RuleDraftSaveRequest draftRequest(
+            RuleRevision draft, String modelJson, String openApiConfigJson,
+            boolean updateOpenApiConfig) {
+        RuleDraftSaveRequest request = new RuleDraftSaveRequest();
+        request.setDefinitionId(draft.getDefinitionId());
+        request.setRevisionId(draft.getId());
+        request.setLockVersion(draft.getLockVersion());
+        request.setModelJson(modelJson);
+        request.setOpenApiConfigJson(openApiConfigJson);
+        request.setUpdateOpenApiConfig(updateOpenApiConfig);
+        return request;
     }
 
     /**

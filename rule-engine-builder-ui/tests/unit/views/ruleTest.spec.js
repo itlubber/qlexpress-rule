@@ -447,6 +447,13 @@ describe('RuleTest — 执行与结果展示', () => {
     expect(narrowStyles).toMatch(/\.trace-tabs :deep\(#pane-json\),\s*\.trace-tabs :deep\(#pane-tree\)\s*\{[^}]*height: auto;[^}]*overflow: visible;/)
   })
 
+  test('固定测试用例复选框使用 Element Plus value API', () => {
+    const source = fs.readFileSync(path.resolve(__dirname, '../../../src/views/test/RuleTest.vue'), 'utf8')
+
+    expect(source).toContain('<el-checkbox :value="testCase.id">')
+    expect(source).not.toContain('<el-checkbox :label="testCase.id">')
+  })
+
   test('handleExecute 成功时设置 result', async () => {
     definitionApi.executeRule.mockResolvedValueOnce({ data: mockExecutionResult() })
     wrapper.vm.selectedRuleId = 4

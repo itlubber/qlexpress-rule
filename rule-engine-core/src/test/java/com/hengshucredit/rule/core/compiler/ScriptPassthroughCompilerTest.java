@@ -11,9 +11,44 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class ScriptPassthroughCompilerTest {
+
+    @Test
+    public void sameLineAssignmentsAreReturnedWithoutRegexLineAssumptions() {
+        CompileResult result = new ScriptPassthroughCompiler()
+                .compile("{\"script\":\"a = input.a; b = input.b;\"}");
+
+        assertTrue(result.getErrorMessage(), result.isSuccess());
+        assertTrue(result.getCompiledScript().contains("\"a\": a"));
+        assertTrue(result.getCompiledScript().contains("\"b\": b"));
+    }
+
+    @Test
+    public void invalidQlReturnsQlParseError() {
+        CompileResult result = new ScriptPassthroughCompiler()
+                .compile("{\"script\":\"_result = {\"}");
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getErrorMessage().contains("QL_PARSE_ERROR"));
+    }
+
+    @Test
+    public void rawInvalidQlReturnsQlParseErrorInsteadOfThrowing() {
+        CompileResult result;
+        try {
+            result = new ScriptPassthroughCompiler().compile("_result = {");
+        } catch (RuntimeException error) {
+            fail("原始非法 QL 不应抛出异常: " + error.getMessage());
+            return;
+        }
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getErrorMessage().contains("QL_PARSE_ERROR"));
+    }
 
     @Test
     public void scriptAssignmentsAreReturnedAsResultMapWhenResultIsNotExplicit() {
@@ -125,8 +160,8 @@ public class ScriptPassthroughCompilerTest {
         assertTrue(result.getErrorMessage(), result.isSuccess());
         Map<?, ?> output = (Map<?, ?>) result.getResult();
         assertEquals(100000.0, ((Number) output.get("finalAmount")).doubleValue(), 0.000001);
-        assertEquals(((Number) output.get("taxAmount")).doubleValue(), ((Number) output.get("vatAmount")).doubleValue(), 0.000001);
-        assertEquals(((Number) output.get("excludingTaxAmount")).doubleValue(), ((Number) output.get("netAmount")).doubleValue(), 0.000001);
+        assertEquals(92781.72, ((Number) output.get("netAmount")).doubleValue(), 0.000001);
+        assertEquals(7218.28, ((Number) output.get("vatAmount")).doubleValue(), 0.000001);
     }
 
     public static class RoundFunctions {

@@ -15,6 +15,7 @@ import com.hengshucredit.rule.server.mapper.DecisionArtifactMapper;
 import com.hengshucredit.rule.server.mapper.RuleRevisionMapper;
 import com.hengshucredit.rule.server.service.FunctionRegistrar;
 import com.hengshucredit.rule.server.service.RuleDefinitionService;
+import com.hengshucredit.rule.server.service.RuleFieldAnalyzer;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,6 +55,9 @@ public class DecisionArtifactService {
         if (!"REVIEW".equals(revision.getState()) && !"APPROVED".equals(revision.getState())) {
             throw new IllegalStateException("仅 REVIEW 修订可生成审批制品");
         }
+        RuleDefinition definition = loadDefinition(revision.getDefinitionId());
+        if (definition == null) throw new IllegalArgumentException("规则定义不存在");
+        RuleFieldAnalyzer.ResolvedFields fields = resolveFields(definition, revision);
         RulePreflightReport report = preflight(revisionId);
         if (!report.isValid()) {
             throw new IllegalStateException("发布前验证未通过: "
@@ -63,7 +67,7 @@ public class DecisionArtifactService {
             throw new IllegalStateException("破坏性 Schema 变更必须填写原因");
         }
         RuleDependencyClosureService.DependencyClosure closure =
-                resolveDependencies(revision.getDefinitionId(), revisionId);
+                resolveDependencies(revision.getDefinitionId(), revisionId, fields);
         if (closure.hasErrors()) {
             throw new IllegalStateException("依赖闭包校验未通过");
         }
@@ -71,9 +75,7 @@ public class DecisionArtifactService {
         DecisionArtifactPackage artifactPackage = new DecisionArtifactPackage();
         artifactPackage.putMetadata("definitionId", revision.getDefinitionId());
         artifactPackage.putMetadata("revisionId", revision.getId());
-        RuleDefinition definition = definitionService == null
-                ? null : definitionService.getById(revision.getDefinitionId());
-        if (definition != null && definition.getModelType() != null) {
+        if (definition.getModelType() != null) {
             artifactPackage.putMetadata("modelType", definition.getModelType());
         }
         artifactPackage.putMetadata("contentDigest", report.getContentDigest());
@@ -90,16 +92,18 @@ public class DecisionArtifactService {
                 report.getInputSchemaJson());
         addText(artifactPackage, "schemas/output.schema.json", "application/schema+json",
                 report.getOutputSchemaJson());
-        List<RuleDefinitionInputField> inputFields = loadInputFields(revision.getDefinitionId());
-        if (!inputFields.isEmpty()) {
-            addText(artifactPackage, "rule/input-fields.json", "application/json",
-                    CanonicalJson.write(JSON.parse(JSON.toJSONString(inputFields))));
-        }
-        List<RuleDefinitionOutputField> outputFields = loadOutputFields(revision.getDefinitionId());
-        if (!outputFields.isEmpty()) {
-            addText(artifactPackage, "rule/output-fields.json", "application/json",
-                    CanonicalJson.write(JSON.parse(JSON.toJSONString(outputFields))));
-        }
+        List<RuleDefinitionInputField> inputFields = fields.getInputFields();
+        addText(artifactPackage, "rule/input-fields.json", "application/json",
+                CanonicalJson.write(JSON.parse(JSON.toJSONString(inputFields))));
+        List<RuleDefinitionOutputField> outputFields = fields.getOutputFields();
+        addText(artifactPackage, "rule/output-fields.json", "application/json",
+                CanonicalJson.write(JSON.parse(JSON.toJSONString(outputFields))));
+        Map<String, Object> fieldResolution = new LinkedHashMap<>();
+        fieldResolution.put("localOutputNames", fields.getLocalOutputNames());
+        fieldResolution.put("inputPropertySchemas", fields.getInputPropertySchemas());
+        fieldResolution.put("outputPropertySchemas", fields.getOutputPropertySchemas());
+        addText(artifactPackage, "rule/field-resolution.json", "application/json",
+                CanonicalJson.write(fieldResolution));
         if (revision.getOpenApiConfigJson() != null && !revision.getOpenApiConfigJson().isBlank()) {
             addText(artifactPackage, "rule/open-api.json", "application/json",
                     revision.getOpenApiConfigJson());
@@ -254,6 +258,15 @@ public class DecisionArtifactService {
         return revisionMapper.selectById(revisionId);
     }
 
+    protected RuleDefinition loadDefinition(Long definitionId) {
+        return definitionService == null ? null : definitionService.getById(definitionId);
+    }
+
+    protected RuleFieldAnalyzer.ResolvedFields resolveFields(
+            RuleDefinition definition, RuleRevision revision) {
+        return preflightService.resolveFields(definition, revision);
+    }
+
     protected List<RuleDefinitionInputField> loadInputFields(Long definitionId) {
         return definitionService == null ? Collections.emptyList()
                 : definitionService.listInputFields(definitionId);
@@ -271,6 +284,11 @@ public class DecisionArtifactService {
     protected RuleDependencyClosureService.DependencyClosure resolveDependencies(
             Long definitionId, Long revisionId) {
         return dependencyClosureService.resolve(definitionId, revisionId);
+    }
+
+    protected RuleDependencyClosureService.DependencyClosure resolveDependencies(
+            Long definitionId, Long revisionId, RuleFieldAnalyzer.ResolvedFields fields) {
+        return dependencyClosureService.resolve(definitionId, revisionId, fields);
     }
 
     protected DecisionArtifact findByDigest(String artifactDigest) {

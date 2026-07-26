@@ -3,11 +3,15 @@ package com.hengshucredit.rule.server.service;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.hengshucredit.rule.core.script.QLScriptAnalysis;
+import com.hengshucredit.rule.core.script.QLScriptAnalyzer;
+import com.hengshucredit.rule.model.dto.RuleValidationIssue;
 import com.hengshucredit.rule.model.entity.RuleDataObject;
 import com.hengshucredit.rule.model.entity.RuleDataObjectField;
 import com.hengshucredit.rule.model.entity.RuleDefinitionInputField;
 import com.hengshucredit.rule.model.entity.RuleDefinitionOutputField;
 import com.hengshucredit.rule.model.entity.RuleExternalApiConfig;
+import com.hengshucredit.rule.model.entity.RuleExternalDatasource;
 import com.hengshucredit.rule.model.entity.RuleModel;
 import com.hengshucredit.rule.model.entity.RuleModelInputField;
 import com.hengshucredit.rule.model.entity.RuleModelOutputField;
@@ -17,10 +21,12 @@ import com.hengshucredit.rule.server.mapper.RuleDataObjectFieldMapper;
 import com.hengshucredit.rule.server.mapper.RuleDefinitionInputFieldMapper;
 import com.hengshucredit.rule.server.mapper.RuleDefinitionOutputFieldMapper;
 import com.hengshucredit.rule.server.mapper.RuleExternalApiConfigMapper;
+import com.hengshucredit.rule.server.mapper.RuleExternalDatasourceMapper;
 import com.hengshucredit.rule.server.mapper.RuleModelInputFieldMapper;
 import com.hengshucredit.rule.server.mapper.RuleModelMapper;
 import com.hengshucredit.rule.server.mapper.RuleModelOutputFieldMapper;
 import com.hengshucredit.rule.server.mapper.RuleVariableMapper;
+import com.hengshucredit.rule.server.artifact.PublishedRuleFieldSnapshotResolver;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,8 +45,9 @@ import java.util.regex.Pattern;
 @Service
 public class RuleFieldAnalyzer {
 
-    private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*");
-    private static final Set<String> SCRIPT_KEYWORDS = new HashSet<>(Arrays.asList(
+    private static final Pattern EXPRESSION_IDENTIFIER_PATTERN =
+            Pattern.compile("[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*");
+    private static final Set<String> EXPRESSION_KEYWORDS = new HashSet<>(Arrays.asList(
             "if", "else", "for", "while", "switch", "case", "default", "break", "continue", "return",
             "true", "false", "null", "and", "or", "in", "new", "var", "let", "const", "do",
             "try", "catch", "finally", "throw", "class", "import", "package"
@@ -51,6 +58,8 @@ public class RuleFieldAnalyzer {
 
     @Resource
     private RuleDefinitionOutputFieldMapper outputFieldMapper;
+    @Resource
+    private PublishedRuleFieldSnapshotResolver publishedFieldSnapshotResolver;
 
     @Resource
     private RuleVariableMapper ruleVariableMapper;
@@ -76,6 +85,15 @@ public class RuleFieldAnalyzer {
     @Resource
     private RuleExternalApiConfigMapper externalApiConfigMapper;
 
+    @Resource
+    private RuleExternalDatasourceMapper externalDatasourceMapper;
+
+    @Resource
+    private QLScriptFieldResolver qlScriptFieldResolver;
+
+    @Resource
+    private DataObjectSchemaResolver dataObjectSchemaResolver;
+
     /**
      * 解析模型内容，提取输入/输出变量，持久化到字段表。
      * 写入字段时，优先通过 projectId 从变量管理表（rule_variable / rule_data_object_field）
@@ -92,16 +110,20 @@ public class RuleFieldAnalyzer {
             return;
         }
 
-        // 解析字段
         ResolvedFields resolvedFields = resolveFields(definitionId, modelJson, modelType, projectId);
+        persistResolvedFields(definitionId, resolvedFields);
+    }
+
+    /**
+     * 持久化已经解析完成的字段投影，不重新解析或按名称回绑引用。
+     */
+    @Transactional
+    public void persistResolvedFields(Long definitionId, ResolvedFields resolvedFields) {
+        if (definitionId == null || resolvedFields == null) {
+            throw new IllegalArgumentException("definitionId 和 resolvedFields 不能为空");
+        }
         List<RuleDefinitionInputField> preparedInputFields = resolvedFields.getInputFields();
         List<RuleDefinitionOutputField> preparedOutputFields = resolvedFields.getOutputFields();
-
-        // 收集已有的 varId 映射（保留用户关联的变量）
-
-        // 从变量管理表查询元信息：varCode -> {varLabel, varType, scriptName, id}
-
-        // 先补齐变量元信息，模型引用会展开为模型自身输入字段。
 
         // 删除旧字段
         inputFieldMapper.delete(new LambdaQueryWrapper<RuleDefinitionInputField>()
@@ -116,7 +138,10 @@ public class RuleFieldAnalyzer {
             field.setSortOrder(inputOrder++);
             field.setStatus(1);
             field.setCreateTime(LocalDateTime.now());
-            inputFieldMapper.insert(field);
+            if (inputFieldMapper.insert(field) != 1) {
+                throw new IllegalStateException(
+                        "规则输入字段投影写入失败");
+            }
         }
 
         int outputOrder = 0;
@@ -125,12 +150,18 @@ public class RuleFieldAnalyzer {
             field.setSortOrder(outputOrder++);
             field.setStatus(1);
             field.setCreateTime(LocalDateTime.now());
-            outputFieldMapper.insert(field);
+            if (outputFieldMapper.insert(field) != 1) {
+                throw new IllegalStateException(
+                        "规则输出字段投影写入失败");
+            }
         }
     }
 
     /** 使用与持久化完全相同的规则解析字段，但不写数据库。 */
     public ResolvedFields resolveFields(Long definitionId, String modelJson, String modelType, Long projectId) {
+        if ("SCRIPT".equalsIgnoreCase(modelType)) {
+            return resolveScriptFields(definitionId, modelJson, projectId);
+        }
         List<RuleDefinitionInputField> inputFields = extractInputFields(modelJson, modelType);
         List<RuleDefinitionOutputField> outputFields = extractOutputFields(modelJson, modelType);
         Map<String, Long> existingInputVarMap = definitionId == null
@@ -145,6 +176,7 @@ public class RuleFieldAnalyzer {
                 ? Collections.emptyMap() : getExistingInputFieldMap(definitionId);
         Map<String, FieldRef> explicitRefMap = collectExplicitRefs(modelJson);
         Map<String, Map<String, Object>> varMetaMap = buildVarMetaMap(projectId);
+        ResolvedFields ruleCallFields = resolveRuleCallFields(definitionId, modelJson);
 
         List<RuleDefinitionInputField> preparedInputFields = new ArrayList<>();
         for (RuleDefinitionInputField field : inputFields) {
@@ -152,16 +184,25 @@ public class RuleFieldAnalyzer {
             enrichFieldFromMeta(field, varMetaMap, existingInputVarMap, existingInputRefTypeMap);
             preparedInputFields.add(field);
         }
-        preparedInputFields.addAll(loadRuleCallInputFields(modelJson));
+        preparedInputFields.addAll(ruleCallFields.getInputFields());
 
         List<RuleDefinitionOutputField> preparedOutputFields = new ArrayList<>();
+        Set<RuleDefinitionOutputField> localRuleCallOutputs =
+                Collections.newSetFromMap(new IdentityHashMap<>());
         for (RuleDefinitionOutputField field : outputFields) {
             applyExplicitRef(field, explicitRefMap);
             enrichFieldFromMeta(field, varMetaMap, existingOutputVarMap, existingOutputRefTypeMap);
             preparedOutputFields.add(field);
         }
-        preparedOutputFields.addAll(loadRuleCallOutputFields(modelJson));
+        for (RuleDefinitionOutputField field : ruleCallFields.getOutputFields()) {
+            preparedOutputFields.add(field);
+            if (ruleCallFields.isLocalOutput(field)) {
+                localRuleCallOutputs.add(field);
+            }
+        }
         preparedOutputFields = deduplicateOutputFields(preparedOutputFields);
+        Set<String> retainedLocalOutputs =
+                retainedLocalOutputNames(preparedOutputFields, localRuleCallOutputs);
         preparedInputFields = expandModelInputFields(preparedInputFields, varMetaMap);
         preparedInputFields = removeOutputFields(preparedInputFields, preparedOutputFields);
         for (RuleDefinitionInputField field : preparedInputFields) {
@@ -173,7 +214,664 @@ public class RuleFieldAnalyzer {
                 field.setValidationOverride(0);
             }
         }
-        return new ResolvedFields(preparedInputFields, preparedOutputFields);
+        return new ResolvedFields(
+                preparedInputFields, preparedOutputFields,
+                ruleCallFields.getDiagnostics(), retainedLocalOutputs,
+                ruleCallFields.getInputPropertySchemas(),
+                ruleCallFields.getOutputPropertySchemas());
+    }
+
+    private ResolvedFields resolveRuleCallFields(Long definitionId, String modelJson) {
+        if (definitionId != null) {
+            return new ResolvedFields(
+                    loadRuleCallInputFields(modelJson),
+                    loadRuleCallOutputFields(modelJson));
+        }
+        Set<Long> ruleIds = new LinkedHashSet<>();
+        collectRuleCallIds(parseObject(modelJson), ruleIds);
+        List<RuleDefinitionInputField> inputs = new ArrayList<>();
+        List<RuleDefinitionOutputField> outputs = new ArrayList<>();
+        List<RuleValidationIssue> diagnostics = new ArrayList<>();
+        Set<RuleDefinitionOutputField> localCandidates =
+                Collections.newSetFromMap(new IdentityHashMap<>());
+        Map<String, Object> inputSchemas = new LinkedHashMap<>();
+        Map<String, Object> outputSchemas = new LinkedHashMap<>();
+        for (Long ruleId : ruleIds) {
+            ResolvedFields fields;
+            if (publishedFieldSnapshotResolver == null) {
+                RuleValidationIssue issue = RuleValidationIssue.error(
+                        "FROZEN_REVISION_FIELD_SNAPSHOT_MISSING", "$.ruleFields",
+                        "RULE", ruleId, "已发布规则字段快照解析器不可用");
+                fields = new ResolvedFields(
+                        Collections.emptyList(), Collections.emptyList(),
+                        Collections.singletonList(issue), Collections.emptySet(),
+                        Collections.emptyMap(), Collections.emptyMap());
+            } else {
+                fields = publishedFieldSnapshotResolver.resolve(ruleId);
+            }
+            inputs.addAll(fields.getInputFields());
+            for (RuleDefinitionOutputField output : fields.getOutputFields()) {
+                outputs.add(output);
+                if (fields.isLocalOutput(output)) {
+                    localCandidates.add(output);
+                }
+            }
+            diagnostics.addAll(fields.getDiagnostics());
+            inputSchemas.putAll(fields.getInputPropertySchemas());
+            outputSchemas.putAll(fields.getOutputPropertySchemas());
+        }
+        outputs = deduplicateOutputFields(outputs);
+        Set<String> localOutputs = retainedLocalOutputNames(outputs, localCandidates);
+        return new ResolvedFields(inputs, outputs, diagnostics, localOutputs,
+                inputSchemas, outputSchemas);
+    }
+
+    private ResolvedFields resolveScriptFields(Long definitionId, String modelJson, Long projectId) {
+        ResolvedFields scriptFields = qlScriptFieldResolver.resolve(modelJson, projectId);
+        QLScriptAnalysis scriptAnalysis = new QLScriptAnalyzer()
+                .analyze(parseObject(modelJson).getString("script"));
+        List<RuleValidationIssue> diagnostics =
+                new ArrayList<>(scriptFields.getDiagnostics());
+        Map<String, Object> inputPropertySchemas =
+                new LinkedHashMap<>(scriptFields.getInputPropertySchemas());
+        Map<String, Object> outputPropertySchemas =
+                new LinkedHashMap<>(scriptFields.getOutputPropertySchemas());
+        Map<String, String> verifiedInputTypes = resolveScriptInputShapes(
+                scriptFields.getInputFields(), projectId,
+                diagnostics, inputPropertySchemas);
+        Map<String, Map<String, Object>> varMetaMap = buildVarMetaMap(projectId);
+        List<RuleDefinitionInputField> preparedInputFields =
+                expandStableScriptInputFields(scriptFields.getInputFields(), varMetaMap);
+        List<RuleDefinitionOutputField> preparedOutputFields =
+                deduplicateOutputFields(new ArrayList<>(scriptFields.getOutputFields()));
+        Map<String, RuleDefinitionInputField> existingInputFieldMap = definitionId == null
+                ? Collections.emptyMap() : getExistingInputFieldMap(definitionId);
+        for (RuleDefinitionInputField field : preparedInputFields) {
+            RuleDefinitionInputField existing = existingInputFieldMap.get(inputFieldKey(field));
+            if (existing != null && Integer.valueOf(1).equals(existing.getValidationOverride())) {
+                field.setValidationRuleIds(normalizeValidationRuleIds(existing.getValidationRuleIds()));
+                field.setValidationOverride(1);
+            } else if (field.getValidationOverride() == null) {
+                field.setValidationOverride(0);
+            }
+        }
+        addStableInputFieldSchemas(preparedInputFields, projectId,
+                diagnostics, inputPropertySchemas);
+        applyScriptOutputTypes(scriptAnalysis, preparedOutputFields,
+                verifiedInputTypes, outputPropertySchemas);
+        addStableOutputFieldSchemas(preparedOutputFields, projectId,
+                diagnostics, outputPropertySchemas);
+        return new ResolvedFields(
+                preparedInputFields, preparedOutputFields,
+                diagnostics, scriptFields.getLocalOutputNames(),
+                inputPropertySchemas, outputPropertySchemas);
+    }
+
+    private Map<String, String> resolveScriptInputShapes(
+            List<RuleDefinitionInputField> inputFields,
+            Long projectId,
+            List<RuleValidationIssue> diagnostics,
+            Map<String, Object> inputPropertySchemas) {
+        Map<String, String> verifiedTypes = new LinkedHashMap<>();
+        Map<Long, ObjectShapeIndex> variableShapeCache = new HashMap<>();
+        for (RuleDefinitionInputField field : inputFields) {
+            String inputPath = trimToNull(field.getScriptName());
+            String refType = normalizeRefType(field.getRefType());
+            if (inputPath == null || field.getVarId() == null || refType == null) {
+                continue;
+            }
+            if ("DATA_OBJECT".equals(refType)) {
+                if (dataObjectSchemaResolver == null) {
+                    continue;
+                }
+                DataObjectSchemaResolver.ShapeResult shape =
+                        dataObjectSchemaResolver.resolveField(field.getVarId(), projectId);
+                mergeDiagnostics(diagnostics, shape.getDiagnostics());
+                inputPropertySchemas.put(inputPath, shape.getSchema());
+                String type = shapeType(shape.getSchema());
+                if (type != null) {
+                    verifiedTypes.put(normalizeIndexedPath(inputPath), type);
+                    field.setFieldType(type);
+                }
+                continue;
+            }
+            if (!"VARIABLE".equals(refType) && !"CONSTANT".equals(refType)) {
+                String type = trimToNull(field.getFieldType());
+                if (type != null) {
+                    verifiedTypes.put(normalizeIndexedPath(inputPath), type);
+                    inputPropertySchemas.put(inputPath, propertySchema(type));
+                }
+                continue;
+            }
+
+            RuleVariable variable = ruleVariableMapper == null
+                    ? null : ruleVariableMapper.selectById(field.getVarId());
+            if (variable == null) {
+                continue;
+            }
+            String scriptRoot = firstNonBlank(variable.getScriptName(), variable.getVarCode());
+            String relativePath = relativePath(inputPath, scriptRoot);
+            String variableType = trimToNull(variable.getVarType());
+            if (relativePath == null) {
+                continue;
+            }
+            if (relativePath.isEmpty()
+                    && !isObjectOrList(variableType)) {
+                field.setFieldType(variableType);
+                verifiedTypes.put(normalizeIndexedPath(inputPath), variableType);
+                inputPropertySchemas.put(inputPath, propertySchema(variableType));
+                continue;
+            }
+            if (!isObjectOrList(variableType)) {
+                addMissingDescendantDiagnostic(diagnostics, inputPath);
+                field.setFieldType(null);
+                inputPropertySchemas.remove(inputPath);
+                continue;
+            }
+
+            ObjectShapeIndex shape = variableShapeCache.computeIfAbsent(
+                    field.getVarId(),
+                    ignored -> loadApiVariableShape(variable, projectId, diagnostics));
+            if (relativePath.isEmpty()) {
+                inputPropertySchemas.put(inputPath, shape.schema);
+                verifiedTypes.put(normalizeIndexedPath(inputPath), variableType);
+                field.setFieldType(variableType);
+                continue;
+            }
+            String normalizedRelative = normalizeIndexedPath(relativePath);
+            String leafType = shape.leafTypes.get(normalizedRelative);
+            Map<String, Object> leafSchema = shape.schemasByPath.get(normalizedRelative);
+            if (leafType == null || leafSchema == null) {
+                addMissingDescendantDiagnostic(diagnostics, inputPath);
+                field.setFieldType(null);
+                inputPropertySchemas.remove(inputPath);
+                continue;
+            }
+            field.setFieldType(leafType);
+            verifiedTypes.put(normalizeIndexedPath(inputPath), leafType);
+            inputPropertySchemas.put(inputPath, leafSchema);
+        }
+        return verifiedTypes;
+    }
+
+    private ObjectShapeIndex loadApiVariableShape(
+            RuleVariable variable,
+            Long projectId,
+            List<RuleValidationIssue> diagnostics) {
+        String scriptRoot = firstNonBlank(variable.getScriptName(), variable.getVarCode());
+        if (!"API".equalsIgnoreCase(trimToNull(variable.getVarSource()))) {
+            addOpenShapeDiagnostic(diagnostics, scriptRoot,
+                    "对象变量缺少可由稳定 ID 证明的结构来源");
+            return ObjectShapeIndex.open();
+        }
+        Long apiConfigId = parseObject(variable.getSourceConfig()).getLong("apiConfigId");
+        if (apiConfigId == null || externalApiConfigMapper == null) {
+            addApiChainDiagnostic(diagnostics, "REFERENCE_NOT_FOUND",
+                    "$.apiConfig." + apiConfigId,
+                    "API 对象变量缺少可用的稳定 apiConfigId");
+            return ObjectShapeIndex.open();
+        }
+        RuleExternalApiConfig apiConfig = apiConfigId == null
+                ? null : externalApiConfigMapper.selectById(apiConfigId);
+        if (apiConfig == null) {
+            addApiChainDiagnostic(diagnostics, "REFERENCE_NOT_FOUND",
+                    "$.apiConfig." + apiConfigId, "API 配置不存在");
+            return ObjectShapeIndex.open();
+        }
+        if (!Integer.valueOf(1).equals(apiConfig.getStatus())) {
+            addApiChainDiagnostic(diagnostics, "REFERENCE_TYPE_MISMATCH",
+                    "$.apiConfig." + apiConfigId, "API 配置未启用");
+            return ObjectShapeIndex.open();
+        }
+        Long datasourceId = apiConfig.getDatasourceId();
+        RuleExternalDatasource datasource =
+                datasourceId == null || externalDatasourceMapper == null
+                        ? null : externalDatasourceMapper.selectById(datasourceId);
+        if (datasource == null) {
+            addApiChainDiagnostic(diagnostics, "REFERENCE_NOT_FOUND",
+                    "$.datasource." + datasourceId, "API 所属外部数据源不存在");
+            return ObjectShapeIndex.open();
+        }
+        if (!Integer.valueOf(1).equals(datasource.getStatus())
+                || !resourceAvailable(
+                datasource.getScope(), datasource.getProjectId(), projectId)) {
+            addApiChainDiagnostic(diagnostics, "REFERENCE_TYPE_MISMATCH",
+                    "$.datasource." + datasourceId,
+                    "API 所属外部数据源未启用或不属于当前项目");
+            return ObjectShapeIndex.open();
+        }
+        if (apiConfig.getResponseObjectId() == null) {
+            addApiChainDiagnostic(diagnostics, "REFERENCE_NOT_FOUND",
+                    "$.apiConfig." + apiConfigId,
+                    "API 配置缺少稳定 responseObjectId");
+            return ObjectShapeIndex.open();
+        }
+        return loadObjectShape(apiConfig.getResponseObjectId(), projectId,
+                scriptRoot, diagnostics);
+    }
+
+    private ObjectShapeIndex loadObjectShape(
+            Long objectId,
+            Long projectId,
+            String diagnosticPath,
+            List<RuleValidationIssue> diagnostics) {
+        if (dataObjectMapper == null || dataObjectFieldMapper == null
+                || dataObjectSchemaResolver == null) {
+            addOpenShapeDiagnostic(diagnostics, diagnosticPath,
+                    "数据对象 Schema 解析器不可用");
+            return ObjectShapeIndex.open();
+        }
+        RuleDataObject object = dataObjectMapper.selectById(objectId);
+        if (object == null || !Integer.valueOf(1).equals(object.getStatus())
+                || !resourceAvailable(object.getScope(), object.getProjectId(), projectId)) {
+            addOpenShapeDiagnostic(diagnostics, diagnosticPath,
+                    "API 响应对象不存在、未启用或不属于当前项目");
+            return ObjectShapeIndex.open();
+        }
+        List<RuleDataObjectField> selected = dataObjectFieldMapper.selectList(
+                new LambdaQueryWrapper<RuleDataObjectField>()
+                        .eq(RuleDataObjectField::getObjectId, objectId)
+                        .eq(RuleDataObjectField::getStatus, 1)
+                        .orderByAsc(RuleDataObjectField::getSortOrder)
+                        .orderByAsc(RuleDataObjectField::getId));
+        List<RuleDataObjectField> roots = new ArrayList<>();
+        for (RuleDataObjectField field : selected == null
+                ? Collections.<RuleDataObjectField>emptyList() : selected) {
+            if (Objects.equals(objectId, field.getObjectId())
+                    && field.getParentFieldId() == null
+                    && Integer.valueOf(1).equals(field.getStatus())
+                    && resourceAvailable(field.getScope(), field.getProjectId(), projectId)) {
+                roots.add(field);
+            }
+        }
+        if (roots.isEmpty()) {
+            addOpenShapeDiagnostic(diagnostics, diagnosticPath,
+                    "API 响应对象缺少可由稳定字段 ID 证明的根字段");
+            return ObjectShapeIndex.open();
+        }
+        roots.sort(Comparator
+                .comparing(RuleDataObjectField::getSortOrder,
+                        Comparator.nullsLast(Integer::compareTo))
+                .thenComparing(RuleDataObjectField::getId,
+                        Comparator.nullsLast(Long::compareTo)));
+
+        Map<String, Object> rootProperties = new LinkedHashMap<>();
+        Map<String, Long> rootPropertyIds = new LinkedHashMap<>();
+        Map<String, Map<String, Object>> schemasByPath = new LinkedHashMap<>();
+        Map<String, String> leafTypes = new LinkedHashMap<>();
+        for (RuleDataObjectField root : roots) {
+            String rootName = firstNonBlank(root.getScriptName(), root.getVarCode());
+            if (rootName == null || root.getId() == null) {
+                continue;
+            }
+            Long existingId = rootPropertyIds.get(rootName);
+            if (existingId != null && !existingId.equals(root.getId())) {
+                addDiagnosticIfAbsent(diagnostics, RuleValidationIssue.error(
+                        "OBJECT_SHAPE_CONFLICT",
+                        "$.field." + root.getId(),
+                        "API 响应对象同名根字段对应不同稳定字段 ID: " + rootName));
+                continue;
+            }
+            if (existingId != null) {
+                continue;
+            }
+            DataObjectSchemaResolver.ShapeResult shape =
+                    dataObjectSchemaResolver.resolveField(root.getId(), projectId);
+            mergeDiagnostics(diagnostics, shape.getDiagnostics());
+            Map<String, Object> rootSchema = shape.getSchema();
+            rootProperties.put(rootName, rootSchema);
+            rootPropertyIds.put(rootName, root.getId());
+            indexStableSchema(
+                    rootName, rootSchema, schemasByPath, leafTypes);
+        }
+        Map<String, Object> schema = propertySchema("OBJECT");
+        schema.put("properties", rootProperties);
+        schema.put("additionalProperties", false);
+        return new ObjectShapeIndex(schema, schemasByPath, leafTypes);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void indexStableSchema(
+            String path,
+            Map<String, Object> schema,
+            Map<String, Map<String, Object>> schemasByPath,
+            Map<String, String> typesByPath) {
+        String normalizedPath = normalizeIndexedPath(path);
+        schemasByPath.putIfAbsent(normalizedPath, schema);
+        String type = shapeType(schema);
+        if (type != null) {
+            typesByPath.putIfAbsent(normalizedPath, type);
+        }
+
+        Object properties = schema.get("properties");
+        if (properties instanceof Map) {
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) properties).entrySet()) {
+                if (entry.getKey() instanceof String
+                        && entry.getValue() instanceof Map) {
+                    indexStableSchema(
+                            path + "." + entry.getKey(),
+                            (Map<String, Object>) entry.getValue(),
+                            schemasByPath, typesByPath);
+                }
+            }
+        }
+        Object items = schema.get("items");
+        if (items instanceof Map && !((Map<?, ?>) items).isEmpty()) {
+            indexStableSchema(
+                    path + "[]",
+                    (Map<String, Object>) items,
+                    schemasByPath, typesByPath);
+        }
+    }
+
+    private void addStableInputFieldSchemas(
+            List<RuleDefinitionInputField> fields,
+            Long projectId,
+            List<RuleValidationIssue> diagnostics,
+            Map<String, Object> schemas) {
+        if (dataObjectSchemaResolver == null) {
+            return;
+        }
+        for (RuleDefinitionInputField field : fields) {
+            if (!"DATA_OBJECT".equals(normalizeRefType(field.getRefType()))
+                    || field.getVarId() == null) {
+                continue;
+            }
+            DataObjectSchemaResolver.ShapeResult shape =
+                    dataObjectSchemaResolver.resolveField(field.getVarId(), projectId);
+            mergeDiagnostics(diagnostics, shape.getDiagnostics());
+            String fieldName = trimToNull(field.getFieldName());
+            if (fieldName != null) {
+                schemas.put(fieldName, shape.getSchema());
+            }
+            String type = shapeType(shape.getSchema());
+            if (type != null) {
+                field.setFieldType(type);
+            }
+        }
+    }
+
+    private void addStableOutputFieldSchemas(
+            List<RuleDefinitionOutputField> fields,
+            Long projectId,
+            List<RuleValidationIssue> diagnostics,
+            Map<String, Object> schemas) {
+        if (dataObjectSchemaResolver == null) {
+            return;
+        }
+        for (RuleDefinitionOutputField field : fields) {
+            if (!"DATA_OBJECT".equals(normalizeRefType(field.getRefType()))
+                    || field.getVarId() == null) {
+                continue;
+            }
+            DataObjectSchemaResolver.ShapeResult shape =
+                    dataObjectSchemaResolver.resolveField(field.getVarId(), projectId);
+            mergeDiagnostics(diagnostics, shape.getDiagnostics());
+            String fieldName = trimToNull(field.getFieldName());
+            if (fieldName != null) {
+                schemas.put(fieldName, shape.getSchema());
+            }
+            String type = shapeType(shape.getSchema());
+            if (type != null) {
+                field.setFieldType(type);
+            }
+        }
+    }
+
+    private void applyScriptOutputTypes(
+            QLScriptAnalysis analysis,
+            List<RuleDefinitionOutputField> outputFields,
+            Map<String, String> verifiedInputTypes,
+            Map<String, Object> outputSchemas) {
+        Map<String, QLScriptAnalysis.OutputField> analysisByName =
+                new LinkedHashMap<>();
+        for (QLScriptAnalysis.OutputField output : analysis.getPublicOutputs()) {
+            analysisByName.putIfAbsent(output.getName(), output);
+        }
+        Map<String, String> visibleAssignments = analysis.hasExplicitResult()
+                ? Collections.emptyMap() : analysis.getLocalAssignments();
+        for (RuleDefinitionOutputField field : outputFields) {
+            String outputName = firstNonBlank(field.getScriptName(), field.getFieldName());
+            QLScriptAnalysis.OutputField analyzed = analysisByName.get(outputName);
+            if (analyzed == null) {
+                continue;
+            }
+            String type = resolveExpressionType(
+                    analyzed.getSourceExpression(),
+                    visibleAssignments,
+                    verifiedInputTypes,
+                    new LinkedHashSet<>());
+            if (type == null) {
+                if (analysis.hasExplicitResult() || usesDynamicIndex(
+                        analyzed.getSourceExpression(),
+                        visibleAssignments,
+                        new LinkedHashSet<>())) {
+                    field.setFieldType(null);
+                    outputSchemas.remove(outputName);
+                }
+                continue;
+            }
+            field.setFieldType(type);
+            outputSchemas.put(outputName, propertySchema(type));
+        }
+    }
+
+    private String resolveExpressionType(
+            String expression,
+            Map<String, String> localAssignments,
+            Map<String, String> verifiedInputTypes,
+            Set<String> visiting) {
+        String value = trimOuterParentheses(trimToNull(expression));
+        if (value == null) {
+            return null;
+        }
+        String verified = verifiedInputTypes.get(normalizeIndexedPath(value));
+        if (verified != null) {
+            return verified;
+        }
+        if (localAssignments.containsKey(value) && visiting.add(value)) {
+            try {
+                return resolveExpressionType(localAssignments.get(value),
+                        localAssignments, verifiedInputTypes, visiting);
+            } finally {
+                visiting.remove(value);
+            }
+        }
+        if ((value.startsWith("\"") && value.endsWith("\""))
+                || (value.startsWith("'") && value.endsWith("'"))) {
+            return "STRING";
+        }
+        if (value.matches("[-+]?\\d+")) {
+            return "INTEGER";
+        }
+        if (value.matches("[-+]?(?:\\d+\\.\\d*|\\d*\\.\\d+)")) {
+            return "NUMBER";
+        }
+        if ("true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value)) {
+            return "BOOLEAN";
+        }
+        if (value.startsWith("{") && value.endsWith("}")) {
+            return "OBJECT";
+        }
+        if (value.startsWith("[") && value.endsWith("]")) {
+            return "LIST";
+        }
+        return null;
+    }
+
+    private boolean usesDynamicIndex(
+            String expression,
+            Map<String, String> localAssignments,
+            Set<String> visiting) {
+        String value = trimOuterParentheses(trimToNull(expression));
+        if (value == null) {
+            return false;
+        }
+        Matcher indexMatcher = Pattern.compile("\\[([^\\]]*)]").matcher(value);
+        while (indexMatcher.find()) {
+            String index = indexMatcher.group(1).trim();
+            if (!index.matches("-?\\d+")
+                    && !((index.startsWith("\"") && index.endsWith("\""))
+                    || (index.startsWith("'") && index.endsWith("'")))) {
+                return true;
+            }
+        }
+        if (localAssignments.containsKey(value) && visiting.add(value)) {
+            try {
+                return usesDynamicIndex(
+                        localAssignments.get(value), localAssignments, visiting);
+            } finally {
+                visiting.remove(value);
+            }
+        }
+        return false;
+    }
+
+    private String trimOuterParentheses(String value) {
+        String current = value;
+        while (current != null && current.length() >= 2
+                && current.startsWith("(") && current.endsWith(")")) {
+            current = trimToNull(current.substring(1, current.length() - 1));
+        }
+        return current;
+    }
+
+    private void addMissingDescendantDiagnostic(
+            List<RuleValidationIssue> diagnostics, String inputPath) {
+        RuleValidationIssue issue = RuleValidationIssue.error(
+                        "SCRIPT_INPUT_REF_MISSING",
+                        "$.script." + inputPath,
+                        "脚本对象后代无法由稳定字段 ID 证明")
+                .withSafeDetail("fieldPath", inputPath);
+        addDiagnosticIfAbsent(diagnostics, issue);
+    }
+
+    private void addOpenShapeDiagnostic(
+            List<RuleValidationIssue> diagnostics,
+            String path,
+            String message) {
+        addDiagnosticIfAbsent(diagnostics, RuleValidationIssue.warning(
+                "OBJECT_SHAPE_INCOMPLETE",
+                "$.script." + (path == null ? "" : path), message));
+    }
+
+    private void addApiChainDiagnostic(
+            List<RuleValidationIssue> diagnostics,
+            String code,
+            String path,
+            String message) {
+        addDiagnosticIfAbsent(
+                diagnostics, RuleValidationIssue.error(code, path, message));
+    }
+
+    private void mergeDiagnostics(
+            List<RuleValidationIssue> diagnostics,
+            List<RuleValidationIssue> additions) {
+        for (RuleValidationIssue issue : additions) {
+            addDiagnosticIfAbsent(diagnostics, issue);
+        }
+    }
+
+    private void addDiagnosticIfAbsent(
+            List<RuleValidationIssue> diagnostics,
+            RuleValidationIssue addition) {
+        for (RuleValidationIssue existing : diagnostics) {
+            if (Objects.equals(existing.getCode(), addition.getCode())
+                    && Objects.equals(existing.getPath(), addition.getPath())
+                    && Objects.equals(existing.getSeverity(), addition.getSeverity())) {
+                return;
+            }
+        }
+        diagnostics.add(addition);
+    }
+
+    private String relativePath(String fullPath, String root) {
+        String path = trimToNull(fullPath);
+        String scriptRoot = trimToNull(root);
+        if (path == null || scriptRoot == null) {
+            return null;
+        }
+        if (path.equals(scriptRoot)) {
+            return "";
+        }
+        return path.startsWith(scriptRoot + ".")
+                ? path.substring(scriptRoot.length() + 1) : null;
+    }
+
+    private String normalizeIndexedPath(String path) {
+        String value = trimToNull(path);
+        return value == null ? null : value.replaceAll("\\[[^\\]]*]", "[]");
+    }
+
+    private boolean isObjectOrList(String type) {
+        String value = trimToNull(type);
+        if (value == null) {
+            return false;
+        }
+        String normalized = value.toUpperCase(Locale.ROOT);
+        return "OBJECT".equals(normalized) || "MAP".equals(normalized)
+                || "LIST".equals(normalized) || "ARRAY".equals(normalized)
+                || "SET".equals(normalized);
+    }
+
+    private boolean resourceAvailable(
+            String scope, Long resourceProjectId, Long projectId) {
+        return RuleVariableService.SCOPE_GLOBAL.equalsIgnoreCase(
+                scope == null ? "" : scope.trim())
+                || projectId == null
+                || Objects.equals(resourceProjectId, projectId);
+    }
+
+    private String shapeType(Map<String, Object> schema) {
+        Object ruleType = schema == null ? null : schema.get("x-rule-type");
+        return ruleType instanceof String ? (String) ruleType : null;
+    }
+
+    private Map<String, Object> propertySchema(String type) {
+        String ruleType = trimToNull(type);
+        ruleType = ruleType == null ? "OBJECT" : ruleType.toUpperCase(Locale.ROOT);
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", switch (ruleType) {
+            case "INTEGER", "LONG", "SHORT", "BYTE" -> "integer";
+            case "NUMBER", "DOUBLE", "FLOAT", "DECIMAL", "BIGDECIMAL" -> "number";
+            case "BOOLEAN", "BOOL" -> "boolean";
+            case "LIST", "ARRAY", "SET" -> "array";
+            case "OBJECT", "MAP" -> "object";
+            default -> "string";
+        });
+        if ("DATE".equals(ruleType)) {
+            schema.put("format", "date");
+        } else if ("DATETIME".equals(ruleType)
+                || "LOCALDATETIME".equals(ruleType)) {
+            schema.put("format", "date-time");
+        }
+        schema.put("x-rule-type", ruleType);
+        return schema;
+    }
+
+    private List<RuleDefinitionInputField> expandStableScriptInputFields(
+            List<RuleDefinitionInputField> inputFields,
+            Map<String, Map<String, Object>> varMetaMap) {
+        List<RuleDefinitionInputField> result = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (RuleDefinitionInputField field : inputFields) {
+            if (field.getVarId() == null || normalizeRefType(field.getRefType()) == null) {
+                addInputFieldIfAbsent(result, seen, field);
+                continue;
+            }
+            Map<String, Map<String, Object>> stableMetaMap = new HashMap<>(varMetaMap);
+            Map<String, Object> stableMeta =
+                    findMetaById(field.getVarId(), field.getRefType(), varMetaMap);
+            String scriptName = trimToNull(field.getScriptName());
+            if (stableMeta != null && scriptName != null) {
+                stableMetaMap.put(scriptName.toLowerCase(), stableMeta);
+            }
+            for (RuleDefinitionInputField expanded
+                    : expandModelInputFields(Collections.singletonList(field), stableMetaMap)) {
+                addInputFieldIfAbsent(result, seen, expanded);
+            }
+        }
+        return result;
     }
 
     /** 将模型或变量入口字段递归展开到 INPUT / DATA_OBJECT 叶子。 */
@@ -193,11 +891,44 @@ public class RuleFieldAnalyzer {
     public static class ResolvedFields {
         private final List<RuleDefinitionInputField> inputFields;
         private final List<RuleDefinitionOutputField> outputFields;
+        private final List<RuleValidationIssue> diagnostics;
+        private final Set<String> localOutputNames;
+        private final Map<String, Object> inputPropertySchemas;
+        private final Map<String, Object> outputPropertySchemas;
+        private final String snapshotModelType;
 
         public ResolvedFields(List<RuleDefinitionInputField> inputFields,
                               List<RuleDefinitionOutputField> outputFields) {
-            this.inputFields = inputFields;
-            this.outputFields = outputFields;
+            this(inputFields, outputFields, Collections.emptyList(), Collections.emptySet(),
+                    Collections.emptyMap(), Collections.emptyMap(), null);
+        }
+
+        public ResolvedFields(List<RuleDefinitionInputField> inputFields,
+                              List<RuleDefinitionOutputField> outputFields,
+                              List<RuleValidationIssue> diagnostics,
+                              Set<String> localOutputNames,
+                              Map<String, Object> inputPropertySchemas,
+                              Map<String, Object> outputPropertySchemas) {
+            this(inputFields, outputFields, diagnostics, localOutputNames,
+                    inputPropertySchemas, outputPropertySchemas, null);
+        }
+
+        public ResolvedFields(List<RuleDefinitionInputField> inputFields,
+                              List<RuleDefinitionOutputField> outputFields,
+                              List<RuleValidationIssue> diagnostics,
+                              Set<String> localOutputNames,
+                              Map<String, Object> inputPropertySchemas,
+                              Map<String, Object> outputPropertySchemas,
+                              String snapshotModelType) {
+            this.inputFields = immutableList(inputFields);
+            this.outputFields = immutableList(outputFields);
+            this.diagnostics = immutableList(diagnostics);
+            this.localOutputNames = localOutputNames == null
+                    ? Collections.emptySet()
+                    : Collections.unmodifiableSet(new LinkedHashSet<>(localOutputNames));
+            this.inputPropertySchemas = immutableMap(inputPropertySchemas);
+            this.outputPropertySchemas = immutableMap(outputPropertySchemas);
+            this.snapshotModelType = snapshotModelType;
         }
 
         public List<RuleDefinitionInputField> getInputFields() {
@@ -206,6 +937,83 @@ public class RuleFieldAnalyzer {
 
         public List<RuleDefinitionOutputField> getOutputFields() {
             return outputFields;
+        }
+
+        public List<RuleValidationIssue> getDiagnostics() {
+            return diagnostics;
+        }
+
+        public Set<String> getLocalOutputNames() {
+            return localOutputNames;
+        }
+
+        public Map<String, Object> getInputPropertySchemas() {
+            return inputPropertySchemas;
+        }
+
+        public Map<String, Object> getOutputPropertySchemas() {
+            return outputPropertySchemas;
+        }
+
+        public String getSnapshotModelType() {
+            return snapshotModelType;
+        }
+
+        public boolean isLocalOutput(RuleDefinitionOutputField field) {
+            if (field == null) {
+                return false;
+            }
+            if (field.getVarId() != null || field.getRefType() != null) {
+                return false;
+            }
+            String name = field.getScriptName() != null
+                    ? field.getScriptName() : field.getFieldName();
+            return name != null && localOutputNames.contains(name);
+        }
+
+        private static <T> List<T> immutableList(List<T> values) {
+            return values == null || values.isEmpty()
+                    ? Collections.emptyList()
+                    : Collections.unmodifiableList(new ArrayList<>(values));
+        }
+
+        private static Map<String, Object> immutableMap(Map<String, Object> values) {
+            if (values == null || values.isEmpty()) {
+                return Collections.emptyMap();
+            }
+            Map<String, Object> snapshot = new LinkedHashMap<>();
+            for (Map.Entry<String, Object> entry : values.entrySet()) {
+                snapshot.put(entry.getKey(), immutableValue(entry.getValue()));
+            }
+            return Collections.unmodifiableMap(snapshot);
+        }
+
+        private static Object immutableValue(Object value) {
+            if (value instanceof Map) {
+                Map<?, ?> source = (Map<?, ?>) value;
+                Map<Object, Object> snapshot = new LinkedHashMap<>();
+                for (Map.Entry<?, ?> entry : source.entrySet()) {
+                    snapshot.put(entry.getKey(), immutableValue(entry.getValue()));
+                }
+                return Collections.unmodifiableMap(snapshot);
+            }
+            if (value instanceof List) {
+                List<?> source = (List<?>) value;
+                List<Object> snapshot = new ArrayList<>(source.size());
+                for (Object item : source) {
+                    snapshot.add(immutableValue(item));
+                }
+                return Collections.unmodifiableList(snapshot);
+            }
+            if (value instanceof Set) {
+                Set<?> source = (Set<?>) value;
+                Set<Object> snapshot = new LinkedHashSet<>();
+                for (Object item : source) {
+                    snapshot.add(immutableValue(item));
+                }
+                return Collections.unmodifiableSet(snapshot);
+            }
+            return value;
         }
     }
 
@@ -582,6 +1390,25 @@ public class RuleFieldAnalyzer {
         return new ArrayList<>(dedup.values());
     }
 
+    private Set<String> retainedLocalOutputNames(
+            List<RuleDefinitionOutputField> retainedOutputs,
+            Set<RuleDefinitionOutputField> localCandidates) {
+        Set<String> names = new LinkedHashSet<>();
+        for (RuleDefinitionOutputField output : retainedOutputs) {
+            if (!localCandidates.contains(output)) {
+                continue;
+            }
+            String name = trimToNull(output.getScriptName());
+            if (name == null) {
+                name = trimToNull(output.getFieldName());
+            }
+            if (name != null) {
+                names.add(name);
+            }
+        }
+        return names;
+    }
+
     private List<RuleDefinitionInputField> removeOutputFields(List<RuleDefinitionInputField> inputFields,
             List<RuleDefinitionOutputField> outputFields) {
         if (inputFields == null || inputFields.isEmpty() || outputFields == null || outputFields.isEmpty()) {
@@ -771,7 +1598,7 @@ public class RuleFieldAnalyzer {
                 expr = sourceConfig;
             }
             if (expr != null) {
-                depNames.addAll(extractIdentifiersFromScript(expr));
+                depNames.addAll(collectExpressionIdentifiers(expr));
             }
         } else if ("API".equals(varSource)) {
             List<RuleDefinitionInputField> requestFields = loadApiRequestObjectFields(sourceConfig);
@@ -1286,8 +2113,7 @@ public class RuleFieldAnalyzer {
                 extractFromAdvancedScorecard(model, varCodes);
                 break;
             case "SCRIPT":
-                extractFromScript(model, varCodes, true);
-                break;
+                return qlScriptFieldResolver.resolve(modelJson, null).getInputFields();
             default:
                 extractAllVarCodes(model, varCodes);
         }
@@ -1313,6 +2139,21 @@ public class RuleFieldAnalyzer {
      * 普通脚本标识符没有显式引用身份，不能加入变量来源解析范围。
      */
     public List<RuleDefinitionInputField> extractDirectModelInputFields(String modelJson, String modelType) {
+        if ("SCRIPT".equalsIgnoreCase(modelType)) {
+            if (qlScriptFieldResolver == null) {
+                return Collections.emptyList();
+            }
+            List<RuleDefinitionInputField> result = new ArrayList<>();
+            for (RuleDefinitionInputField field
+                    : qlScriptFieldResolver.resolve(modelJson, null).getInputFields()) {
+                String refType = normalizeRefType(field.getRefType());
+                if ("VARIABLE".equals(refType) || "MODEL".equals(refType)
+                        || "MODEL_OUTPUT".equals(refType)) {
+                    result.add(field);
+                }
+            }
+            return result;
+        }
         List<RuleDefinitionInputField> result = new ArrayList<>();
         Map<String, FieldRef> explicitRefMap = collectExplicitRefs(modelJson);
         for (RuleDefinitionInputField field : extractInputFields(modelJson, modelType)) {
@@ -1360,8 +2201,7 @@ public class RuleFieldAnalyzer {
                 extractOutputFromAdvancedScorecard(model, varCodes);
                 break;
             case "SCRIPT":
-                extractFromScript(model, varCodes, false);
-                break;
+                return qlScriptFieldResolver.resolve(modelJson, null).getOutputFields();
             default:
                 // 默认不提取输出字段
         }
@@ -2010,105 +2850,13 @@ public class RuleFieldAnalyzer {
         }
     }
 
-    // ==================== QL 脚本 ====================
-
-    private void extractFromScript(JSONObject model, Set<String> varCodes, boolean isInput) {
-        String script = getString(model, "script");
-        if (script == null || script.isEmpty()) return;
-
-        Set<String> assignedVars = collectAssignedVars(script);
-        Set<String> explicitResultKeys = collectExplicitResultKeys(script);
-        if (!isInput && !explicitResultKeys.isEmpty()) {
-            varCodes.addAll(explicitResultKeys);
-            return;
-        }
-        Set<String> explicitScriptRefs = collectScriptRefCodes(model);
-        if (!explicitScriptRefs.isEmpty()) {
-            Set<String> usedRefs = new LinkedHashSet<>();
-            for (String ref : explicitScriptRefs) {
-                if (scriptContainsIdentifier(script, ref)) {
-                    usedRefs.add(ref);
-                }
-            }
-            if (isInput) {
-                for (String ref : usedRefs) {
-                    if (!assignedVars.contains(ref)) {
-                        addVarName(varCodes, ref);
-                    }
-                }
-            } else {
-                for (String ref : usedRefs) {
-                    if (assignedVars.contains(ref)) {
-                        addVarName(varCodes, ref);
-                    }
-                }
-            }
-        }
-
-        if (isInput) {
-            Set<String> identifiers = extractIdentifiersFromScript(script);
-            identifiers.removeAll(assignedVars);
-            varCodes.addAll(identifiers);
-        } else {
-            for (String assignedVar : assignedVars) {
-                if (!"_result".equals(assignedVar)) {
-                    varCodes.add(assignedVar);
-                }
-            }
-        }
-    }
-
-    private Set<String> collectAssignedVars(String script) {
-        Set<String> assignedVars = new LinkedHashSet<>();
-        String[] lines = script.split("\\r?\\n");
-        for (String line : lines) {
-            line = line.trim();
-            if (line.isEmpty() || line.startsWith("//")) continue;
-
-            int eqIdx = findAssignmentIndex(line);
-            if (eqIdx <= 0) continue;
-            String left = extractAssignmentTarget(line.substring(0, eqIdx));
-            if (isValidVarName(left)) {
-                assignedVars.add(left);
-            }
-        }
-        return assignedVars;
-    }
-
-    private Set<String> collectScriptRefCodes(JSONObject model) {
-        Set<String> refs = new LinkedHashSet<>();
-        JSONArray scriptVarRefs = model.getJSONArray("scriptVarRefs");
-        if (scriptVarRefs == null) return refs;
-        for (int i = 0; i < scriptVarRefs.size(); i++) {
-            JSONObject ref = scriptVarRefs.getJSONObject(i);
-            addVarName(refs, getString(ref, "refCode"));
-        }
-        return refs;
-    }
-
-    private Set<String> collectExplicitResultKeys(String script) {
-        Set<String> keys = new LinkedHashSet<>();
-        String sanitized = stripComments(script);
-        Pattern resultPattern = Pattern.compile("_result\\s*=\\s*\\{([\\s\\S]*?)\\}");
-        Matcher resultMatcher = resultPattern.matcher(sanitized);
-        while (resultMatcher.find()) {
-            String body = resultMatcher.group(1);
-            Matcher keyMatcher = Pattern.compile("\"([^\"]+)\"\\s*:|'([^']+)'\\s*:|([A-Za-z_][A-Za-z0-9_.]*)\\s*:").matcher(body);
-            while (keyMatcher.find()) {
-                String key = firstNonBlank(keyMatcher.group(1), keyMatcher.group(2), keyMatcher.group(3));
-                addVarName(keys, key);
-            }
-        }
-        return keys;
-    }
-
-    private Set<String> extractIdentifiersFromScript(String script) {
+    private Set<String> collectExpressionIdentifiers(String expression) {
         Set<String> identifiers = new LinkedHashSet<>();
-        String sanitized = stripCommentsAndStrings(script);
-        Matcher matcher = IDENTIFIER_PATTERN.matcher(sanitized);
+        String sanitized = sanitizeExpression(expression);
+        Matcher matcher = EXPRESSION_IDENTIFIER_PATTERN.matcher(sanitized);
         while (matcher.find()) {
             String token = matcher.group();
-            if (isScriptKeyword(token)) continue;
+            if (isExpressionKeyword(token)) continue;
             if (isFunctionCall(sanitized, matcher.end())) continue;
             if (token.startsWith("java.") || token.startsWith("com.") || token.startsWith("org.")) continue;
             addVarName(identifiers, token);
@@ -2118,18 +2866,7 @@ public class RuleFieldAnalyzer {
 
     private void extractIdentifiersFromExpression(String expr, Set<String> varCodes) {
         if (expr == null || expr.isEmpty()) return;
-        Set<String> identifiers = extractIdentifiersFromScript(expr);
-        varCodes.addAll(identifiers);
-    }
-
-    private boolean scriptContainsIdentifier(String script, String identifier) {
-        if (script == null || identifier == null || identifier.isEmpty()) return false;
-        String sanitized = stripCommentsAndStrings(script);
-        Matcher matcher = IDENTIFIER_PATTERN.matcher(sanitized);
-        while (matcher.find()) {
-            if (identifier.equals(matcher.group())) return true;
-        }
-        return false;
+        varCodes.addAll(collectExpressionIdentifiers(expr));
     }
 
     private boolean isFunctionCall(String source, int end) {
@@ -2138,20 +2875,20 @@ public class RuleFieldAnalyzer {
         return i < source.length() && source.charAt(i) == '(';
     }
 
-    private boolean isScriptKeyword(String token) {
+    private boolean isExpressionKeyword(String token) {
         if (token == null) return true;
-        return SCRIPT_KEYWORDS.contains(token.toLowerCase());
+        return EXPRESSION_KEYWORDS.contains(token.toLowerCase());
     }
 
-    private String stripCommentsAndStrings(String script) {
-        StringBuilder sb = new StringBuilder(script.length());
+    private String sanitizeExpression(String expression) {
+        StringBuilder sb = new StringBuilder(expression.length());
         boolean inSingle = false;
         boolean inDouble = false;
         boolean inLineComment = false;
         boolean inBlockComment = false;
-        for (int i = 0; i < script.length(); i++) {
-            char c = script.charAt(i);
-            char next = i + 1 < script.length() ? script.charAt(i + 1) : '\0';
+        for (int i = 0; i < expression.length(); i++) {
+            char c = expression.charAt(i);
+            char next = i + 1 < expression.length() ? expression.charAt(i + 1) : '\0';
             if (inLineComment) {
                 if (c == '\n') {
                     inLineComment = false;
@@ -2183,67 +2920,17 @@ public class RuleFieldAnalyzer {
                 i++;
                 continue;
             }
-            if (!inDouble && c == '\'' && !isEscaped(script, i)) {
+            if (!inDouble && c == '\'' && !isEscaped(expression, i)) {
                 inSingle = !inSingle;
                 sb.append(' ');
                 continue;
             }
-            if (!inSingle && c == '"' && !isEscaped(script, i)) {
+            if (!inSingle && c == '"' && !isEscaped(expression, i)) {
                 inDouble = !inDouble;
                 sb.append(' ');
                 continue;
             }
             sb.append(inSingle || inDouble ? (c == '\n' ? '\n' : ' ') : c);
-        }
-        return sb.toString();
-    }
-
-    private String stripComments(String script) {
-        StringBuilder sb = new StringBuilder(script.length());
-        boolean inSingle = false;
-        boolean inDouble = false;
-        boolean inLineComment = false;
-        boolean inBlockComment = false;
-        for (int i = 0; i < script.length(); i++) {
-            char c = script.charAt(i);
-            char next = i + 1 < script.length() ? script.charAt(i + 1) : '\0';
-            if (inLineComment) {
-                if (c == '\n') {
-                    inLineComment = false;
-                    sb.append(c);
-                } else {
-                    sb.append(' ');
-                }
-                continue;
-            }
-            if (inBlockComment) {
-                if (c == '*' && next == '/') {
-                    inBlockComment = false;
-                    sb.append("  ");
-                    i++;
-                } else {
-                    sb.append(c == '\n' ? '\n' : ' ');
-                }
-                continue;
-            }
-            if (!inSingle && !inDouble && c == '/' && next == '/') {
-                inLineComment = true;
-                sb.append("  ");
-                i++;
-                continue;
-            }
-            if (!inSingle && !inDouble && c == '/' && next == '*') {
-                inBlockComment = true;
-                sb.append("  ");
-                i++;
-                continue;
-            }
-            if (!inDouble && c == '\'' && !isEscaped(script, i)) {
-                inSingle = !inSingle;
-            } else if (!inSingle && c == '"' && !isEscaped(script, i)) {
-                inDouble = !inDouble;
-            }
-            sb.append(c);
         }
         return sb.toString();
     }
@@ -2256,47 +2943,9 @@ public class RuleFieldAnalyzer {
         return slashCount % 2 == 1;
     }
 
-    private int findAssignmentIndex(String line) {
-        boolean inSingle = false;
-        boolean inDouble = false;
-        for (int i = 0; i < line.length(); i++) {
-            char c = line.charAt(i);
-            if (!inDouble && c == '\'' && !isEscaped(line, i)) {
-                inSingle = !inSingle;
-                continue;
-            }
-            if (!inSingle && c == '"' && !isEscaped(line, i)) {
-                inDouble = !inDouble;
-                continue;
-            }
-            if (inSingle || inDouble || c != '=') continue;
-            char prev = i > 0 ? line.charAt(i - 1) : '\0';
-            char next = i + 1 < line.length() ? line.charAt(i + 1) : '\0';
-            if (prev == '=' || prev == '!' || prev == '<' || prev == '>' || next == '=' || next == '>') {
-                continue;
-            }
-            return i;
-        }
-        return -1;
-    }
-
-    private String extractAssignmentTarget(String left) {
-        String target = trimToNull(left);
-        if (target == null) return null;
-        int parenIdx = target.indexOf('(');
-        if (parenIdx > 0) {
-            target = target.substring(0, parenIdx).trim();
-        }
-        int spaceIdx = target.lastIndexOf(' ');
-        if (spaceIdx >= 0) {
-            target = target.substring(spaceIdx + 1).trim();
-        }
-        return target;
-    }
-
     private void addVarName(Set<String> varCodes, String value) {
         String name = trimToNull(value);
-        if (name != null && isValidVarName(name) && !isScriptKeyword(name)) {
+        if (name != null && isValidVarName(name) && !isExpressionKeyword(name)) {
             varCodes.add(name);
         }
     }
@@ -2431,6 +3080,31 @@ public class RuleFieldAnalyzer {
         }
         int idx = value.lastIndexOf('.');
         return idx >= 0 ? value.substring(idx + 1) : value;
+    }
+
+    private static final class ObjectShapeIndex {
+
+        private final Map<String, Object> schema;
+        private final Map<String, Map<String, Object>> schemasByPath;
+        private final Map<String, String> leafTypes;
+
+        private ObjectShapeIndex(
+                Map<String, Object> schema,
+                Map<String, Map<String, Object>> schemasByPath,
+                Map<String, String> leafTypes) {
+            this.schema = schema;
+            this.schemasByPath = schemasByPath;
+            this.leafTypes = leafTypes;
+        }
+
+        private static ObjectShapeIndex open() {
+            Map<String, Object> schema = new LinkedHashMap<>();
+            schema.put("type", "object");
+            schema.put("x-rule-type", "OBJECT");
+            schema.put("additionalProperties", true);
+            return new ObjectShapeIndex(
+                    schema, Collections.emptyMap(), Collections.emptyMap());
+        }
     }
 
     private static class FieldRef {

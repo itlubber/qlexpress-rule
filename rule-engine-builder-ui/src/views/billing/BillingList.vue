@@ -158,12 +158,17 @@
           </el-table-column>
           <el-table-column label="操作" width="120" align="center" fixed="right">
             <template v-slot="{ row }">
-              <el-button link size="small" @click="handleEditConfig(row)"
+              <el-button
+                link
+                size="small"
+                type="warning"
+                @click="handleEditConfig(row)"
                 >编辑</el-button
               >
               <el-button
                 link
                 size="small"
+                type="danger"
                 class="btn-delete"
                 @click="handleDeleteConfig(row)"
                 >删除</el-button

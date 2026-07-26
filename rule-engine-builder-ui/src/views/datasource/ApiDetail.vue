@@ -612,6 +612,7 @@
                   <el-button
                     link
                     size="small"
+                    type="danger"
                     class="btn-delete"
                     @click="removeScriptVariableRow($index)"
                     >删除</el-button
@@ -695,6 +696,7 @@
                   <el-button
                     link
                     size="small"
+                    type="danger"
                     class="btn-delete"
                     @click="removeRow(headerRows, $index)"
                     >删除</el-button
@@ -741,6 +743,7 @@
                   <el-button
                     link
                     size="small"
+                    type="danger"
                     class="btn-delete"
                     @click="removeRow(queryRows, $index)"
                     >删除</el-button
@@ -826,6 +829,7 @@
                       <el-button
                         link
                         size="small"
+                        type="danger"
                         class="btn-delete"
                         @click="removeRow(requestMappingRows, $index)"
                         >删除</el-button
@@ -871,6 +875,7 @@
                       <el-button
                         link
                         size="small"
+                        type="success"
                         @click="useRequestField(row)"
                         >使用</el-button
                       >
@@ -971,6 +976,7 @@
                       <el-button
                         link
                         size="small"
+                        type="danger"
                         class="btn-delete"
                         @click="removeRow(responseMappingRows, $index)"
                         >删除</el-button
@@ -1104,6 +1110,7 @@
                       <el-button
                         link
                         size="small"
+                        type="success"
                         @click="useResponseField(row)"
                         >使用</el-button
                       >

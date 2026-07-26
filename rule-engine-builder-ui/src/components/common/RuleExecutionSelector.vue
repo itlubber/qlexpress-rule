@@ -50,11 +50,14 @@
         <span class="field-count"
           >输入 {{ selectedRule.inputFields.length }}</span
         >
-        <span
+        <el-tag
           v-for="field in visibleFields(selectedRule.inputFields)"
           :key="'in-' + fieldKey(field)"
           class="field-chip"
-          >{{ fieldName(field) }}</span
+          type="info"
+          size="small"
+          effect="plain"
+          >{{ fieldName(field) }}</el-tag
         >
         <span v-if="selectedRule.inputFields.length > 3" class="field-more"
           >+{{ selectedRule.inputFields.length - 3 }}</span
@@ -64,11 +67,14 @@
         <span class="field-count"
           >输出 {{ selectedRule.outputFields.length }}</span
         >
-        <span
+        <el-tag
           v-for="field in visibleFields(selectedRule.outputFields)"
           :key="'out-' + fieldKey(field)"
           class="field-chip output"
-          >{{ fieldName(field) }}</span
+          type="success"
+          size="small"
+          effect="plain"
+          >{{ fieldName(field) }}</el-tag
         >
         <span v-if="selectedRule.outputFields.length > 3" class="field-more"
           >+{{ selectedRule.outputFields.length - 3 }}</span
@@ -202,18 +208,11 @@ export default {
   color: #64748b;
 }
 .field-chip {
+  min-width: 0;
   max-width: 160px;
   overflow: hidden;
-  padding: 1px 6px;
-  border-radius: 3px;
-  color: #606266;
-  background: #ebeef5;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.field-chip.output {
-  color: #0f766e;
-  background: #e6f6f3;
 }
 .field-more {
   color: #64748b;

@@ -160,17 +160,23 @@
           <el-table-column label="操作" width="170" align="center">
             <template v-slot="{ row }">
               <el-button
-                link
-                size="small"
-                @click="$router.push('/list/' + row.id)"
+              link
+              size="small"
+              type="primary"
+              @click="$router.push('/list/' + row.id)"
                 >详情</el-button
               >
-              <el-button link size="small" @click="handleEdit(row)"
+              <el-button
+                link
+                size="small"
+                type="warning"
+                @click="handleEdit(row)"
                 >编辑</el-button
               >
               <el-button
                 link
                 size="small"
+                type="danger"
                 class="btn-delete"
                 @click="handleDelete(row)"
                 >删除</el-button

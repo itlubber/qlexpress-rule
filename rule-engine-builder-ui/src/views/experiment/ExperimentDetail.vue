@@ -626,7 +626,11 @@
           </el-table-column>
           <el-table-column label="操作" width="80" align="center">
             <template v-slot="{ row }"
-              ><el-button link size="small" @click="openLogDetail(row)"
+              ><el-button
+                link
+                size="small"
+                type="primary"
+                @click="openLogDetail(row)"
                 >详情</el-button
               ></template
             >
@@ -735,19 +739,25 @@
         <el-table-column prop="publishTime" label="时间" width="170" />
         <el-table-column label="操作" width="220" align="center">
           <template v-slot="{ row, $index }">
-            <el-button link size="small" @click="viewVersion(row)"
+            <el-button
+              link
+              size="small"
+              type="primary"
+              @click="viewVersion(row)"
               >查看</el-button
             >
             <el-button
               v-if="$index < versionList.length - 1"
               link
               size="small"
+              type="info"
               @click="compareWithNext(row, $index)"
               >对比</el-button
             >
             <el-button
               link
               size="small"
+              type="warning"
               @click="rollbackExperimentVersion(row)"
               >回滚</el-button
             >

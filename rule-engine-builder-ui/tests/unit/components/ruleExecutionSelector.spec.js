@@ -31,6 +31,15 @@ describe('RuleExecutionSelector', () => {
     expect(wrapper.text()).toContain('输出 1')
   })
 
+  test('输入输出字段摘要使用 Element 标签而不是自绘伪输入框', () => {
+    const wrapper = shallowMount(RuleExecutionSelector, {
+      props: { rules, ruleId: 8, ruleCode: 'score_card' },
+      stubs
+    })
+
+    expect(wrapper.findAll('.field-summary .tag-stub')).toHaveLength(3)
+  })
+
   test('选择时按稳定 ID 返回完整规则对象', () => {
     const wrapper = shallowMount(RuleExecutionSelector, { props: { rules }, stubs })
 

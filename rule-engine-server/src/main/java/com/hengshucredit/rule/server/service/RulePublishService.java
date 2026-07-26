@@ -104,8 +104,6 @@ public class RulePublishService {
             return "规则内容不存在";
         }
 
-        definitionService.refreshFields(definitionId, content.getModelJson(), definition.getModelType());
-
         String openApiConfigJson;
         try {
             openApiConfigJson = validateOpenApiContract(definitionId, content.getOpenApiConfigJson());

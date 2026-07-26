@@ -3,12 +3,13 @@ package com.hengshucredit.rule.core.compiler;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.hengshucredit.rule.core.script.QLScriptAnalysis;
+import com.hengshucredit.rule.core.script.QLScriptAnalyzer;
 
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * QL脚本直通编译器：不做模型转换，仅将脚本原文存入编译结果。
@@ -16,8 +17,7 @@ import java.util.regex.Pattern;
  */
 public class ScriptPassthroughCompiler implements RuleCompiler {
 
-    private static final Pattern ASSIGNMENT_PATTERN = Pattern.compile(
-            "(?m)^\\s*([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*)\\s*=(?!=).*");
+    private final QLScriptAnalyzer scriptAnalyzer = new QLScriptAnalyzer();
 
     @Override
     public CompileResult compile(String modelJson) {
@@ -34,15 +34,17 @@ public class ScriptPassthroughCompiler implements RuleCompiler {
         try {
             model = JSON.parseObject(modelJson);
         } catch (RuntimeException e) {
-            return CompileResult.ok(wrapResultIfNeeded(modelJson), "QLEXPRESS");
+            model = null;
         }
-        String script = model.getString("script");
+        String script = model == null ? modelJson : model.getString("script");
         if (script == null || script.trim().isEmpty()) {
             return CompileResult.fail("脚本内容为空，请先编写脚本再编译");
         }
         try {
             return CompileResult.ok(wrapResultIfNeeded(
-                    inlineConstants(script, model.getJSONArray("scriptVarRefs"), varContext)), "QLEXPRESS");
+                    inlineConstants(script,
+                            model == null ? null : model.getJSONArray("scriptVarRefs"),
+                            varContext)), "QLEXPRESS");
         } catch (IllegalArgumentException e) {
             return CompileResult.fail(e.getMessage());
         }
@@ -109,28 +111,29 @@ public class ScriptPassthroughCompiler implements RuleCompiler {
     }
 
     private String wrapResultIfNeeded(String script) {
-        if (script == null || script.contains("_result")) {
+        QLScriptAnalysis analysis = scriptAnalyzer.analyze(script);
+        if (analysis.hasErrors()) {
+            throw new IllegalArgumentException(firstError(analysis));
+        }
+        if (analysis.hasExplicitResult()) {
             return script;
         }
-        LinkedHashSet<String> assignedVars = collectAssignedVars(script);
-        if (assignedVars.isEmpty()) {
+        LinkedHashSet<String> outputs = analysis.getPublicOutputs().stream()
+                .map(QLScriptAnalysis.OutputField::getName)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (outputs.isEmpty()) {
             return script;
         }
-        StringBuilder wrapped = new StringBuilder(script.trim());
-        wrapped.append("\n");
-        RuleScriptResultCollector.appendResultMapReturn(wrapped, assignedVars);
+        StringBuilder wrapped = new StringBuilder(script.trim()).append('\n');
+        RuleScriptResultCollector.appendResultMapReturn(wrapped, outputs);
         return wrapped.toString();
     }
 
-    private LinkedHashSet<String> collectAssignedVars(String script) {
-        LinkedHashSet<String> vars = new LinkedHashSet<>();
-        Matcher matcher = ASSIGNMENT_PATTERN.matcher(script);
-        while (matcher.find()) {
-            String var = matcher.group(1);
-            if (var != null && !"_result".equals(var)) {
-                vars.add(var.trim());
-            }
-        }
-        return vars;
+    private String firstError(QLScriptAnalysis analysis) {
+        return analysis.getDiagnostics().stream()
+                .filter(item -> "ERROR".equals(item.getSeverity()))
+                .map(item -> item.getCode() + ": " + item.getMessage())
+                .findFirst()
+                .orElse("QL_PARSE_ERROR: QL 脚本解析失败");
     }
 }

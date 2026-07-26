@@ -73,15 +73,24 @@
       </el-table-column>
       <el-table-column label="操作" width="245" fixed="right">
         <template v-slot="{ row, $index }">
-          <el-button link size="small" @click="openEdit(row)"
+          <el-button
+            link
+            size="small"
+            type="warning"
+            @click="openEdit(row)"
             >编辑</el-button
           >
-          <el-button link size="small" @click="copyScenario(row)"
+          <el-button
+            link
+            size="small"
+            type="primary"
+            @click="copyScenario(row)"
             >复制</el-button
           >
           <el-button
             link
             size="small"
+            type="info"
             :disabled="$index === 0"
             @click="moveScenario($index, -1)"
             >上移</el-button
@@ -89,6 +98,7 @@
           <el-button
             link
             size="small"
+            type="info"
             :disabled="$index === scenarios.length - 1"
             @click="moveScenario($index, 1)"
             >下移</el-button
@@ -96,6 +106,7 @@
           <el-button
             link
             size="small"
+            type="danger"
             class="danger-action"
             @click="removeScenario(row)"
             >删除</el-button

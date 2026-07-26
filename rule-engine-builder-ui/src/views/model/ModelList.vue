@@ -235,19 +235,30 @@
               <el-button
                 link
                 size="small"
+                type="primary"
                 @click="$router.push('/model/' + row.id)"
                 >详情</el-button
               >
-              <el-button link size="small" @click="handleEdit(row)"
+              <el-button
+                link
+                size="small"
+                type="warning"
+                @click="handleEdit(row)"
                 >编辑</el-button
               >
-              <el-button link size="small" @click="handlePublish(row)">{{
+              <el-button
+                link
+                size="small"
+                type="success"
+                @click="handlePublish(row)"
+                >{{
                 row.publishedVersion ? '重新发布' : '发布'
               }}</el-button>
               <el-button
                 v-if="row.publishedVersion"
                 link
                 size="small"
+                type="warning"
                 @click="openImpact(row, 'OFFLINE')"
                 >下线</el-button
               >
@@ -255,12 +266,14 @@
                 v-if="row.scope === 'PROJECT'"
                 link
                 size="small"
+                type="success"
                 @click="handleToGlobal(row)"
                 >转为全局</el-button
               >
               <el-button
                 link
                 size="small"
+                type="danger"
                 class="btn-delete"
                 @click="handleDelete(row)"
                 >删除</el-button
@@ -1480,18 +1493,5 @@ export default {
   box-shadow: none !important;
   background-color: transparent !important;
   border-color: #dcdfe6 !important;
-}
-.el-button.is-link,
-.el-button.is-link:hover,
-.el-button.is-link:focus,
-.el-button.is-link:active,
-.el-button.is-link:focus-visible {
-  color: #606266 !important;
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-}
-.el-button.is-link:hover {
-  color: var(--el-color-primary) !important;
 }
 </style>

@@ -281,20 +281,33 @@
         </el-table-column>
         <el-table-column label="操作" width="300" fixed="right">
           <template v-slot="{ row, $index }">
-            <el-button link size="small" @click="viewVersion(row)"
+            <el-button
+              link
+              size="small"
+              type="primary"
+              @click="viewVersion(row)"
               >查看内容</el-button
             >
             <el-button
               link
               size="small"
+              type="info"
               :disabled="$index === versions.length - 1"
               @click="compareVersion(row, versions[$index + 1])"
               >对比上一版</el-button
             >
-            <el-button link size="small" @click="rollbackDraft(row)"
+            <el-button
+              link
+              size="small"
+              type="warning"
+              @click="rollbackDraft(row)"
               >恢复草稿</el-button
             >
-            <el-button link size="small" @click="publishVersion(row)"
+            <el-button
+              link
+              size="small"
+              type="success"
+              @click="publishVersion(row)"
               >发布此版</el-button
             >
           </template>
