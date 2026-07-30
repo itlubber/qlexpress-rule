@@ -1,5 +1,16 @@
 <template>
   <div class="ct-designer uiue-compact-workbench uiue-compact-designer">
+    <rule-draft-read-only
+      :visible="!canEditDraft"
+      :loading="!draftGuardLoaded"
+      :load-error="Boolean(draftGuardError)"
+      :revision-label="viewRevisionLabel"
+      :revision-state="viewRevision ? viewRevision.state : ''"
+      :can-fork="canForkViewRevision"
+      @go-back="$router.back()"
+      @go-lifecycle="goRuleLifecycle"
+      @fork="forkViewRevision"
+    />
     <!-- 顶部工具栏 -->
     <div class="ct-header">
       <div class="ct-title-area">
@@ -293,12 +304,7 @@
       ref="scriptPanel"
       :definitionId="definitionId"
       :onBeforeCompile="handleSave"
-      @mode-change="(mode) => (scriptMode = mode)"
     />
-    <div v-if="scriptMode === 'script'" class="script-override-banner">
-      <el-icon><el-icon-warning /></el-icon>
-      脚本覆盖模式已激活，可视化编辑暂停。
-    </div>
 
     <designer-test-dialog
       v-model:visible="testVisible"
@@ -319,7 +325,6 @@ import {
   Fold as ElIconSFold,
   Finished as ElIconFinished,
   InfoFilled as ElIconInfo,
-  Warning as ElIconWarning,
   Back as ElIconBack,
   Plus as ElIconPlus,
   Document as ElIconDocument,
@@ -327,18 +332,13 @@ import {
   VideoPlay as ElIconVideoPlay,
   Close as ElIconClose,
 } from '@element-plus/icons-vue'
-import {
-  saveContent,
-  compileRule,
-  getContent,
-  refreshFields,
-} from '@/api/definition'
 import { VAR_TYPE_FORM_OPTIONS } from '@/constants/varTypes'
 import varPickerMixin from '@/mixins/varPickerMixin'
+import ruleDraftMixin from '@/mixins/ruleDraftMixin'
 import DesignerTestDialog from '@/components/common/DesignerTestDialog.vue'
 import OperandPicker from '@/components/common/OperandPicker.vue'
 import ScriptPanel from '@/components/common/ScriptPanel.vue'
-import { isSuccessResult, resultErrorMessage } from '@/utils/apiResponse'
+import RuleDraftReadOnly from '@/components/rule/RuleDraftReadOnly.vue'
 import {
   collectOperandReferences,
   compileOperand,
@@ -368,7 +368,6 @@ export default {
       writeOperandKinds: getExpressionContext('WRITE_TARGET').allowedKinds,
       valueOperandKinds: getExpressionContext('READ_EXPRESSION').allowedKinds,
       focusedCell: null,
-      scriptMode: 'visual',
       testVisible: false,
       testParamsTemplate: {},
       varTypeFormOptions: VAR_TYPE_FORM_OPTIONS,
@@ -381,6 +380,7 @@ export default {
     }
   },
   components: {
+    RuleDraftReadOnly,
     DesignerTestDialog,
     OperandPicker,
     ScriptPanel,
@@ -389,10 +389,9 @@ export default {
     ElIconSFold,
     ElIconFinished,
     ElIconInfo,
-    ElIconWarning,
   },
   name: 'CrossTable',
-  mixins: [varPickerMixin],
+  mixins: [varPickerMixin, ruleDraftMixin],
   created() {
     this.definitionId = this.$route.params.id
     this.loadContent()
@@ -507,8 +506,8 @@ export default {
     },
     async loadContent() {
       try {
-        const res = await getContent(this.definitionId)
-        const content = res && res.data ? res.data : res
+        if (this.draftGuardPromise) await this.draftGuardPromise
+        const content = this.viewRevision
         if (content && content.modelJson && content.modelJson !== '{}') {
           this.model = JSON.parse(content.modelJson)
         }
@@ -628,30 +627,32 @@ export default {
       this.model.cellOperands.forEach((row) => row.splice(ci, 1))
     },
     async handleSave() {
-      await saveContent({
-        definitionId: this.definitionId,
-        modelJson: JSON.stringify(this.model),
-      })
-      await refreshFields(this.definitionId, JSON.stringify(this.model))
+      const result = await this.saveDraftModel(JSON.stringify(this.model))
       this.refreshProjectRefs()
 
-      this.$message.success('保存成功')
+      this.$message.success('草稿已保存')
+      return result
     },
     async handleCompile() {
-      await this.handleSave()
-      const res = await compileRule(this.definitionId)
-      if (isSuccessResult(res)) {
+      const result = await this.handleSave()
+      if (result.compileSuccess) {
         this.$message.success('编译成功')
-        // 异步刷新变量映射和脚本面板
         await this.loadProjectVars(this.definitionId)
-        if (this.$refs.scriptPanel) {
-          this.$refs.scriptPanel.refresh()
-        }
       } else {
-        this.$message.error('编译失败: ' + resultErrorMessage(res))
+        this.$message.error(
+          '编译失败: ' + (result.compileMessage || '未知错误')
+        )
       }
+      return result
     },
-    handleTest() {
+    async handleTest() {
+      const result = await this.handleSave()
+      if (!result.compileSuccess) {
+        this.$message.error(
+          '编译失败: ' + (result.compileMessage || '未知错误')
+        )
+        return
+      }
       this.testParamsTemplate = this.buildTestParamsTemplate()
       this.testVisible = true
     },
@@ -673,6 +674,7 @@ export default {
 
 <style lang="scss" scoped>
 .ct-designer {
+  position: relative;
   background: #fff;
   border-radius: 4px;
   padding: 16px;

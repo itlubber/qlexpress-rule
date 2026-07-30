@@ -4,7 +4,11 @@ import com.hengshucredit.rule.model.dto.RuleValidationResult;
 import com.hengshucredit.rule.model.entity.RuleVariable;
 import com.hengshucredit.rule.model.entity.RuleVariableOption;
 import com.hengshucredit.rule.server.common.R;
+import com.hengshucredit.rule.server.governance.GovernanceBatchImportService;
+import com.hengshucredit.rule.server.governance.GovernedProjectionMutation;
+import com.hengshucredit.rule.server.security.RequirePermission;
 import com.hengshucredit.rule.server.service.BatchTestService;
+import com.hengshucredit.rule.server.service.ConsoleOperatorResolver;
 import com.hengshucredit.rule.server.service.RuleDataObjectService;
 import com.hengshucredit.rule.server.service.RuleVariableService;
 import com.hengshucredit.rule.server.service.SchemaSyncService;
@@ -35,6 +39,12 @@ public class RuleVariableController {
     @Resource
     private VariableSourceResolver variableSourceResolver;
 
+    @Resource
+    private GovernanceBatchImportService governanceBatchImportService;
+
+    @Resource
+    private ConsoleOperatorResolver operatorResolver;
+
     /** 健康检查，用于验证变量管理接口是否正常注册 */
     @GetMapping("/health")
     public R<String> health() {
@@ -63,27 +73,33 @@ public class RuleVariableController {
         return R.ok(variableService.pageList(pageNum, pageSize, projectId, varType, keyword, standaloneOnly, varSource, scope, projectCode, projectName, varCode, varLabel));
     }
 
-    /** 从 Java 常量类批量导入常量（写入 rule_variable，var_source=CONSTANT） */
+    /** 从 Java 常量类批量生成常量生命周期审批草稿。 */
     @PostMapping("/import/constants/java")
+    @RequirePermission("approval:submit")
     public R<Map<String, Object>> importConstantsJava(@RequestBody Map<String, String> body) {
         String pidStr = body.get("projectId");
         Long projectId = pidStr != null && !pidStr.isEmpty() ? Long.valueOf(pidStr) : null;
         String scope = body.getOrDefault("scope", "PROJECT");
         String javaSource = body.get("javaSource");
-        Map<String, Object> result = variableService.importConstantsFromJava(projectId, scope, javaSource);
-        trySyncSchema();
+        Map<String, Object> result =
+                governanceBatchImportService.importConstantsFromJava(
+                        projectId, scope, javaSource,
+                        operatorResolver.resolve());
         return R.ok(result);
     }
 
-    /** 从扁平 JSON 批量导入常量 */
+    /** 从扁平 JSON 批量生成常量生命周期审批草稿。 */
     @PostMapping("/import/constants/json")
+    @RequirePermission("approval:submit")
     public R<Map<String, Object>> importConstantsJson(@RequestBody Map<String, String> body) {
         String pidStr = body.get("projectId");
         Long projectId = pidStr != null && !pidStr.isEmpty() ? Long.valueOf(pidStr) : null;
         String scope = body.getOrDefault("scope", "PROJECT");
         String jsonContent = body.get("jsonContent");
-        Map<String, Object> result = variableService.importConstantsFromJson(projectId, scope, jsonContent);
-        trySyncSchema();
+        Map<String, Object> result =
+                governanceBatchImportService.importConstantsFromJson(
+                        projectId, scope, jsonContent,
+                        operatorResolver.resolve());
         return R.ok(result);
     }
 
@@ -109,6 +125,7 @@ public class RuleVariableController {
     }
 
     @PostMapping
+    @GovernedProjectionMutation
     public R<RuleVariable> create(@RequestBody RuleVariable variable) {
         if (variable.getScriptName() == null || variable.getScriptName().isEmpty()) {
             variable.setScriptName(variable.getVarCode());
@@ -122,6 +139,7 @@ public class RuleVariableController {
     }
 
     @PutMapping
+    @GovernedProjectionMutation
     public R<Void> update(@RequestBody RuleVariable variable) {
         try {
             variableService.updateById(variable);
@@ -133,6 +151,7 @@ public class RuleVariableController {
 
     /** 将项目级变量（含常量）转为全局变量。 */
     @PostMapping("/toGlobal/{id:\\d+}")
+    @GovernedProjectionMutation
     public R<Void> toGlobal(@PathVariable Long id) {
         try {
             variableService.toGlobal(id);
@@ -143,6 +162,7 @@ public class RuleVariableController {
     }
 
     @DeleteMapping("/{id:\\d+}")
+    @GovernedProjectionMutation
     public R<Void> delete(@PathVariable Long id) {
         variableService.deleteWithOptions(id);
         return R.ok();
@@ -154,6 +174,7 @@ public class RuleVariableController {
     }
 
     @PostMapping("/{variableId:\\d+}/options")
+    @GovernedProjectionMutation
     public R<Void> saveOptions(@PathVariable Long variableId, @RequestBody List<RuleVariableOption> options) {
         variableService.saveOptions(variableId, options);
         return R.ok();

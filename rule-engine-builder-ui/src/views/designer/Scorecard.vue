@@ -1,5 +1,16 @@
 <template>
   <div class="sc-designer uiue-compact-workbench uiue-compact-designer">
+    <rule-draft-read-only
+      :visible="!canEditDraft"
+      :loading="!draftGuardLoaded"
+      :load-error="Boolean(draftGuardError)"
+      :revision-label="viewRevisionLabel"
+      :revision-state="viewRevision ? viewRevision.state : ''"
+      :can-fork="canForkViewRevision"
+      @go-back="$router.back()"
+      @go-lifecycle="goRuleLifecycle"
+      @fork="forkViewRevision"
+    />
     <!-- 顶部工具栏 -->
     <div class="sc-header">
       <div class="sc-title-area">
@@ -358,12 +369,7 @@
       ref="scriptPanel"
       :definitionId="definitionId"
       :onBeforeCompile="handleSave"
-      @mode-change="(mode) => (scriptMode = mode)"
     />
-    <div v-if="scriptMode === 'script'" class="script-override-banner">
-      <el-icon><el-icon-warning /></el-icon>
-      脚本覆盖模式已激活，可视化编辑暂停。
-    </div>
 
     <designer-test-dialog
       v-model:visible="testVisible"
@@ -385,7 +391,6 @@ import {
   QuestionFilled as ElIconQuestion,
   Files as ElIconFiles,
   Medal as ElIconMedal,
-  Warning as ElIconWarning,
   Back as ElIconBack,
   Plus as ElIconPlus,
   Document as ElIconDocument,
@@ -393,19 +398,14 @@ import {
   VideoPlay as ElIconVideoPlay,
   Delete as ElIconDelete,
 } from '@element-plus/icons-vue'
-import {
-  saveContent,
-  compileRule,
-  executeRule,
-  getContent,
-  refreshFields,
-} from '@/api/definition'
+import { executeRule } from '@/api/definition'
 import varPickerMixin from '@/mixins/varPickerMixin'
+import ruleDraftMixin from '@/mixins/ruleDraftMixin'
 import DesignerTestDialog from '@/components/common/DesignerTestDialog.vue'
 import OperandPicker from '@/components/common/OperandPicker.vue'
 import ScriptPanel from '@/components/common/ScriptPanel.vue'
+import RuleDraftReadOnly from '@/components/rule/RuleDraftReadOnly.vue'
 import { addCode, buildSampleParamsFromCodes } from '@/utils/testSampleParams'
-import { isSuccessResult, resultErrorMessage } from '@/utils/apiResponse'
 import {
   collectOperandReferences,
   compileOperand,
@@ -453,7 +453,6 @@ export default {
         thresholds: [],
         testParams: null,
       },
-      scriptMode: 'visual',
       testVisible: false,
       testParamsTemplate: {},
       testParamsJson: '{}',
@@ -475,6 +474,7 @@ export default {
     }
   },
   components: {
+    RuleDraftReadOnly,
     DesignerTestDialog,
     OperandPicker,
     ScriptPanel,
@@ -484,10 +484,9 @@ export default {
     ElIconQuestion,
     ElIconFiles,
     ElIconMedal,
-    ElIconWarning,
   },
   name: 'Scorecard',
-  mixins: [varPickerMixin],
+  mixins: [varPickerMixin, ruleDraftMixin],
   computed: {
     totalWeight() {
       return this.model.scoreItems.reduce(
@@ -547,8 +546,8 @@ export default {
     },
     async loadContent() {
       try {
-        const res = await getContent(this.definitionId)
-        const content = res && res.data ? res.data : res
+        if (this.draftGuardPromise) await this.draftGuardPromise
+        const content = this.viewRevision
         if (content && content.modelJson && content.modelJson !== '{}') {
           this.model = JSON.parse(content.modelJson)
         }
@@ -811,30 +810,32 @@ export default {
           item.condVarType
         )
       })
-      await saveContent({
-        definitionId: this.definitionId,
-        modelJson: JSON.stringify(this.model),
-      })
-      await refreshFields(this.definitionId, JSON.stringify(this.model))
+      const result = await this.saveDraftModel(JSON.stringify(this.model))
       this.refreshProjectRefs()
 
-      this.$message.success('保存成功')
+      this.$message.success('草稿已保存')
+      return result
     },
     async handleCompile() {
-      await this.handleSave()
-      const res = await compileRule(this.definitionId)
-      if (isSuccessResult(res)) {
+      const result = await this.handleSave()
+      if (result.compileSuccess) {
         this.$message.success('编译成功')
-        // 异步刷新变量映射和脚本面板
         await this.loadProjectVars(this.definitionId)
-        if (this.$refs.scriptPanel) {
-          this.$refs.scriptPanel.refresh()
-        }
       } else {
-        this.$message.error('编译失败: ' + resultErrorMessage(res))
+        this.$message.error(
+          '编译失败: ' + (result.compileMessage || '未知错误')
+        )
       }
+      return result
     },
-    openTestDialog() {
+    async openTestDialog() {
+      const result = await this.handleSave()
+      if (!result.compileSuccess) {
+        this.$message.error(
+          '编译失败: ' + (result.compileMessage || '未知错误')
+        )
+        return
+      }
       const saved = this.model.testParams
       if (saved && saved !== '{}') {
         this.testParamsTemplate = saved
@@ -922,6 +923,7 @@ export default {
 
 <style lang="scss" scoped>
 .sc-designer {
+  position: relative;
   background: #f3f3f3;
   padding: 16px;
   min-height: 100%;

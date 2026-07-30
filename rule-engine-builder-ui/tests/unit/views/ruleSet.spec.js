@@ -1,3 +1,7 @@
+import { shallowMount } from '@test-utils'
+
+import * as definitionApi from '@/api/definition'
+
 vi.unmock('@/views/designer/RuleSet.vue')
 
 const RuleSet = (await vi.importActual('@/views/designer/RuleSet.vue')).default
@@ -103,5 +107,53 @@ describe('RuleSet 命中结果输出字段', () => {
 
     expect(ctx.model.resultVar).toEqual({})
     expect(ctx.validateResultVar()).toBe('')
+  })
+})
+
+describe('RuleSet 版本发布入口', () => {
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  test('进入生命周期时不回滚编译或调用旧发布接口', async () => {
+    definitionApi.getDefinition.mockResolvedValue({
+      id: 30,
+      projectId: null,
+      scope: 'PROJECT',
+    })
+    definitionApi.getContent.mockResolvedValue({
+      modelJson: JSON.stringify({
+        executionMode: 'SERIAL',
+        rules: [],
+      }),
+    })
+    const router = { push: vi.fn(), replace: vi.fn() }
+    const wrapper = shallowMount(RuleSet, {
+      mocks: {
+        $route: { params: { id: 30 }, query: {} },
+        $router: router,
+        $confirm: vi.fn().mockResolvedValue('confirm'),
+        $message: {
+          success: vi.fn(),
+          warning: vi.fn(),
+          error: vi.fn(),
+        },
+      },
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    vi.clearAllMocks()
+
+    expect(wrapper.vm.openLifecycle).toEqual(expect.any(Function))
+    await wrapper.vm.openLifecycle()
+
+    expect(definitionApi.rollbackVersion).not.toHaveBeenCalled()
+    expect(definitionApi.compileRule).not.toHaveBeenCalled()
+    expect(definitionApi.publishRule).not.toHaveBeenCalled()
+    expect(router.push).toHaveBeenCalledWith({
+      name: 'RuleDetail',
+      params: { id: 30 },
+      query: { focus: 'lifecycle' },
+    })
+    wrapper.unmount()
   })
 })

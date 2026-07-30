@@ -48,6 +48,39 @@ public class RuleDependencyClosureServiceTest {
     }
 
     @Test
+    public void draftRootRuleIsNotRejectedAsItsOwnInactiveDependency() {
+        FixtureService service = new FixtureService();
+        service.definition.setStatus(0);
+        service.revision.setModelJson("{}");
+
+        RuleDependencyClosureService.DependencyClosure closure = service.resolve(100L, 200L);
+
+        Assert.assertFalse(closure.getIssues().toString(), closure.hasErrors());
+        Assert.assertFalse(closure.getIssues().stream().anyMatch(issue ->
+                "INACTIVE_DEPENDENCY".equals(issue.getCode())
+                        && "RULE".equals(issue.getResourceType())
+                        && Long.valueOf(100L).equals(issue.getResourceId())));
+    }
+
+    @Test
+    public void referencedInactiveRuleRemainsAHardDependencyError() {
+        FixtureService service = new FixtureService();
+        service.revision.setModelJson("{\"kind\":\"RULE_CALL\",\"ruleId\":101}");
+        service.childDefinition = new RuleDefinition();
+        service.childDefinition.setId(101L);
+        service.childDefinition.setProjectId(9L);
+        service.childDefinition.setStatus(0);
+
+        RuleDependencyClosureService.DependencyClosure closure = service.resolve(100L, 200L);
+
+        Assert.assertTrue(closure.hasErrors());
+        Assert.assertTrue(closure.getIssues().stream().anyMatch(issue ->
+                "INACTIVE_DEPENDENCY".equals(issue.getCode())
+                        && "RULE".equals(issue.getResourceType())
+                        && Long.valueOf(101L).equals(issue.getResourceId())));
+    }
+
+    @Test
     public void displayCodeWithoutIdIsRejectedAndNeverResolvedByName() {
         FixtureService service = new FixtureService();
         service.revision.setModelJson("{\"kind\":\"REFERENCE\",\"refType\":\"VARIABLE\","

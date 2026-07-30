@@ -253,10 +253,53 @@ const routes = [
         name: 'BillingList',
         component: () => import('@/views/billing/BillingList.vue'),
         meta: { title: '账单管理' }
+      },
+      {
+        path: 'approval',
+        name: 'ApprovalList',
+        component: () => import('@/views/approval/ApprovalList.vue'),
+        meta: { title: '审批管理', permission: 'approval:view' }
+      },
+      {
+        path: 'approval/:id',
+        name: 'ApprovalDetail',
+        component: () => import('@/views/approval/ApprovalDetail.vue'),
+        meta: { title: '审批详情', permission: 'approval:view' }
+      },
+      {
+        path: 'account',
+        name: 'AccountManagement',
+        component: () => import('@/views/account/AccountManagement.vue'),
+        meta: { title: '账户管理', permission: 'account:view' }
       }
     ]
   }
 ]
+
+function inferRoutePermission(path) {
+  const value = String(path || '')
+  if (value.startsWith('project') || value.startsWith('billing')) return 'project:view'
+  if (value.startsWith('rule') || value.startsWith('designer') ||
+      value.startsWith('test') || value.startsWith('log')) return 'rule:view'
+  if (value.startsWith('variable') || value.startsWith('list')) return 'field:view'
+  if (value.startsWith('datasource')) return 'datasource:view'
+  if (value.startsWith('database')) return 'database:view'
+  if (value.startsWith('model')) return 'model:view'
+  if (value.startsWith('function')) return 'function:view'
+  if (value.startsWith('lineage') || value.startsWith('approval')) return 'approval:view'
+  if (value.startsWith('experiment')) return 'experiment:view'
+  if (value.startsWith('account')) return 'account:view'
+  return null
+}
+
+routes.forEach(route => {
+  ;(route.children || []).forEach(child => {
+    if (!child.meta) child.meta = {}
+    if (!child.meta.permission) {
+      child.meta.permission = inferRoutePermission(child.path)
+    }
+  })
+})
 
 const router = createRouter({
   history: createWebHashHistory(),

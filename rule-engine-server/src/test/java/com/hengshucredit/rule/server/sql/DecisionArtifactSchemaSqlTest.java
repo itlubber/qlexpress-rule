@@ -14,8 +14,11 @@ public class DecisionArtifactSchemaSqlTest {
     @Test
     public void lifecycleAllowsOnlyGovernedTransitions() {
         Assert.assertTrue(RuleRevisionState.DRAFT.canTransitionTo(RuleRevisionState.REVIEW));
-        Assert.assertTrue(RuleRevisionState.REVIEW.canTransitionTo(RuleRevisionState.DRAFT));
+        Assert.assertTrue(RuleRevisionState.REVIEW.canTransitionTo(
+                RuleRevisionState.REJECTED));
         Assert.assertTrue(RuleRevisionState.REVIEW.canTransitionTo(RuleRevisionState.APPROVED));
+        Assert.assertFalse(RuleRevisionState.REVIEW.canTransitionTo(
+                RuleRevisionState.DRAFT));
         Assert.assertTrue(RuleRevisionState.APPROVED.canTransitionTo(RuleRevisionState.PUBLISHED));
         Assert.assertTrue(RuleRevisionState.PUBLISHED.canTransitionTo(RuleRevisionState.OFFLINE));
         Assert.assertFalse(RuleRevisionState.DRAFT.canTransitionTo(RuleRevisionState.PUBLISHED));

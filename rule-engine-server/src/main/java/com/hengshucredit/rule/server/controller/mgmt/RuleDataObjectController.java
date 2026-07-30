@@ -5,6 +5,10 @@ import com.hengshucredit.rule.model.entity.RuleDataObject;
 import com.hengshucredit.rule.model.entity.RuleDataObjectField;
 import com.hengshucredit.rule.model.entity.RuleDataObjectFieldOption;
 import com.hengshucredit.rule.server.common.R;
+import com.hengshucredit.rule.server.governance.GovernanceBatchImportService;
+import com.hengshucredit.rule.server.governance.GovernedProjectionMutation;
+import com.hengshucredit.rule.server.security.RequirePermission;
+import com.hengshucredit.rule.server.service.ConsoleOperatorResolver;
 import com.hengshucredit.rule.server.service.RuleDataObjectService;
 import com.hengshucredit.rule.server.service.SchemaSyncService;
 import org.springframework.web.bind.annotation.*;
@@ -25,31 +29,44 @@ public class RuleDataObjectController {
     @Resource
     private SchemaSyncService schemaSyncService;
 
+    @Resource
+    private GovernanceBatchImportService governanceBatchImportService;
+
+    @Resource
+    private ConsoleOperatorResolver operatorResolver;
+
     @PostMapping("/import/java")
+    @RequirePermission("approval:submit")
     public R<Map<String, Object>> importJava(@RequestBody Map<String, String> body) {
         String pidStr = body.get("projectId");
         Long projectId = pidStr != null && !pidStr.isEmpty() ? Long.valueOf(pidStr) : null;
         String scope = body.getOrDefault("scope", "PROJECT");
         String objectType = body.getOrDefault("objectType", "INPUT");
         String javaSource = body.get("javaSource");
-        Map<String, Object> result = dataObjectService.importFromJava(projectId, scope, javaSource, objectType);
-        trySyncSchema();
+        Map<String, Object> result =
+                governanceBatchImportService.importDataObjectsFromJava(
+                        projectId, scope, javaSource, objectType,
+                        operatorResolver.resolve());
         return R.ok(result);
     }
 
     @PostMapping("/import/java-file")
+    @RequirePermission("approval:submit")
     public R<Map<String, Object>> importJavaFile(
             @RequestParam(required = false) Long projectId,
             @RequestParam(defaultValue = "PROJECT") String scope,
             @RequestParam(defaultValue = "INPUT") String objectType,
             @RequestParam("file") MultipartFile file) throws Exception {
         String javaSource = new String(file.getBytes(), StandardCharsets.UTF_8);
-        Map<String, Object> result = dataObjectService.importFromJava(projectId, scope, javaSource, objectType);
-        trySyncSchema();
+        Map<String, Object> result =
+                governanceBatchImportService.importDataObjectsFromJava(
+                        projectId, scope, javaSource, objectType,
+                        operatorResolver.resolve());
         return R.ok(result);
     }
 
     @PostMapping("/import/json")
+    @RequirePermission("approval:submit")
     public R<Map<String, Object>> importJson(@RequestBody Map<String, String> body) {
         String pidStr = body.get("projectId");
         Long projectId = pidStr != null && !pidStr.isEmpty() ? Long.valueOf(pidStr) : null;
@@ -57,25 +74,31 @@ public class RuleDataObjectController {
         String objectType = body.getOrDefault("objectType", "INPUT");
         String objectCode = body.get("objectCode");
         String jsonContent = body.get("jsonContent");
-        Map<String, Object> result = dataObjectService.importFromJson(projectId, scope, jsonContent, objectCode, objectType);
-        trySyncSchema();
+        Map<String, Object> result =
+                governanceBatchImportService.importDataObjectsFromJson(
+                        projectId, scope, jsonContent, objectCode,
+                        objectType, operatorResolver.resolve());
         return R.ok(result);
     }
 
-    /** 从建表 DDL（CREATE TABLE）导入数据对象与字段，COMMENT 作为变量名称 */
+    /** 从建表 DDL 解析数据对象与字段并生成生命周期审批草稿。 */
     @PostMapping("/import/ddl")
+    @RequirePermission("approval:submit")
     public R<Map<String, Object>> importDdl(@RequestBody Map<String, String> body) {
         String pidStr = body.get("projectId");
         Long projectId = pidStr != null && !pidStr.isEmpty() ? Long.valueOf(pidStr) : null;
         String scope = body.getOrDefault("scope", "PROJECT");
         String objectType = body.getOrDefault("objectType", "INPUT");
         String ddlSource = body.get("ddlSource");
-        Map<String, Object> result = dataObjectService.importFromDdl(projectId, scope, ddlSource, objectType);
-        trySyncSchema();
+        Map<String, Object> result =
+                governanceBatchImportService.importDataObjectsFromDdl(
+                        projectId, scope, ddlSource, objectType,
+                        operatorResolver.resolve());
         return R.ok(result);
     }
 
     @PostMapping
+    @GovernedProjectionMutation
     public R<Long> createOrUpdate(@RequestBody RuleDataObject obj) {
         if (obj.getId() != null) {
             dataObjectService.updateById(obj);
@@ -89,6 +112,7 @@ public class RuleDataObjectController {
     }
 
     @PutMapping("/{id:\\d+}")
+    @GovernedProjectionMutation
     public R<Void> update(@PathVariable Long id, @RequestBody RuleDataObject obj) {
         obj.setId(id);
         dataObjectService.updateById(obj);
@@ -98,6 +122,7 @@ public class RuleDataObjectController {
 
     /** 将项目级数据对象及其字段转为全局。 */
     @PostMapping("/toGlobal/{id:\\d+}")
+    @GovernedProjectionMutation
     public R<Void> toGlobal(@PathVariable Long id) {
         try {
             dataObjectService.toGlobal(id);
@@ -152,6 +177,7 @@ public class RuleDataObjectController {
     }
 
     @PutMapping("/{id:\\d+}/type")
+    @GovernedProjectionMutation
     public R<Void> updateType(@PathVariable Long id, @RequestBody Map<String, String> body) {
         dataObjectService.updateObjectType(id, body.get("objectType"));
         return R.ok();
@@ -159,12 +185,14 @@ public class RuleDataObjectController {
 
     /** 更新数据对象的脚本引用名 */
     @PutMapping("/{id:\\d+}/script-name")
+    @GovernedProjectionMutation
     public R<Void> updateScriptName(@PathVariable Long id, @RequestBody Map<String, String> body) {
         dataObjectService.updateScriptName(id, body.get("scriptName"));
         return R.ok();
     }
 
     @DeleteMapping("/{id:\\d+}")
+    @GovernedProjectionMutation
     public R<Void> delete(@PathVariable Long id) {
         dataObjectService.deleteWithVariables(id);
         trySyncSchema();
@@ -173,12 +201,14 @@ public class RuleDataObjectController {
 
     /** 在数据对象下新增字段（写入 rule_data_object_field） */
     @PostMapping("/{objectId:\\d+}/field")
+    @GovernedProjectionMutation
     public R<RuleDataObjectField> createField(@PathVariable Long objectId, @RequestBody RuleDataObjectField field) {
         return R.ok(dataObjectService.createObjectField(objectId, field));
     }
 
     /** 更新对象字段 */
     @PutMapping("/field")
+    @GovernedProjectionMutation
     public R<Void> updateField(@RequestBody RuleDataObjectField field) {
         dataObjectService.updateObjectField(field);
         trySyncSchema();
@@ -187,6 +217,7 @@ public class RuleDataObjectController {
 
     /** 删除对象字段及其枚举选项 */
     @DeleteMapping("/field/{fieldId:\\d+}")
+    @GovernedProjectionMutation
     public R<Void> deleteField(@PathVariable Long fieldId) {
         dataObjectService.deleteObjectField(fieldId);
         trySyncSchema();
@@ -199,6 +230,7 @@ public class RuleDataObjectController {
     }
 
     @PostMapping("/field/{fieldId:\\d+}/options")
+    @GovernedProjectionMutation
     public R<Void> saveFieldOptions(@PathVariable Long fieldId, @RequestBody List<RuleDataObjectFieldOption> options) {
         dataObjectService.saveFieldOptions(fieldId, options);
         trySyncSchema();

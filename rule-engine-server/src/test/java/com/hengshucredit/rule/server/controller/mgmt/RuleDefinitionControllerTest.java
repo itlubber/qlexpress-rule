@@ -6,9 +6,12 @@ import com.hengshucredit.rule.model.dto.RuleLifecycleActionRequest;
 import com.hengshucredit.rule.model.dto.RulePreflightReport;
 import com.hengshucredit.rule.model.dto.RuleDraftSaveRequest;
 import com.hengshucredit.rule.model.dto.RuleDraftSaveResponse;
+import com.hengshucredit.rule.model.dto.RuleDraftSourceRequest;
 import com.hengshucredit.rule.model.dto.RuleRevisionRepairRequest;
 import com.hengshucredit.rule.model.dto.RuleValidationIssue;
+import com.hengshucredit.rule.model.entity.RuleDefinitionVersion;
 import com.hengshucredit.rule.model.entity.RuleRevision;
+import com.hengshucredit.rule.model.enums.RuleDraftSourceType;
 import com.hengshucredit.rule.server.common.GlobalExceptionHandler;
 import com.hengshucredit.rule.server.common.R;
 import com.hengshucredit.rule.server.common.RuleGovernanceException;
@@ -23,8 +26,12 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -33,6 +40,121 @@ public class RuleDefinitionControllerTest {
     private static final String PREVIEW_DIGEST =
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
                     + "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+    @Test
+    public void versionSnapshotRouteReturnsOnlyTheOwningDefinition() throws Exception {
+        RuleDefinitionController controller = new RuleDefinitionController();
+        RuleDefinitionVersion snapshot = new RuleDefinitionVersion();
+        snapshot.setId(81L);
+        snapshot.setDefinitionId(30L);
+        snapshot.setVersion(4);
+        snapshot.setModelJson("{\"source\":\"v4\"}");
+        ReflectionTestUtils.setField(controller, "definitionService",
+                new RuleDefinitionService() {
+                    @Override
+                    public RuleDefinitionVersion getVersionById(
+                            Long definitionId, Long versionId) {
+                        return Long.valueOf(30L).equals(definitionId)
+                                && Long.valueOf(81L).equals(versionId)
+                                ? snapshot : null;
+                    }
+                });
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
+
+        MvcResult matched = mockMvc.perform(get(
+                        "/api/rule/definition/30/versions/81"))
+                .andExpect(status().isOk())
+                .andReturn();
+        JSONObject matchedBody = JSON.parseObject(
+                matched.getResponse().getContentAsString());
+        assertEquals(200, matchedBody.getIntValue("code"));
+        assertEquals(81L, matchedBody.getJSONObject("data").getLongValue("id"));
+        assertEquals("{\"source\":\"v4\"}",
+                matchedBody.getJSONObject("data").getString("modelJson"));
+
+        MvcResult wrongDefinition = mockMvc.perform(get(
+                        "/api/rule/definition/31/versions/81"))
+                .andExpect(status().isOk())
+                .andReturn();
+        JSONObject wrongDefinitionBody = JSON.parseObject(
+                wrongDefinition.getResponse().getContentAsString());
+        assertEquals(400, wrongDefinitionBody.getIntValue("code"));
+    }
+
+    @Test
+    public void sourceDraftRouteReturnsSavedDraftResponse() throws Exception {
+        RuleDefinitionController controller = new RuleDefinitionController();
+        RuleDraftSaveResponse response = new RuleDraftSaveResponse();
+        RuleRevision revision = revision(7L, 30L, "DRAFT");
+        revision.setLockVersion(1);
+        response.setRevision(revision);
+        response.setCompileSuccess(true);
+        final RuleDraftSourceRequest[] captured = {null};
+        ReflectionTestUtils.setField(controller, "lifecycleService",
+                new RuleLifecycleService() {
+                    @Override
+                    public RuleDraftSaveResponse createDraftFromSource(
+                            Long definitionId,
+                            RuleDraftSourceRequest request) {
+                        assertEquals(Long.valueOf(30L), definitionId);
+                        captured[0] = request;
+                        return response;
+                    }
+                });
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller)
+                .setControllerAdvice(new GlobalExceptionHandler()).build();
+
+        MvcResult result = mockMvc.perform(post(
+                        "/api/rule/definition/30/revisions/draft/from-source")
+                        .contentType("application/json")
+                        .content("{\"sourceType\":\"VERSION\",\"sourceId\":81}"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JSONObject body = JSON.parseObject(
+                result.getResponse().getContentAsString());
+        assertEquals(200, body.getIntValue("code"));
+        assertEquals(7L, body.getJSONObject("data")
+                .getJSONObject("revision").getLongValue("id"));
+        assertEquals(RuleDraftSourceType.VERSION,
+                captured[0].getSourceType());
+        assertEquals(Long.valueOf(81L), captured[0].getSourceId());
+    }
+
+    @Test
+    public void sourceDraftRouteKeepsGovernanceConflictResponse() throws Exception {
+        RuleDefinitionController controller = new RuleDefinitionController();
+        ReflectionTestUtils.setField(controller, "lifecycleService",
+                new RuleLifecycleService() {
+                    @Override
+                    public RuleDraftSaveResponse createDraftFromSource(
+                            Long definitionId,
+                            RuleDraftSourceRequest request) {
+                        throw new RuleGovernanceException(
+                                409, "DRAFT_ALREADY_EXISTS",
+                                "规则已有 DRAFT 修订",
+                                Collections.singletonList(
+                                        RuleValidationIssue.error(
+                                                "DRAFT_ALREADY_EXISTS", "$",
+                                                "规则已有 DRAFT 修订")));
+                    }
+                });
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller)
+                .setControllerAdvice(new GlobalExceptionHandler()).build();
+
+        MvcResult result = mockMvc.perform(post(
+                        "/api/rule/definition/30/revisions/draft/from-source")
+                        .contentType("application/json")
+                        .content("{\"sourceType\":\"REVISION\",\"sourceId\":6}"))
+                .andExpect(status().isConflict())
+                .andReturn();
+
+        JSONObject body = JSON.parseObject(
+                result.getResponse().getContentAsString());
+        assertEquals(409, body.getIntValue("code"));
+        assertEquals("DRAFT_ALREADY_EXISTS", body.getJSONObject("data")
+                .getString("errorCode"));
+    }
 
     @Test
     public void normalizeModelJsonUnquotesJsonStringRequestBody() {
@@ -102,6 +224,115 @@ public class RuleDefinitionControllerTest {
 
         assertEquals(422, response.getCode());
         assertEquals(Long.valueOf(3L), response.getData().getRevisionId());
+    }
+
+    @Test
+    public void compatibilityPublishDelegatesToApprovedLifecycleRevision() {
+        RuleDefinitionController controller = new RuleDefinitionController();
+        final RuleLifecycleActionRequest[] captured = {null};
+        RuleRevision approved = revision(8L, 30L, "APPROVED");
+        ReflectionTestUtils.setField(controller, "lifecycleService",
+                new RuleLifecycleService() {
+                    @Override
+                    public RuleRevision publishApproved(
+                            Long definitionId,
+                            RuleLifecycleActionRequest request) {
+                        assertEquals(Long.valueOf(30L), definitionId);
+                        captured[0] = request;
+                        return approved;
+                    }
+                });
+        Map<String, Object> body = new HashMap<>();
+        body.put("changeLog", "兼容入口发布");
+        body.put("forcePublishReason", "兼容入口不得强制发布");
+
+        R<?> response = controller.publish(30L, body);
+
+        assertEquals(200, response.getCode());
+        assertEquals(approved, response.getData());
+        assertEquals("兼容入口发布", captured[0].getComment());
+        assertNull(captured[0].getForcePublishReason());
+    }
+
+    @Test
+    public void compatibilityPublishRejectsRuleWithoutApprovedRevision() {
+        RuleDefinitionController controller = new RuleDefinitionController();
+        ReflectionTestUtils.setField(controller, "lifecycleService",
+                new RuleLifecycleService() {
+                    @Override
+                    public RuleRevision publishApproved(
+                            Long definitionId,
+                            RuleLifecycleActionRequest request) {
+                        throw new RuleGovernanceException(
+                                409,
+                                "FROZEN_REVISION_WRITE_REJECTED",
+                                "规则没有可发布的 APPROVED 修订",
+                                Collections.singletonList(
+                                        RuleValidationIssue.error(
+                                                "FROZEN_REVISION_WRITE_REJECTED",
+                                                "$",
+                                                "规则没有可发布的 APPROVED 修订")));
+                    }
+                });
+        RuleGovernanceException error = assertThrows(
+                RuleGovernanceException.class,
+                () -> controller.publish(30L, Collections.emptyMap()));
+
+        assertEquals(409, error.getHttpStatus());
+        assertEquals("FROZEN_REVISION_WRITE_REJECTED",
+                error.getCode());
+    }
+
+    @Test
+    public void compatibilityUnpublishDelegatesToPublishedLifecycleRevision() {
+        RuleDefinitionController controller = new RuleDefinitionController();
+        final RuleLifecycleActionRequest[] captured = {null};
+        RuleRevision published = revision(9L, 30L, "PUBLISHED");
+        ReflectionTestUtils.setField(controller, "lifecycleService",
+                new RuleLifecycleService() {
+                    @Override
+                    public RuleRevision offlinePublished(
+                            Long definitionId,
+                            RuleLifecycleActionRequest request) {
+                        assertEquals(Long.valueOf(30L), definitionId);
+                        captured[0] = request;
+                        return published;
+                    }
+                });
+        R<?> response = controller.unpublish(30L);
+
+        assertEquals(200, response.getCode());
+        assertEquals(published, response.getData());
+        assertNull(captured[0].getComment());
+    }
+
+    @Test
+    public void compatibilityUnpublishRejectsRuleWithoutPublishedRevision() {
+        RuleDefinitionController controller = new RuleDefinitionController();
+        ReflectionTestUtils.setField(controller, "lifecycleService",
+                new RuleLifecycleService() {
+                    @Override
+                    public RuleRevision offlinePublished(
+                            Long definitionId,
+                            RuleLifecycleActionRequest request) {
+                        throw new RuleGovernanceException(
+                                409,
+                                "FROZEN_REVISION_WRITE_REJECTED",
+                                "规则没有 PUBLISHED 修订",
+                                Collections.singletonList(
+                                        RuleValidationIssue.error(
+                                                "FROZEN_REVISION_WRITE_REJECTED",
+                                                "$",
+                                                "规则没有 PUBLISHED 修订")));
+                    }
+                });
+        RuleGovernanceException error = assertThrows(
+                RuleGovernanceException.class,
+                () -> controller.unpublish(30L));
+
+        assertEquals(409, error.getHttpStatus());
+        assertEquals("FROZEN_REVISION_WRITE_REJECTED",
+                error.getCode());
     }
 
     @Test
@@ -410,5 +641,15 @@ public class RuleDefinitionControllerTest {
                 body.getJSONObject("data")
                         .getJSONArray("issues").getJSONObject(0)
                         .getString("code"));
+    }
+
+    private static RuleRevision revision(Long id, Long definitionId,
+                                         String state) {
+        RuleRevision revision = new RuleRevision();
+        revision.setId(id);
+        revision.setDefinitionId(definitionId);
+        revision.setState(state);
+        revision.setLockVersion(0);
+        return revision;
     }
 }

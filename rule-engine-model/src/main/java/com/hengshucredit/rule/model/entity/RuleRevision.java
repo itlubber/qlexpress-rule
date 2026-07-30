@@ -26,6 +26,7 @@ public class RuleRevision {
     private String contentDigest;
     private String validationReportDigest;
     private Long artifactId;
+    private Long governanceRequestId;
     private String forcePublishReason;
     private Integer lockVersion;
     private String createBy;

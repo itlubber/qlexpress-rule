@@ -1,4 +1,5 @@
 import request from './request'
+import { createResourceDraft } from './governance'
 
 export function importJavaEntity(projectId, objectType, javaSource, scope = 'PROJECT') {
   return request({ url: '/rule/dataobject/import/java', method: 'post', data: { projectId, objectType, javaSource, scope } })
@@ -33,48 +34,108 @@ export function getVariableTree(projectId) {
   return request({ url: `/rule/dataobject/tree/${projectId}`, method: 'get' })
 }
 
-export function createOrUpdateDataObject(obj) {
-  return request({ url: '/rule/dataobject', method: 'post', data: obj })
+export async function createOrUpdateDataObject(obj) {
+  const aggregate = obj.id
+    ? { ...(await loadDataObjectAggregate(obj.id)), ...obj }
+    : { ...obj, fields: obj.fields || [] }
+  return createResourceDraft(
+    'DATA_OBJECT',
+    aggregate,
+    obj.id ? 'UPDATE' : 'CREATE',
+    { changeSummary: obj.id ? '修改数据对象' : '新建数据对象' }
+  )
 }
 
-export function toGlobalDataObject(id) {
-  return request({ url: `/rule/dataobject/toGlobal/${id}`, method: 'post' })
+export async function toGlobalDataObject(id) {
+  const aggregate = await loadDataObjectAggregate(id)
+  aggregate.scope = 'GLOBAL'
+  aggregate.projectId = 0
+  aggregate.fields = aggregate.fields.map(field => ({
+    ...field,
+    scope: 'GLOBAL',
+    projectId: 0
+  }))
+  return createResourceDraft('DATA_OBJECT', aggregate, 'UPDATE', {
+    changeSummary: '将数据对象转为全局资源'
+  })
 }
 
-export function updateObjectType(id, objectType) {
-  return request({ url: `/rule/dataobject/${id}/type`, method: 'put', data: { objectType } })
+export async function updateObjectType(id, objectType) {
+  const aggregate = await loadDataObjectAggregate(id)
+  aggregate.objectType = objectType
+  return createResourceDraft('DATA_OBJECT', aggregate, 'UPDATE', {
+    changeSummary: '修改数据对象类型'
+  })
 }
 
 /** 更新数据对象的脚本引用名 */
-export function updateObjectScriptName(id, scriptName) {
-  return request({ url: `/rule/dataobject/${id}/script-name`, method: 'put', data: { scriptName } })
+export async function updateObjectScriptName(id, scriptName) {
+  const aggregate = await loadDataObjectAggregate(id)
+  aggregate.scriptName = scriptName
+  return createResourceDraft('DATA_OBJECT', aggregate, 'UPDATE', {
+    changeSummary: '修改数据对象脚本引用名'
+  })
 }
 
 export function deleteDataObject(id) {
-  return request({ url: `/rule/dataobject/${id}`, method: 'delete' })
+  return createResourceDraft('DATA_OBJECT', null, 'DELETE', {
+    resourceId: id,
+    changeSummary: '删除数据对象'
+  })
 }
 
 /** 在数据对象下新增字段 */
-export function createDataObjectField(objectId, field) {
-  return request({ url: `/rule/dataobject/${objectId}/field`, method: 'post', data: field })
+export async function createDataObjectField(objectId, field) {
+  const aggregate = await loadDataObjectAggregate(objectId)
+  aggregate.fields.push({ ...field, id: null, objectId })
+  return createResourceDraft('DATA_OBJECT', aggregate, 'UPDATE', {
+    changeSummary: '新增数据对象字段'
+  })
 }
 
 /** 更新数据对象字段 */
-export function updateDataObjectField(field) {
-  return request({ url: '/rule/dataobject/field', method: 'put', data: field })
+export async function updateDataObjectField(field) {
+  const aggregate = await loadDataObjectAggregate(field.objectId)
+  aggregate.fields = aggregate.fields.map(item =>
+    item.id === field.id ? { ...item, ...field } : item
+  )
+  return createResourceDraft('DATA_OBJECT', aggregate, 'UPDATE', {
+    changeSummary: '修改数据对象字段'
+  })
 }
 
 /** 删除数据对象字段 */
-export function deleteDataObjectField(fieldId) {
-  return request({ url: `/rule/dataobject/field/${fieldId}`, method: 'delete' })
+export async function deleteDataObjectField(fieldId, objectId) {
+  const aggregate = await loadDataObjectAggregate(objectId)
+  const removed = new Set([fieldId])
+  let changed = true
+  while (changed) {
+    changed = false
+    aggregate.fields.forEach(field => {
+      if (removed.has(field.parentFieldId) && !removed.has(field.id)) {
+        removed.add(field.id)
+        changed = true
+      }
+    })
+  }
+  aggregate.fields = aggregate.fields.filter(field => !removed.has(field.id))
+  return createResourceDraft('DATA_OBJECT', aggregate, 'UPDATE', {
+    changeSummary: '删除数据对象字段'
+  })
 }
 
 export function getDataObjectFieldOptions(fieldId) {
   return request({ url: `/rule/dataobject/field/${fieldId}/options`, method: 'get' })
 }
 
-export function saveDataObjectFieldOptions(fieldId, options) {
-  return request({ url: `/rule/dataobject/field/${fieldId}/options`, method: 'post', data: options })
+export async function saveDataObjectFieldOptions(fieldId, options, objectId) {
+  const aggregate = await loadDataObjectAggregate(objectId)
+  aggregate.fields = aggregate.fields.map(field =>
+    field.id === fieldId ? { ...field, options } : field
+  )
+  return createResourceDraft('DATA_OBJECT', aggregate, 'UPDATE', {
+    changeSummary: '修改数据对象字段选项'
+  })
 }
 
 export function batchValidateRules(projectId) {
@@ -84,4 +145,18 @@ export function batchValidateRules(projectId) {
 
 export function batchValidateAll() {
   return request({ url: `/rule/variable/batch-validate`, method: 'post' })
+}
+
+async function loadDataObjectAggregate(objectId) {
+  const response = await getDataObject(objectId)
+  const detail = response.data || {}
+  const object = detail.object || detail
+  const fields = detail.fields || detail.variables || []
+  const enriched = await Promise.all(
+    fields.map(async field => {
+      const optionResponse = await getDataObjectFieldOptions(field.id)
+      return { ...field, options: optionResponse.data || [] }
+    })
+  )
+  return { ...object, fields: enriched }
 }

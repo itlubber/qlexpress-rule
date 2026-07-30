@@ -1,4 +1,5 @@
 import request from './request'
+import { createResourceDraft } from './governance'
 
 /** 健康检查，验证变量管理接口可用性 */
 export function checkVariableHealth() {
@@ -18,19 +19,36 @@ export function getVariable(id) {
 }
 
 export function createVariable(data) {
-  return request({ url: '/rule/variable', method: 'post', data })
+  return createResourceDraft('VARIABLE', data, 'CREATE', {
+    changeSummary: '新建字段'
+  })
 }
 
 export function updateVariable(data) {
-  return request({ url: '/rule/variable', method: 'put', data })
+  return createResourceDraft('VARIABLE', data, 'UPDATE', {
+    changeSummary: '修改字段配置'
+  })
 }
 
-export function toGlobalVariable(id) {
-  return request({ url: `/rule/variable/toGlobal/${id}`, method: 'post' })
+export async function toGlobalVariable(id) {
+  const response = await getVariable(id)
+  return createResourceDraft(
+    'VARIABLE',
+    {
+      ...(response.data || {}),
+      scope: 'GLOBAL',
+      projectId: 0
+    },
+    'UPDATE',
+    { changeSummary: '将字段转为全局资源' }
+  )
 }
 
 export function deleteVariable(id) {
-  return request({ url: `/rule/variable/${id}`, method: 'delete' })
+  return createResourceDraft('VARIABLE', null, 'DELETE', {
+    resourceId: id,
+    changeSummary: '删除字段'
+  })
 }
 
 export function testVariable(id, params) {
@@ -41,8 +59,14 @@ export function getVariableOptions(variableId) {
   return request({ url: `/rule/variable/${variableId}/options`, method: 'get' })
 }
 
-export function saveVariableOptions(variableId, options) {
-  return request({ url: `/rule/variable/${variableId}/options`, method: 'post', data: options })
+export async function saveVariableOptions(variableId, options) {
+  const response = await getVariable(variableId)
+  return createResourceDraft(
+    'VARIABLE',
+    { ...(response.data || {}), options },
+    'UPDATE',
+    { changeSummary: '修改字段选项' }
+  )
 }
 
 export function listFieldValidations(params) {

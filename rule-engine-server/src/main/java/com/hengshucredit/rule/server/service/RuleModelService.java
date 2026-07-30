@@ -204,6 +204,31 @@ public class RuleModelService {
             String modelCode, String modelName, String modelType, String description,
             String changeLog, String testParams, String onnxTaskType, String onnxConfig,
             Integer preloadOnStartup, Integer executionTimeoutMs) {
+        RuleModel model = buildUploadSnapshot(file, projectId, scope,
+                modelCode, modelName, modelType, description,
+                testParams, onnxTaskType, onnxConfig,
+                preloadOnStartup, executionTimeoutMs);
+        modelMapper.insert(model);
+        persistModelFields(model.getId(), model.getInputFields(),
+                model.getOutputFields());
+        ModelValidationReport report = com.alibaba.fastjson.JSON.parseObject(
+                model.getValidationReportJson(),
+                ModelValidationReport.class);
+        saveVersionSnapshot(model, 1, changeLog, null,
+                report == null ? null : report.getSampleStatus());
+        model.setModelContent(null);
+        return model;
+    }
+
+    /**
+     * 校验并解析上传文件，返回可送审的完整模型快照，不写入业务表。
+     */
+    public RuleModel buildUploadSnapshot(
+            MultipartFile file, Long projectId, String scope,
+            String modelCode, String modelName, String modelType,
+            String description, String testParams, String onnxTaskType,
+            String onnxConfig, Integer preloadOnStartup,
+            Integer executionTimeoutMs) {
         try {
             byte[] fileBytes = file.getBytes();
             String modelContent = Base64.getEncoder().encodeToString(fileBytes);
@@ -254,14 +279,8 @@ public class RuleModelService {
             model.setOutputFieldCount(outputFields != null ? outputFields.size() : 0);
             model.setCurrentVersion(1);
             model.setStatus(1);
-            modelMapper.insert(model);
-
-            persistModelFields(model.getId(), inputFields, outputFields);
-
-            saveVersionSnapshot(model, 1, changeLog, null,
-                    validationReport.getSampleStatus());
-
-            model.setModelContent(null);
+            model.setInputFields(inputFields);
+            model.setOutputFields(outputFields);
             return model;
         } catch (IOException e) {
             throw new RuntimeException("读取模型文件失败: " + e.getMessage(), e);
@@ -671,6 +690,59 @@ public class RuleModelService {
     }
 
     /**
+     * 校验替换文件并构造完整模型送审快照，不覆盖当前模型。
+     */
+    public RuleModel buildReplacementSnapshot(
+            Long modelId, MultipartFile file, String testParams,
+            String onnxTaskType, String onnxConfig,
+            String impactToken) {
+        impactAnalysisService.assertCurrent(
+                impactToken, "MODEL", modelId, "REPLACE");
+        RuleModel model = modelMapper.selectById(modelId);
+        if (model == null) throw new IllegalArgumentException("模型不存在");
+        try {
+            byte[] fileBytes = file.getBytes();
+            ValidatedModelFile parsed = validateModelFile(
+                    fileBytes, file.getOriginalFilename(),
+                    model.getModelType(), testParams,
+                    onnxTaskType, onnxConfig);
+            ModelValidationReport report = parsed.validationReport;
+            model.setModelType(parsed.modelType == null
+                    ? model.getModelType() : parsed.modelType);
+            model.setModelFormat(parsed.modelFormat);
+            model.setModelContent(
+                    Base64.getEncoder().encodeToString(fileBytes));
+            model.setModelFileName(file.getOriginalFilename());
+            model.setModelFileSize(file.getSize());
+            model.setModelDigest(report.getModelDigest());
+            model.setInputSchemaJson(
+                    com.alibaba.fastjson.JSON.toJSONString(
+                            report.getInputSchema()));
+            model.setOutputSchemaJson(
+                    com.alibaba.fastjson.JSON.toJSONString(
+                            report.getOutputSchema()));
+            model.setValidationReportJson(
+                    com.alibaba.fastjson.JSON.toJSONString(report));
+            model.setRuntimeConstraintsJson(
+                    com.alibaba.fastjson.JSON.toJSONString(
+                            report.getRuntimeConstraints()));
+            model.setModelConfig(
+                    com.alibaba.fastjson.JSON.toJSONString(
+                            parsed.modelConfig));
+            model.setInputFieldCount(parsed.inputFields.size());
+            model.setOutputFieldCount(parsed.outputFields.size());
+            model.setCurrentVersion((model.getCurrentVersion() == null
+                    ? 0 : model.getCurrentVersion()) + 1);
+            model.setInputFields(parsed.inputFields);
+            model.setOutputFields(parsed.outputFields);
+            return model;
+        } catch (IOException e) {
+            throw new RuntimeException(
+                    "读取模型文件失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
      * 发布模型（创建版本快照）
      */
     public void publish(Long modelId, String changeLog, String publishBy) {
@@ -765,6 +837,27 @@ public class RuleModelService {
         model.setRuntimeConstraintsJson(snapshot.getRuntimeConstraintsJson());
         model.setCurrentVersion((model.getCurrentVersion() == null ? 0 : model.getCurrentVersion()) + 1);
         modelMapper.updateById(model);
+    }
+
+    /**
+     * 构造历史版本恢复审批所需的完整模型快照，不修改当前业务数据。
+     */
+    public RuleModel buildRestoreSnapshot(Long modelId, Integer version) {
+        RuleModel model = getDetail(modelId);
+        if (model == null) throw new IllegalArgumentException("模型不存在");
+        RuleModelVersion snapshot = getVersionWithContent(modelId, version);
+        if (snapshot == null) throw new IllegalArgumentException("Version not found");
+        model.setModelContent(snapshot.getModelContent());
+        model.setModelConfig(snapshot.getModelConfig());
+        model.setModelFormat(snapshot.getModelFormat());
+        model.setModelFileName(snapshot.getModelFileName());
+        model.setModelFileSize(snapshot.getModelFileSize());
+        model.setModelDigest(snapshot.getModelDigest());
+        model.setInputSchemaJson(snapshot.getInputSchemaJson());
+        model.setOutputSchemaJson(snapshot.getOutputSchemaJson());
+        model.setValidationReportJson(snapshot.getValidationReportJson());
+        model.setRuntimeConstraintsJson(snapshot.getRuntimeConstraintsJson());
+        return model;
     }
 
     private boolean equalsText(String left, String right) {

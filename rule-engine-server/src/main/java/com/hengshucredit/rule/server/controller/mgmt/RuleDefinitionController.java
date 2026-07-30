@@ -4,6 +4,7 @@ import com.hengshucredit.rule.core.compiler.CompileResult;
 import com.hengshucredit.rule.model.dto.RuleQueryDTO;
 import com.hengshucredit.rule.model.dto.RuleDraftSaveRequest;
 import com.hengshucredit.rule.model.dto.RuleDraftSaveResponse;
+import com.hengshucredit.rule.model.dto.RuleDraftSourceRequest;
 import com.hengshucredit.rule.model.dto.RuleResult;
 import com.hengshucredit.rule.model.dto.RuleLifecycleActionRequest;
 import com.hengshucredit.rule.model.dto.RulePreflightReport;
@@ -12,17 +13,20 @@ import com.hengshucredit.rule.model.dto.RuleValidationIssue;
 import com.hengshucredit.rule.model.entity.*;
 import com.hengshucredit.rule.server.common.R;
 import com.hengshucredit.rule.server.common.RuleGovernanceException;
+import com.hengshucredit.rule.server.governance.GovernedProjectionMutation;
 import com.hengshucredit.rule.server.service.RuleCompileService;
 import com.hengshucredit.rule.server.service.RuleCallCycleService;
 import com.hengshucredit.rule.server.service.RuleDefinitionService;
 import com.hengshucredit.rule.server.service.RuleDraftService;
 import com.hengshucredit.rule.server.service.RuleExecuteService;
-import com.hengshucredit.rule.server.service.RulePublishService;
 import com.hengshucredit.rule.server.service.RuleLifecycleService;
+import com.hengshucredit.rule.server.service.RuleGovernanceSubmissionService;
 import com.hengshucredit.rule.server.service.RuleArtifactMigrationService;
 import com.hengshucredit.rule.server.service.RuleReferenceIntegrityService;
 import com.hengshucredit.rule.server.service.RuleRevisionRepairService;
+import com.hengshucredit.rule.server.security.RequirePermission;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.annotation.Resource;
@@ -50,9 +54,6 @@ public class RuleDefinitionController {
     private RuleExecuteService executeService;
 
     @Resource
-    private RulePublishService publishService;
-
-    @Resource
     private RuleCallCycleService ruleCallCycleService;
 
     @Resource
@@ -66,6 +67,10 @@ public class RuleDefinitionController {
 
     @Resource
     private RuleRevisionRepairService revisionRepairService;
+
+    @Autowired(required = false)
+    private RuleGovernanceSubmissionService
+            governanceSubmissionService;
 
     @GetMapping("/list")
     public R<IPage<RuleDefinition>> list(
@@ -194,6 +199,7 @@ public class RuleDefinitionController {
     }
 
     @DeleteMapping("/{id}")
+    @GovernedProjectionMutation
     public R<Void> delete(@PathVariable Long id) {
         definitionService.deleteWithContent(id);
         return R.ok();
@@ -255,16 +261,23 @@ public class RuleDefinitionController {
     }
 
     @PostMapping("/publish/{definitionId}")
-    public R<Void> publish(@PathVariable Long definitionId, @RequestBody(required = false) Map<String, Object> body) {
-        String changeLog = body != null ? (String) body.get("changeLog") : null;
-        String error = publishService.publish(definitionId, changeLog);
-        return error == null ? R.ok() : R.fail(error);
+    public R<RuleRevision> publish(
+            @PathVariable Long definitionId,
+            @RequestBody(required = false) Map<String, Object> body) {
+        RuleLifecycleActionRequest request =
+                new RuleLifecycleActionRequest();
+        Object changeLog = body == null ? null : body.get("changeLog");
+        request.setComment(changeLog == null
+                ? null : changeLog.toString());
+        return R.ok(lifecycleService.publishApproved(
+                definitionId, request));
     }
 
     @PostMapping("/unpublish/{definitionId}")
-    public R<Void> unpublish(@PathVariable Long definitionId) {
-        String error = publishService.unpublish(definitionId);
-        return error == null ? R.ok() : R.fail(error);
+    public R<RuleRevision> unpublish(
+            @PathVariable Long definitionId) {
+        return R.ok(lifecycleService.offlinePublished(
+                definitionId, new RuleLifecycleActionRequest()));
     }
 
     @PostMapping("/{definitionId}/revisions/draft")
@@ -275,6 +288,14 @@ public class RuleDefinitionController {
                 body == null ? null : body.get("baseRevisionId");
         return R.ok(lifecycleService.createDraft(
                 definitionId, baseRevisionId));
+    }
+
+    @PostMapping("/{definitionId}/revisions/draft/from-source")
+    public R<RuleDraftSaveResponse> createDraftFromSource(
+            @PathVariable Long definitionId,
+            @RequestBody(required = false) RuleDraftSourceRequest request) {
+        return R.ok(lifecycleService.createDraftFromSource(
+                definitionId, request));
     }
 
     @GetMapping("/{definitionId}/revisions/repair-preview")
@@ -346,12 +367,16 @@ public class RuleDefinitionController {
     }
 
     @PostMapping("/{definitionId}/revisions/{revisionId}/submit")
+    @RequirePermission("approval:submit")
     public R<RuleRevision> submitRevision(@PathVariable Long definitionId,
                                           @PathVariable Long revisionId,
                                           @RequestBody(required = false)
                                           RuleLifecycleActionRequest request) {
         return lifecycleAction(definitionId, revisionId,
-                () -> lifecycleService.submit(revisionId, request));
+                () -> governanceSubmissionService == null
+                        ? lifecycleService.submit(revisionId, request)
+                        : governanceSubmissionService.submit(
+                        revisionId, request));
     }
 
     @PostMapping("/{definitionId}/revisions/{revisionId}/return")
@@ -360,7 +385,20 @@ public class RuleDefinitionController {
                                           @RequestBody(required = false)
                                           RuleLifecycleActionRequest request) {
         return lifecycleAction(definitionId, revisionId,
-                () -> lifecycleService.returnToDraft(revisionId, request));
+                () -> unmanagedLifecycleAction(definitionId, revisionId,
+                        () -> lifecycleService.returnToDraft(
+                                revisionId, request)));
+    }
+
+    @PostMapping("/{definitionId}/revisions/{revisionId}/reject")
+    public R<RuleRevision> rejectRevision(@PathVariable Long definitionId,
+                                          @PathVariable Long revisionId,
+                                          @RequestBody(required = false)
+                                          RuleLifecycleActionRequest request) {
+        return lifecycleAction(definitionId, revisionId,
+                () -> unmanagedLifecycleAction(definitionId, revisionId,
+                        () -> lifecycleService.returnToDraft(
+                                revisionId, request)));
     }
 
     @PostMapping("/{definitionId}/revisions/{revisionId}/approve")
@@ -369,7 +407,9 @@ public class RuleDefinitionController {
                                            @RequestBody(required = false)
                                            RuleLifecycleActionRequest request) {
         return lifecycleAction(definitionId, revisionId,
-                () -> lifecycleService.approve(revisionId, request));
+                () -> unmanagedLifecycleAction(definitionId, revisionId,
+                        () -> lifecycleService.approve(
+                                revisionId, request)));
     }
 
     @PostMapping("/{definitionId}/revisions/{revisionId}/publish")
@@ -378,7 +418,9 @@ public class RuleDefinitionController {
                                            @RequestBody(required = false)
                                            RuleLifecycleActionRequest request) {
         return lifecycleAction(definitionId, revisionId,
-                () -> lifecycleService.publish(revisionId, request));
+                () -> unmanagedLifecycleAction(definitionId, revisionId,
+                        () -> lifecycleService.publish(
+                                revisionId, request)));
     }
 
     @PostMapping("/{definitionId}/revisions/{revisionId}/offline")
@@ -387,7 +429,9 @@ public class RuleDefinitionController {
                                            @RequestBody(required = false)
                                            RuleLifecycleActionRequest request) {
         return lifecycleAction(definitionId, revisionId,
-                () -> lifecycleService.offline(revisionId, request));
+                () -> unmanagedLifecycleAction(definitionId, revisionId,
+                        () -> lifecycleService.offline(
+                                revisionId, request)));
     }
 
     @GetMapping("/{definitionId}/revisions/timeline")
@@ -409,6 +453,19 @@ public class RuleDefinitionController {
         }
     }
 
+    private RuleRevision unmanagedLifecycleAction(
+            Long definitionId,
+            Long revisionId,
+            java.util.function.Supplier<RuleRevision> action) {
+        RuleRevision revision =
+                lifecycleService.getRevision(definitionId, revisionId);
+        if (revision.getGovernanceRequestId() != null) {
+            throw new IllegalStateException(
+                    "该规则修订已进入统一审批，请在审批管理中完成操作");
+        }
+        return action.get();
+    }
+
     private R<RulePreflightReport> validationFailure(RulePreflightReport report) {
         R<RulePreflightReport> response = R.fail(422, "发布前验证未通过");
         response.setData(report);
@@ -418,6 +475,17 @@ public class RuleDefinitionController {
     @GetMapping("/versions/{definitionId}")
     public R<List<RuleDefinitionVersion>> listVersions(@PathVariable Long definitionId) {
         return R.ok(definitionService.listVersions(definitionId));
+    }
+
+    @GetMapping("/{definitionId}/versions/{versionId}")
+    public R<RuleDefinitionVersion> getVersionById(
+            @PathVariable Long definitionId,
+            @PathVariable Long versionId) {
+        RuleDefinitionVersion snapshot = definitionService
+                .getVersionById(definitionId, versionId);
+        return snapshot == null
+                ? R.fail(400, "版本快照不存在或不属于当前规则")
+                : R.ok(snapshot);
     }
 
     @GetMapping("/version/{definitionId}/{version}")

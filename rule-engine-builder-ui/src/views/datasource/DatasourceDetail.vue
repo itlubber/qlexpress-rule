@@ -15,6 +15,7 @@
           >返回</el-button
         >
         <el-button
+          v-permission="'datasource:edit'"
           size="small"
           type="primary"
           :loading="saving"
@@ -597,14 +598,12 @@ export default {
         }
         this.saving = true
         try {
-          if (data.id) {
-            await updateDatasource(data)
-            this.$message.success('更新成功')
-          } else {
-            await createDatasource(data)
-            this.$message.success('创建成功')
-          }
-          this.$router.push('/datasource')
+          const response = data.id
+            ? await updateDatasource(data)
+            : await createDatasource(data)
+          this.$message.success('外数数据源变更已送审')
+          if (response.data && response.data.id)
+            this.$router.push('/approval/' + response.data.id)
         } finally {
           this.saving = false
         }

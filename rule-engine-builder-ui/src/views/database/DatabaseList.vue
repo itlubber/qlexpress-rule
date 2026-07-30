@@ -106,6 +106,7 @@
         <div class="uiue-btn-bar">
           <div class="btn-right">
             <el-button
+              v-permission="'database:edit'"
               type="primary"
               size="small"
               :icon="ElIconPlus"
@@ -209,6 +210,7 @@
           <el-table-column label="操作" width="180" align="center" fixed="right">
             <template v-slot="{ row }">
               <el-button
+                v-permission="'database:edit'"
                 link
                 size="small"
                 type="warning"
@@ -230,6 +232,7 @@
                 >查询</el-button
               >
               <el-button
+                v-permission="'database:edit'"
                 link
                 size="small"
                 type="danger"
@@ -577,7 +580,7 @@
             >取消</el-button
           >
           <el-button size="small" @click="handleTestDraft">测试连接</el-button>
-          <el-button size="small" type="primary" @click="handleSubmit"
+          <el-button v-permission="'database:edit'" size="small" type="primary" @click="handleSubmit"
             >保存</el-button
           >
         </div>
@@ -889,15 +892,13 @@ export default {
       this.$refs.form.validate(async (valid) => {
         if (!valid) return
         const data = this.normalizeForm(this.form)
-        if (data.id) {
-          await updateDbDatasource(data)
-          this.$message.success('更新成功')
-        } else {
-          await createDbDatasource(data)
-          this.$message.success('创建成功')
-        }
+        const response = data.id
+          ? await updateDbDatasource(data)
+          : await createDbDatasource(data)
+        this.$message.success('数据库连接变更已送审')
         this.dialogVisible = false
-        this.loadData()
+        if (response.data && response.data.id)
+          this.$router.push('/approval/' + response.data.id)
       })
     },
     handleDelete(row) {
@@ -907,9 +908,10 @@ export default {
         { type: 'warning' }
       )
         .then(async () => {
-          await deleteDbDatasource(row.id)
-          this.$message.success('删除成功')
-          this.loadData()
+          const response = await deleteDbDatasource(row.id)
+          this.$message.success('数据库连接删除已送审')
+          if (response.data && response.data.id)
+            this.$router.push('/approval/' + response.data.id)
         })
         .catch(() => {})
     },

@@ -102,7 +102,7 @@ test('决策表字段选择器可加载并选择普通变量和对象字段', as
   const requestedPaths = requests.map(request => new URL(request.url).pathname)
   expect(requestedPaths).toEqual(expect.arrayContaining([
     '/api/rule/definition/101',
-    '/api/rule/definition/content/101',
+    '/api/rule/definition/101/revisions',
     '/api/rule/variable/project/1',
     '/api/rule/dataobject/tree/1',
     '/api/rule/function/project/1/all',

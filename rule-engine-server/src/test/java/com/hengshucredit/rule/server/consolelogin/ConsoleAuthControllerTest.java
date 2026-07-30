@@ -9,10 +9,15 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.util.List;
+import java.util.Set;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 public class ConsoleAuthControllerTest {
@@ -57,14 +62,91 @@ public class ConsoleAuthControllerTest {
         assertTrue(response.getJSONObject("data").getBooleanValue("authenticated"));
     }
 
+    @Test
+    public void databaseLoginStoresUserIdentityAndPermissionVersion() throws Exception {
+        RuleEngineConsoleLoginProperties properties = properties(true);
+        DatabaseConsoleAccountService accountService = accountService();
+        MockMvc mockMvc = mockMvc(properties, accountService);
+
+        MvcResult result = mockMvc.perform(post("/api/auth/console/login")
+                        .contentType("application/json")
+                        .content("{\"username\":\"reviewer\",\"password\":\"secret\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        MockHttpSession session = (MockHttpSession) result.getRequest().getSession(false);
+        assertNotNull(session);
+        assertEquals(9L, session.getAttribute(
+                properties.getSessionUserIdAttribute()));
+        assertEquals("reviewer", session.getAttribute(
+                properties.getSessionUsernameAttribute()));
+        assertEquals(4L, session.getAttribute(
+                properties.getSessionPermissionVersionAttribute()));
+        JSONObject body = response(result).getJSONObject("data");
+        assertEquals("reviewer", body.getString("username"));
+        assertTrue(body.getJSONArray("permissions").contains("approval:view"));
+    }
+
+    @Test
+    public void currentUserReturnsRolesAndEffectivePermissions() throws Exception {
+        RuleEngineConsoleLoginProperties properties = properties(true);
+        MockMvc mockMvc = mockMvc(properties, accountService());
+        MockHttpSession session = new MockHttpSession();
+        session.setAttribute(properties.getSessionUserIdAttribute(), 9L);
+        session.setAttribute(properties.getSessionUsernameAttribute(), "reviewer");
+
+        JSONObject data = response(mockMvc.perform(
+                        get("/api/auth/console/me").session(session))
+                .andExpect(status().isOk())
+                .andReturn()).getJSONObject("data");
+
+        assertEquals(9L, data.getLongValue("userId"));
+        assertEquals("reviewer", data.getString("displayName"));
+        assertTrue(data.getJSONArray("roleCodes").contains("REVIEWER"));
+        assertTrue(data.getJSONArray("permissions").contains("approval:view"));
+    }
+
     private static MockMvc mockMvc(boolean loginEnabled) {
         return mockMvc(properties(loginEnabled));
     }
 
     private static MockMvc mockMvc(RuleEngineConsoleLoginProperties properties) {
+        return mockMvc(properties, null);
+    }
+
+    private static MockMvc mockMvc(RuleEngineConsoleLoginProperties properties,
+                                   DatabaseConsoleAccountService accountService) {
         ConsoleAuthController controller = new ConsoleAuthController();
         ReflectionTestUtils.setField(controller, "consoleLoginProperties", properties);
+        if (accountService != null) {
+            ReflectionTestUtils.setField(controller, "databaseAccountService", accountService);
+        }
         return MockMvcBuilders.standaloneSetup(controller).build();
+    }
+
+    private static DatabaseConsoleAccountService accountService() {
+        return new DatabaseConsoleAccountService() {
+            @Override
+            public ConsoleLoginResult authenticate(
+                    String username, String rawPassword) {
+                if (!"reviewer".equals(username) || !"secret".equals(rawPassword)) {
+                    return ConsoleLoginResult.failure();
+                }
+                return result();
+            }
+
+            @Override
+            public ConsoleLoginResult currentUser(Long userId) {
+                return Long.valueOf(9L).equals(userId)
+                        ? result() : ConsoleLoginResult.failure();
+            }
+
+            private ConsoleLoginResult result() {
+                return new ConsoleLoginResult(
+                        true, false, 9L, "reviewer", "reviewer", 4L,
+                        List.of("REVIEWER"), Set.of("approval:view"));
+            }
+        };
     }
 
     private static RuleEngineConsoleLoginProperties properties(boolean loginEnabled) {

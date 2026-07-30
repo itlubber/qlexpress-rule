@@ -105,6 +105,255 @@ CREATE TABLE IF NOT EXISTS `rule_auth_access_log` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='项目鉴权访问日志表';
 
 -- ============================================================
+-- 1.4 console_user - 控制台账户
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `console_user` (
+  `id`                 BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `username`           VARCHAR(64)  NOT NULL                COMMENT '登录用户名',
+  `display_name`       VARCHAR(128) NOT NULL                COMMENT '显示名称',
+  `password_hash`      VARCHAR(128) NOT NULL                COMMENT 'BCrypt密码摘要',
+  `status`             TINYINT      NOT NULL DEFAULT 1       COMMENT '状态：0-停用，1-启用',
+  `permission_version` BIGINT       NOT NULL DEFAULT 1       COMMENT '权限版本号',
+  `last_login_time`    DATETIME     DEFAULT NULL             COMMENT '最后登录时间',
+  `create_by`          VARCHAR(64)  DEFAULT NULL             COMMENT '创建人',
+  `create_time`        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by`          VARCHAR(64)  DEFAULT NULL             COMMENT '更新人',
+  `update_time`        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_console_user_username` (`username`),
+  KEY `idx_console_user_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='控制台账户表';
+
+-- ============================================================
+-- 1.5 console_role - 控制台角色
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `console_role` (
+  `id`          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `role_code`   VARCHAR(64)  NOT NULL                COMMENT '角色编码',
+  `role_name`   VARCHAR(128) NOT NULL                COMMENT '角色名称',
+  `description` VARCHAR(512) DEFAULT NULL             COMMENT '角色说明',
+  `status`      TINYINT      NOT NULL DEFAULT 1       COMMENT '状态：0-停用，1-启用',
+  `system_role` TINYINT      NOT NULL DEFAULT 0       COMMENT '是否系统内置角色',
+  `create_by`   VARCHAR(64)  DEFAULT NULL             COMMENT '创建人',
+  `create_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by`   VARCHAR(64)  DEFAULT NULL             COMMENT '更新人',
+  `update_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_console_role_code` (`role_code`),
+  KEY `idx_console_role_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='控制台角色表';
+
+-- ============================================================
+-- 1.6 console_permission - 控制台功能权限
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `console_permission` (
+  `id`               BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `permission_code`  VARCHAR(128) NOT NULL                COMMENT '权限编码',
+  `permission_name`  VARCHAR(128) NOT NULL                COMMENT '权限名称',
+  `permission_group` VARCHAR(64)  NOT NULL                COMMENT '权限分组',
+  `permission_type`  VARCHAR(16)  NOT NULL                COMMENT '权限类型：MENU/ACTION',
+  `menu_path`        VARCHAR(256) DEFAULT NULL             COMMENT '菜单路径',
+  `sort_order`       INT          NOT NULL DEFAULT 0       COMMENT '排序号',
+  `status`           TINYINT      NOT NULL DEFAULT 1       COMMENT '状态：0-停用，1-启用',
+  `create_time`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_console_permission_code` (`permission_code`),
+  KEY `idx_console_permission_group` (`permission_group`, `permission_type`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='控制台功能权限表';
+
+-- ============================================================
+-- 1.7 console_user_role - 账户角色关系
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `console_user_role` (
+  `id`          BIGINT      NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `user_id`     BIGINT      NOT NULL                COMMENT '账户ID',
+  `role_id`     BIGINT      NOT NULL                COMMENT '角色ID',
+  `create_by`   VARCHAR(64) DEFAULT NULL             COMMENT '创建人',
+  `create_time` DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_console_user_role` (`user_id`, `role_id`),
+  KEY `idx_console_user_role_role` (`role_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='控制台账户角色关系表';
+
+-- ============================================================
+-- 1.8 console_role_permission - 角色权限关系
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `console_role_permission` (
+  `id`            BIGINT      NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `role_id`       BIGINT      NOT NULL                COMMENT '角色ID',
+  `permission_id` BIGINT      NOT NULL                COMMENT '权限ID',
+  `create_by`     VARCHAR(64) DEFAULT NULL             COMMENT '创建人',
+  `create_time`   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_console_role_permission` (`role_id`, `permission_id`),
+  KEY `idx_console_role_permission_permission` (`permission_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='控制台角色权限关系表';
+
+-- ============================================================
+-- 1.9 console_user_permission_override - 账户权限覆盖
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `console_user_permission_override` (
+  `id`            BIGINT      NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `user_id`       BIGINT      NOT NULL                COMMENT '账户ID',
+  `permission_id` BIGINT      NOT NULL                COMMENT '权限ID',
+  `effect` VARCHAR(8) NOT NULL COMMENT 'ALLOW or DENY',
+  `create_by`     VARCHAR(64) DEFAULT NULL             COMMENT '创建人',
+  `create_time`   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by`     VARCHAR(64) DEFAULT NULL             COMMENT '更新人',
+  `update_time`   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_console_user_permission_override` (`user_id`, `permission_id`),
+  KEY `idx_console_user_permission_override_permission` (`permission_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='控制台账户权限覆盖表';
+
+-- ============================================================
+-- 1.10 console_security_audit_log - 控制台安全审计
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `console_security_audit_log` (
+  `id`           BIGINT        NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `user_id`      BIGINT        DEFAULT NULL            COMMENT '账户ID',
+  `username`     VARCHAR(64)   DEFAULT NULL            COMMENT '账户名快照',
+  `action`       VARCHAR(64)   NOT NULL                COMMENT '操作编码',
+  `target_type`  VARCHAR(64)   DEFAULT NULL            COMMENT '目标类型',
+  `target_id`    VARCHAR(128)  DEFAULT NULL            COMMENT '目标ID',
+  `details_json` LONGTEXT      DEFAULT NULL            COMMENT '操作详情JSON',
+  `client_ip`    VARCHAR(64)   DEFAULT NULL            COMMENT '客户端IP',
+  `create_time`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_console_audit_user_time` (`user_id`, `create_time`),
+  KEY `idx_console_audit_action_time` (`action`, `create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='控制台安全审计日志表';
+
+-- ============================================================
+-- 1.11 governed_resource - 统一治理资源
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `governed_resource` (
+  `id`                   BIGINT      NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `resource_type`        VARCHAR(32) NOT NULL                COMMENT '资源类型',
+  `resource_id`          BIGINT      NOT NULL                COMMENT '业务资源ID',
+  `project_id`           BIGINT      DEFAULT NULL            COMMENT '所属项目ID',
+  `effective_version_id` BIGINT      DEFAULT NULL            COMMENT '当前生效治理版本ID',
+  `effective_version_no` INT         NOT NULL DEFAULT 0       COMMENT '当前生效版本号',
+  `effective_status`     VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' COMMENT 'ACTIVE/DISABLED/DELETED',
+  `lock_version`         INT         NOT NULL DEFAULT 0       COMMENT '乐观锁版本',
+  `create_time`          DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time`          DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_governed_resource_identity` (`resource_type`, `resource_id`),
+  KEY `idx_governed_resource_project` (`project_id`, `resource_type`, `effective_status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='统一治理资源表';
+
+-- ============================================================
+-- 1.12 governed_resource_version - 不可变资源版本
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `governed_resource_version` (
+  `id`                        BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `governed_resource_id`      BIGINT       NOT NULL                COMMENT '治理资源ID',
+  `resource_type`             VARCHAR(32)  NOT NULL                COMMENT '资源类型',
+  `resource_id`               BIGINT       NOT NULL                COMMENT '业务资源ID',
+  `version_no`                INT          NOT NULL                COMMENT '版本号',
+  `source_version_id`         BIGINT       DEFAULT NULL            COMMENT '历史恢复来源版本ID',
+  `approval_request_id`       BIGINT       DEFAULT NULL            COMMENT '来源审批单ID',
+  `snapshot_json`             LONGTEXT     NOT NULL                COMMENT '规范资源快照',
+  `snapshot_digest`           CHAR(64)     NOT NULL                COMMENT '快照SHA-256摘要',
+  `secret_payload_ciphertext` LONGTEXT     DEFAULT NULL            COMMENT '敏感字段AES-GCM密文',
+  `secret_digest`             CHAR(64)     DEFAULT NULL            COMMENT '敏感字段摘要',
+  `effective_status`          VARCHAR(16)  NOT NULL DEFAULT 'ACTIVE' COMMENT '版本生效状态',
+  `change_summary`            VARCHAR(512) DEFAULT NULL            COMMENT '变更摘要',
+  `legacy_source_type`        VARCHAR(32)  DEFAULT NULL            COMMENT '旧版本来源类型',
+  `legacy_source_id`          BIGINT       DEFAULT NULL            COMMENT '旧版本来源ID',
+  `create_by`                 VARCHAR(64)  DEFAULT NULL            COMMENT '创建人',
+  `create_time`               DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_governed_resource_version_no` (`governed_resource_id`, `version_no`),
+  UNIQUE KEY `uk_governed_version_legacy_source` (`legacy_source_type`, `legacy_source_id`),
+  KEY `idx_governed_version_resource` (`resource_type`, `resource_id`, `version_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='统一治理不可变版本表';
+
+-- ============================================================
+-- 1.13 governance_approval_request - 生命周期审批单
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `governance_approval_request` (
+  `id`                        BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `request_no`                VARCHAR(64)  NOT NULL                COMMENT '审批单号',
+  `resource_type`             VARCHAR(32)  NOT NULL                COMMENT '资源类型',
+  `resource_id`               BIGINT       NOT NULL                COMMENT '业务资源ID',
+  `project_id`                BIGINT       DEFAULT NULL            COMMENT '所属项目ID',
+  `action`                    VARCHAR(16)  NOT NULL                COMMENT 'CREATE/UPDATE/ENABLE/DISABLE/DELETE/RESTORE',
+  `status`                    VARCHAR(16)  NOT NULL                COMMENT 'EDITING/PENDING/APPROVED/REJECTED/CANCELLED/CONFLICT',
+  `active_resource_key`       VARCHAR(96)  DEFAULT NULL            COMMENT '活动申请唯一键，终态清空',
+  `base_version_id`           BIGINT       DEFAULT NULL            COMMENT '基准版本ID',
+  `base_version_no`           INT          DEFAULT NULL            COMMENT '基准版本号',
+  `source_version_id`         BIGINT       DEFAULT NULL            COMMENT '恢复来源版本ID',
+  `draft_snapshot_json`       LONGTEXT     NOT NULL                COMMENT '可编辑草稿快照',
+  `submitted_snapshot_json`   LONGTEXT     DEFAULT NULL            COMMENT '提交后冻结快照',
+  `snapshot_digest`           CHAR(64)     DEFAULT NULL            COMMENT '提交快照摘要',
+  `secret_payload_ciphertext` LONGTEXT     DEFAULT NULL            COMMENT '敏感字段AES-GCM密文',
+  `secret_digest`             CHAR(64)     DEFAULT NULL            COMMENT '敏感字段摘要',
+  `dependency_digest`         CHAR(64)     DEFAULT NULL            COMMENT '依赖快照摘要',
+  `validation_report_json`    LONGTEXT     DEFAULT NULL            COMMENT '预检结果JSON',
+  `change_summary`            VARCHAR(512) DEFAULT NULL            COMMENT '变更摘要',
+  `submit_comment`            VARCHAR(1024) DEFAULT NULL           COMMENT '提交说明',
+  `review_comment`            VARCHAR(1024) DEFAULT NULL           COMMENT '审批意见',
+  `applicant`                 VARCHAR(64)  NOT NULL                COMMENT '申请人',
+  `submit_time`               DATETIME     DEFAULT NULL            COMMENT '提交时间',
+  `reviewer`                  VARCHAR(64)  DEFAULT NULL            COMMENT '审批人',
+  `review_time`               DATETIME     DEFAULT NULL            COMMENT '审批时间',
+  `lock_version`              INT          NOT NULL DEFAULT 0       COMMENT '乐观锁版本',
+  `create_time`               DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time`               DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_governance_request_no` (`request_no`),
+  UNIQUE KEY `uk_governance_active_resource` (`active_resource_key`),
+  KEY `idx_governance_request_tab` (`resource_type`, `status`, `create_time`),
+  KEY `idx_governance_request_project` (`project_id`, `status`, `create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='统一生命周期审批单';
+
+-- ============================================================
+-- 1.14 governance_approval_event - 审批历史事件
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `governance_approval_event` (
+  `id`           BIGINT        NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `request_id`   BIGINT        NOT NULL                COMMENT '审批单ID',
+  `action`       VARCHAR(32)   NOT NULL                COMMENT '事件动作',
+  `from_status`  VARCHAR(16)   DEFAULT NULL            COMMENT '原状态',
+  `to_status`    VARCHAR(16)   NOT NULL                COMMENT '目标状态',
+  `actor`        VARCHAR(64)   NOT NULL                COMMENT '操作人',
+  `comment`      VARCHAR(1024) DEFAULT NULL            COMMENT '操作意见',
+  `details_json` LONGTEXT      DEFAULT NULL            COMMENT '事件详情JSON',
+  `create_time`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '发生时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_governance_event_request` (`request_id`, `create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='统一生命周期审批历史事件';
+
+-- ============================================================
+-- 1.15 governance_dependency_snapshot - 审批依赖快照
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `governance_dependency_snapshot` (
+  `id`                     BIGINT        NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `request_id`             BIGINT        NOT NULL                COMMENT '审批单ID',
+  `version_id`             BIGINT        DEFAULT NULL            COMMENT '生效版本ID',
+  `source_resource_type`   VARCHAR(32)   NOT NULL                COMMENT '来源资源类型',
+  `source_resource_id`     BIGINT        NOT NULL                COMMENT '来源资源ID',
+  `target_resource_type`   VARCHAR(32)   NOT NULL                COMMENT '依赖资源类型',
+  `target_resource_id`     BIGINT        NOT NULL                COMMENT '依赖资源ID',
+  `target_version_id`      BIGINT        DEFAULT NULL            COMMENT '依赖生效版本ID',
+  `target_version_no`      INT           DEFAULT NULL            COMMENT '依赖生效版本号',
+  `reference_path`         VARCHAR(512)  DEFAULT NULL            COMMENT '引用路径',
+  `relation_type`          VARCHAR(32)   DEFAULT NULL            COMMENT '依赖关系类型',
+  `required`               TINYINT       NOT NULL DEFAULT 1       COMMENT '是否必需',
+  `resolution_status`      VARCHAR(32)   NOT NULL                COMMENT '依赖解析状态',
+  `target_digest`          CHAR(64)      DEFAULT NULL            COMMENT '依赖版本摘要',
+  `issue_code`             VARCHAR(64)   DEFAULT NULL            COMMENT '问题编码',
+  `issue_message`          VARCHAR(1024) DEFAULT NULL            COMMENT '问题说明',
+  `create_time`            DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_governance_dependency_request` (`request_id`, `id`),
+  KEY `idx_governance_dependency_target` (`target_resource_type`, `target_resource_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='统一生命周期审批依赖快照';
+
+-- ============================================================
 -- 2. rule_definition - 规则定义表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS `rule_definition` (
@@ -309,6 +558,7 @@ CREATE TABLE IF NOT EXISTS `rule_revision` (
   `content_digest`           CHAR(64)      DEFAULT NULL,
   `validation_report_digest` CHAR(64)      DEFAULT NULL,
   `artifact_id`              BIGINT        DEFAULT NULL,
+  `governance_request_id`    BIGINT        DEFAULT NULL,
   `force_publish_reason`     VARCHAR(1024) DEFAULT NULL,
   `lock_version`             INT           NOT NULL DEFAULT 0,
   `create_by`                VARCHAR(64)   NOT NULL,
@@ -326,7 +576,8 @@ CREATE TABLE IF NOT EXISTS `rule_revision` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_rule_revision` (`definition_id`, `revision_no`),
   KEY `idx_revision_lifecycle` (`definition_id`, `state`, `revision_no`),
-  KEY `idx_revision_artifact` (`artifact_id`)
+  KEY `idx_revision_artifact` (`artifact_id`),
+  KEY `idx_revision_governance_request` (`governance_request_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Rule revision lifecycle';
 
 CREATE TABLE IF NOT EXISTS `rule_lifecycle_event` (

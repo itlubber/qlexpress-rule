@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.hengshucredit.rule.model.entity.RuleDbDatasource;
 import com.hengshucredit.rule.model.entity.RuleRuntimeCallLog;
 import com.hengshucredit.rule.server.common.R;
+import com.hengshucredit.rule.server.governance.GovernedProjectionMutation;
 import com.hengshucredit.rule.server.service.DBConnectPools;
 import com.hengshucredit.rule.server.service.RuleDbDatasourceService;
 import com.hengshucredit.rule.server.service.RuleRuntimeCallLogService;
@@ -51,18 +52,21 @@ public class DbDatasourceController {
     }
 
     @PostMapping
+    @GovernedProjectionMutation
     public R<Void> create(@RequestBody RuleDbDatasource datasource) {
         datasourceService.saveWithDefaults(datasource);
         return R.ok();
     }
 
     @PutMapping
+    @GovernedProjectionMutation
     public R<Void> update(@RequestBody RuleDbDatasource datasource) {
         datasourceService.updateWithDefaults(datasource);
         return R.ok();
     }
 
     @DeleteMapping("/{id:\\d+}")
+    @GovernedProjectionMutation
     public R<Void> delete(@PathVariable Long id) {
         datasourceService.deleteDatasource(id);
         return R.ok();

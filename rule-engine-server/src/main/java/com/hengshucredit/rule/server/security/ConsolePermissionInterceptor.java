@@ -1,0 +1,145 @@
+package com.hengshucredit.rule.server.security;
+
+import com.alibaba.fastjson.JSON;
+import com.hengshucredit.rule.server.common.R;
+import com.hengshucredit.rule.server.consolelogin.RuleEngineConsoleLoginProperties;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
+import lombok.RequiredArgsConstructor;
+import org.springframework.core.annotation.AnnotatedElementUtils;
+import org.springframework.web.method.HandlerMethod;
+import org.springframework.web.servlet.HandlerInterceptor;
+
+@RequiredArgsConstructor
+public class ConsolePermissionInterceptor implements HandlerInterceptor {
+
+    private final RuleEngineConsoleLoginProperties properties;
+    private final ConsolePermissionService permissionService;
+
+    @Override
+    public boolean preHandle(HttpServletRequest request,
+                             HttpServletResponse response,
+                             Object handler) throws Exception {
+        if (!(handler instanceof HandlerMethod handlerMethod)) {
+            return true;
+        }
+        RequirePermission requirement = handlerMethod.getMethodAnnotation(
+                RequirePermission.class);
+        if (requirement == null) {
+            requirement = AnnotatedElementUtils.findMergedAnnotation(
+                    handlerMethod.getBeanType(), RequirePermission.class);
+        }
+        if (requirement == null) {
+            String implicitPermission =
+                    resolveImplicitPermission(request);
+            if (implicitPermission == null) {
+                return true;
+            }
+            return authorize(request, response, implicitPermission);
+        }
+        return authorize(request, response, requirement.value());
+    }
+
+    private boolean authorize(HttpServletRequest request,
+                              HttpServletResponse response,
+                              String permissionCode) throws Exception {
+        Long userId = resolveUserId(request.getSession(false));
+        if (userId != null
+                && permissionService.hasPermission(
+                userId, permissionCode)) {
+            return true;
+        }
+        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        response.setCharacterEncoding("UTF-8");
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write(JSON.toJSONString(
+                R.fail(HttpServletResponse.SC_FORBIDDEN, "PERMISSION_DENIED")));
+        return false;
+    }
+
+    private String resolveImplicitPermission(
+            HttpServletRequest request) {
+        String path = request.getRequestURI();
+        if (path == null || !path.startsWith("/api/rule/")) {
+            return null;
+        }
+        String module = modulePermission(path);
+        if (module == null) {
+            return null;
+        }
+        String method = request.getMethod();
+        if ("GET".equalsIgnoreCase(method)
+                || "HEAD".equalsIgnoreCase(method)
+                || "OPTIONS".equalsIgnoreCase(method)) {
+            return module + ":view";
+        }
+        String lowerPath = path.toLowerCase();
+        if (lowerPath.matches(
+                ".*/(approve|reject)(/.*)?$")) {
+            return "approval:approve";
+        }
+        if (lowerPath.matches(
+                ".*/(submit|publish|unpublish|offline|rollback)(/.*)?$")) {
+            return module + ":submit";
+        }
+        return module + ":edit";
+    }
+
+    private String modulePermission(String path) {
+        if (path.startsWith("/api/rule/project")) {
+            return "project";
+        }
+        if (path.startsWith("/api/rule/definition")
+                || path.startsWith("/api/rule/expression")
+                || path.startsWith("/api/rule/artifact")) {
+            return "rule";
+        }
+        if (path.startsWith("/api/rule/variable")
+                || path.startsWith("/api/rule/dataobject")
+                || path.startsWith("/api/rule/field-validation")
+                || path.startsWith("/api/rule/list")) {
+            return "field";
+        }
+        if (path.startsWith("/api/rule/model")) {
+            return "model";
+        }
+        if (path.startsWith("/api/rule/datasource")) {
+            return "datasource";
+        }
+        if (path.startsWith("/api/rule/database")) {
+            return "database";
+        }
+        if (path.startsWith("/api/rule/function")) {
+            return "function";
+        }
+        if (path.startsWith("/api/rule/experiment")) {
+            return "experiment";
+        }
+        if (path.startsWith("/api/rule/lineage")) {
+            return "approval";
+        }
+        if (path.startsWith("/api/rule/log")
+                || path.startsWith("/api/rule/runtime-log")) {
+            return "rule";
+        }
+        if (path.startsWith("/api/rule/billing")) {
+            return "project";
+        }
+        return null;
+    }
+
+    private Long resolveUserId(HttpSession session) {
+        if (session == null) return null;
+        Object value = session.getAttribute(properties.getSessionUserIdAttribute());
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        if (value == null) return null;
+        try {
+            return Long.valueOf(value.toString());
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+}

@@ -80,6 +80,7 @@ public class RuleDefinitionService extends ServiceImpl<RuleDefinitionMapper, Rul
 
     private LambdaQueryWrapper<RuleDefinition> buildWrapper(RuleQueryDTO query) {
         LambdaQueryWrapper<RuleDefinition> wrapper = new LambdaQueryWrapper<>();
+        wrapper.ne(RuleDefinition::getStatus, -1);
         if (query.getProjectId() != null) {
             wrapper.eq(RuleDefinition::getProjectId, query.getProjectId());
         }
@@ -232,6 +233,17 @@ public class RuleDefinitionService extends ServiceImpl<RuleDefinitionMapper, Rul
         return versionMapper.selectList(new LambdaQueryWrapper<RuleDefinitionVersion>()
                 .eq(RuleDefinitionVersion::getDefinitionId, definitionId)
                 .orderByDesc(RuleDefinitionVersion::getVersion));
+    }
+
+    public RuleDefinitionVersion getVersionById(
+            Long definitionId, Long versionId) {
+        if (definitionId == null || versionId == null) {
+            return null;
+        }
+        RuleDefinitionVersion snapshot = versionMapper.selectById(versionId);
+        return snapshot != null
+                && definitionId.equals(snapshot.getDefinitionId())
+                ? snapshot : null;
     }
 
     public RuleDefinitionVersion getVersion(Long definitionId, Integer version) {
@@ -400,6 +412,7 @@ public class RuleDefinitionService extends ServiceImpl<RuleDefinitionMapper, Rul
      */
     public IPage<RuleDefinition> pageListForProject(int pageNum, int pageSize, Long projectId, String modelType, String keyword, String scope, String status, String ruleCode, String ruleName, String createBeginTime, String createEndTime, String updateBeginTime, String updateEndTime) {
         LambdaQueryWrapper<RuleDefinition> wrapper = new LambdaQueryWrapper<>();
+        wrapper.ne(RuleDefinition::getStatus, -1);
 
         // 查询条件：项目级规则 OR 已关联到该项目的全局规则（通过关联表）
         if (projectId != null && projectId > 0) {

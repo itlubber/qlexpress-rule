@@ -1,5 +1,16 @@
 <template>
   <div class="act-designer uiue-compact-workbench uiue-compact-designer">
+    <rule-draft-read-only
+      :visible="!canEditDraft"
+      :loading="!draftGuardLoaded"
+      :load-error="Boolean(draftGuardError)"
+      :revision-label="viewRevisionLabel"
+      :revision-state="viewRevision ? viewRevision.state : ''"
+      :can-fork="canForkViewRevision"
+      @go-back="$router.back()"
+      @go-lifecycle="goRuleLifecycle"
+      @fork="forkViewRevision"
+    />
     <!-- 顶部工具栏 -->
     <div class="act-header">
       <div class="act-title-area">
@@ -480,7 +491,6 @@
       ref="scriptPanel"
       :definitionId="definitionId"
       :onBeforeCompile="handleSave"
-      @mode-change="(mode) => (scriptMode = mode)"
     />
 
     <!-- 测试弹窗 -->
@@ -511,18 +521,14 @@ import {
   Delete as ElIconDelete,
   Close as ElIconClose,
 } from '@element-plus/icons-vue'
-import {
-  saveContent,
-  compileRule,
-  executeRule,
-  getContent,
-  refreshFields,
-} from '@/api/definition'
+import { executeRule } from '@/api/definition'
 import { VAR_TYPE_FORM_OPTIONS } from '@/constants/varTypes'
 import varPickerMixin from '@/mixins/varPickerMixin'
+import ruleDraftMixin from '@/mixins/ruleDraftMixin'
 import OperandPicker from '@/components/common/OperandPicker.vue'
 import ScriptPanel from '@/components/common/ScriptPanel.vue'
 import DesignerTestDialog from '@/components/common/DesignerTestDialog.vue'
+import RuleDraftReadOnly from '@/components/rule/RuleDraftReadOnly.vue'
 import {
   addCode,
   buildSampleParamsFromCodes,
@@ -530,7 +536,6 @@ import {
   isLeafRef,
   setParamPath,
 } from '@/utils/testSampleParams'
-import { isSuccessResult, resultErrorMessage } from '@/utils/apiResponse'
 import {
   collectOperandReferences,
   compileOperand,
@@ -575,7 +580,6 @@ export default {
         cells: [],
       },
       cellData: [],
-      scriptMode: 'visual',
       testVisible: false,
       testParamsTemplate: {},
       testParamsJson: '{}',
@@ -595,6 +599,7 @@ export default {
     }
   },
   components: {
+    RuleDraftReadOnly,
     DesignerTestDialog,
     OperandPicker,
     ScriptPanel,
@@ -605,7 +610,7 @@ export default {
     ElIconSGrid,
   },
   name: 'AdvancedCrossTable',
-  mixins: [varPickerMixin],
+  mixins: [varPickerMixin, ruleDraftMixin],
   computed: {
     rowCombinations() {
       return this.cartesianProduct(this.model.rowDimensions)
@@ -792,8 +797,8 @@ export default {
     },
     async loadContent() {
       try {
-        const res = await getContent(this.definitionId)
-        const content = res && res.data ? res.data : res
+        if (this.draftGuardPromise) await this.draftGuardPromise
+        const content = this.viewRevision
         if (content && content.modelJson && content.modelJson !== '{}') {
           const parsed = JSON.parse(content.modelJson)
           this.model = parsed
@@ -1077,26 +1082,31 @@ export default {
     },
     async handleSave() {
       const saveModel = this.buildSaveModel()
-      await saveContent({
-        definitionId: this.definitionId,
-        modelJson: JSON.stringify(saveModel),
-      })
-      await refreshFields(this.definitionId, JSON.stringify(saveModel))
+      const result = await this.saveDraftModel(JSON.stringify(saveModel))
       this.refreshProjectRefs()
 
-      this.$message.success('保存成功')
+      this.$message.success('草稿已保存')
+      return result
     },
     async handleCompile() {
-      await this.handleSave()
-      const res = await compileRule(this.definitionId)
-      if (isSuccessResult(res)) {
+      const result = await this.handleSave()
+      if (result.compileSuccess) {
         this.$message.success('编译成功')
-        if (this.$refs.scriptPanel) this.$refs.scriptPanel.refresh()
       } else {
-        this.$message.error('编译失败: ' + resultErrorMessage(res))
+        this.$message.error(
+          '编译失败: ' + (result.compileMessage || '未知错误')
+        )
       }
+      return result
     },
-    handleTest() {
+    async handleTest() {
+      const result = await this.handleSave()
+      if (!result.compileSuccess) {
+        this.$message.error(
+          '编译失败: ' + (result.compileMessage || '未知错误')
+        )
+        return
+      }
       this.testParamsTemplate = this.buildTestParamsTemplate()
       this.testParamsJson = JSON.stringify(
         this.buildTestParamsTemplate(),
@@ -1165,6 +1175,7 @@ export default {
 
 <style lang="scss" scoped>
 .act-designer {
+  position: relative;
   background: #f3f3f3;
   padding: 20px;
   min-height: 100%;

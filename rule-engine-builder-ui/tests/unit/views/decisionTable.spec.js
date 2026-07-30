@@ -1,5 +1,5 @@
 // tests/unit/views/decisionTable.spec.js
-import { shallowMount } from '@test-utils'
+import { flushPromises, shallowMount } from '@test-utils'
 import { h, nextTick } from 'vue'
 // 直接 import API 模块（不写 vi.mock，依赖 setup.js 的预置 mock）
 import * as definitionApi from '@/api/definition'
@@ -100,7 +100,15 @@ function makeStub(tag) {
 // 挂载 DecisionTable 并等待 loadProjectVars 完成
 async function mountAndWaitForRefs(propsData = { id: '1' }) {
   definitionApi.getDefinition.mockResolvedValue(mockDefs)
-  definitionApi.getContent.mockResolvedValue(mockRuleContent(1))
+  definitionApi.listRuleRevisions.mockResolvedValue({
+    data: [{
+      ...mockRuleContent(1),
+      definitionId: 1,
+      revisionNo: 1,
+      state: 'DRAFT',
+      lockVersion: 0
+    }]
+  })
   variableApi.listVariablesByProject.mockResolvedValue(mockProjectVars())
   modelApi.listModelInputs.mockResolvedValue([])
   modelApi.listModelOutputs.mockResolvedValue([])
@@ -148,6 +156,7 @@ async function mountAndWaitForRefs(propsData = { id: '1' }) {
   })
 
   await nextTick()
+  await flushPromises()
   // 手动触发 loadProjectVars（绕过 created 中的路由判断）
   await wrapper.vm.loadProjectVars(1)
   await nextTick()
@@ -403,19 +412,26 @@ describe('DecisionTable — 保存功能', () => {
   afterEach(() => { if (wrapper) wrapper.unmount() })
 
   test('handleSave 保存内容后显示成功提示', async () => {
-    definitionApi.saveContent.mockResolvedValueOnce({ success: true })
-    definitionApi.refreshFields.mockResolvedValueOnce({})
-    definitionApi.compileRule.mockResolvedValueOnce({ success: true })
+    definitionApi.saveContent.mockResolvedValueOnce({
+      data: {
+        revision: {
+          ...wrapper.vm.draftRevision,
+          lockVersion: wrapper.vm.draftRevision.lockVersion + 1
+        },
+        compileSuccess: true,
+        issues: []
+      }
+    })
     wrapper.vm.$message = { success: vi.fn(), error: vi.fn() }
     await wrapper.vm.handleSave()
     expect(definitionApi.saveContent).toHaveBeenCalled()
-    expect(definitionApi.refreshFields).toHaveBeenCalled()
-    expect(wrapper.vm.$message.success).toHaveBeenCalledWith('保存成功')
+    expect(definitionApi.refreshFields).not.toHaveBeenCalled()
+    expect(definitionApi.compileRule).not.toHaveBeenCalled()
+    expect(wrapper.vm.$message.success).toHaveBeenCalledWith('草稿已保存')
   })
 
   test('handleSave 失败时显示错误提示并抛出异常', async () => {
     definitionApi.saveContent.mockRejectedValueOnce(new Error('保存失败'))
-    definitionApi.refreshFields.mockRejectedValueOnce(new Error('refresh失败'))
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     wrapper.vm.$message = { success: vi.fn(), error: vi.fn() }
     await expect(wrapper.vm.handleSave()).rejects.toThrow('保存失败')

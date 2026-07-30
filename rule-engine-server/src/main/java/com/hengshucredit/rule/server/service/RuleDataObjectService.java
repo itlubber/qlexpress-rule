@@ -170,6 +170,7 @@ public class RuleDataObjectService extends ServiceImpl<RuleDataObjectMapper, Rul
 
     public List<RuleDataObject> listByProject(Long projectId) {
         LambdaQueryWrapper<RuleDataObject> wrapper = new LambdaQueryWrapper<>();
+        wrapper.ne(RuleDataObject::getStatus, -1);
         if (projectId != null && projectId > 0) {
             // 同时查询全局数据对象和指定项目的数据对象
             wrapper.and(w -> w
@@ -192,6 +193,7 @@ public class RuleDataObjectService extends ServiceImpl<RuleDataObjectMapper, Rul
      */
     public List<RuleDataObject> listByProjectOnly(Long projectId) {
         LambdaQueryWrapper<RuleDataObject> wrapper = new LambdaQueryWrapper<>();
+        wrapper.ne(RuleDataObject::getStatus, -1);
         wrapper.eq(RuleDataObject::getProjectId, projectId)
                .eq(RuleDataObject::getScope, SCOPE_PROJECT)
                .orderByDesc(RuleDataObject::getUpdateTime)
@@ -204,6 +206,7 @@ public class RuleDataObjectService extends ServiceImpl<RuleDataObjectMapper, Rul
      */
     public List<RuleDataObject> listGlobalOnly() {
         LambdaQueryWrapper<RuleDataObject> wrapper = new LambdaQueryWrapper<>();
+        wrapper.ne(RuleDataObject::getStatus, -1);
         wrapper.eq(RuleDataObject::getScope, SCOPE_GLOBAL)
                .orderByDesc(RuleDataObject::getUpdateTime)
                .orderByDesc(RuleDataObject::getId);
@@ -441,6 +444,7 @@ public class RuleDataObjectService extends ServiceImpl<RuleDataObjectMapper, Rul
             projectMatches = projectFilterService.resolve(projectCode, projectName);
         }
         LambdaQueryWrapper<RuleDataObject> wrapper = new LambdaQueryWrapper<>();
+        wrapper.ne(RuleDataObject::getStatus, -1);
         if (scope != null && !scope.isEmpty()) {
             wrapper.eq(RuleDataObject::getScope, scope);
         }

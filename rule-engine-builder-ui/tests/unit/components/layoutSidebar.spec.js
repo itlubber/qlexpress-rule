@@ -32,7 +32,7 @@ describe('LayoutSidebar', () => {
 
     expect(wrapper.find('.brand-copy').text()).toContain('天枢决策引擎')
     expect(wrapper.find('.brand-copy').text()).toContain('天工开物，枢衡定策')
-    expect(wrapper.findAll('.menu-label')).toHaveLength(13)
+    expect(wrapper.findAll('.menu-label')).toHaveLength(SIDEBAR_MENUS.length)
     expect(wrapper.find('.account-name').text()).toBe('admin')
     expect(wrapper.find('.account-logout').exists()).toBe(true)
     wrapper.unmount()

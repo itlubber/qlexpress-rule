@@ -4,6 +4,7 @@ import { h, nextTick } from 'vue'
 // 直接 import API 模块（不写 vi.mock，依赖 setup.js 的预置 mock）
 import * as definitionApi from '@/api/definition'
 import * as variableApi from '@/api/variable'
+import * as artifactApi from '@/api/artifact'
 import RuleDetail from '@/views/rule/RuleDetail.vue'
 
 afterEach(() => { vi.clearAllMocks() })
@@ -30,6 +31,29 @@ function mockRuleDetail(id = 1) {
       { id: 10, varId: 3, fieldLabel: '结果', fieldType: 'STRING', scriptName: 'result' }
     ]
   }
+}
+
+function draftRevision(overrides = {}) {
+  return {
+    id: 5,
+    definitionId: 1,
+    revisionNo: 1,
+    state: 'DRAFT',
+    lockVersion: 0,
+    modelJson: '{"source":"draft"}',
+    openApiConfigJson: null,
+    ...overrides,
+  }
+}
+
+function mockDraftSave(revision) {
+  definitionApi.saveContent.mockResolvedValueOnce({
+    data: {
+      revision,
+      issues: [],
+      compileSuccess: true,
+    },
+  })
 }
 
 describe('RuleDetail 生命周期治理', () => {
@@ -72,6 +96,24 @@ describe('RuleDetail 生命周期治理', () => {
     }
   )
 
+  test('冻结修订只读打开时不把修订内容装载为可编辑草稿', async () => {
+    const wrapper = await mountAndWait(
+      { modelJson: '{"source":"compat"}', openApiConfigJson: null },
+      [{
+        id: 8,
+        definitionId: 1,
+        revisionNo: 2,
+        state: 'APPROVED',
+        modelJson: '{"source":"approved"}',
+        openApiConfigJson: '{"enabled":true}',
+      }]
+    )
+
+    expect(wrapper.vm.canEditDraft).toBe(false)
+    expect(wrapper.vm.ruleContent.modelJson).toBe('{"source":"compat"}')
+    wrapper.unmount()
+  })
+
   test('无 revision 的历史规则显示治理提示且不自动创建草稿', async () => {
     const legacyWrapper = await mountAndWait(undefined, [])
     expect(legacyWrapper.find('[data-testid="legacy-governance"]').exists()).toBe(true)
@@ -79,20 +121,144 @@ describe('RuleDetail 生命周期治理', () => {
     legacyWrapper.unmount()
   })
 
-  test('APPROVED 点击创建下一版草稿时携带基线 revision ID', async () => {
-    const approved = {
-      id: 8,
-      definitionId: 1,
-      revisionNo: 2,
-      state: 'APPROVED',
-    }
-    const wrapper = await mountAndWait(undefined, [approved])
-    definitionApi.createDraftRevision.mockResolvedValueOnce({
-      data: { id: 9, definitionId: 1, revisionNo: 3, state: 'DRAFT' },
-    })
-    await wrapper.vm.handleLifecycleAction({ action: 'create-draft' })
-    expect(definitionApi.createDraftRevision).toHaveBeenCalledWith(1, approved.id)
+  test.each([
+    ['TABLE', 'DecisionTable'],
+    ['TREE', 'DecisionTree'],
+    ['FLOW', 'DecisionFlow'],
+    ['RULE_SET', 'RuleSet'],
+    ['CROSS', 'CrossTable'],
+    ['SCORE', 'Scorecard'],
+    ['CROSS_ADV', 'AdvancedCrossTable'],
+    ['SCORE_ADV', 'AdvancedScorecard'],
+    ['SCRIPT', 'ScriptEditor'],
+  ])('maps %s to the explicit designer route %s', async (modelType, routeName) => {
+    const wrapper = await mountAndWait()
+
+    expect(wrapper.vm.designerRouteName(modelType)).toBe(routeName)
     wrapper.unmount()
+  })
+
+  test('opens a revision designer using the stable revision ID', async () => {
+    const wrapper = await mountAndWait()
+    const revision = { id: 91, revisionNo: 7 }
+
+    await wrapper.vm.openRevisionDesigner(revision)
+
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'DecisionTable',
+      query: { sourceType: 'REVISION', sourceId: '91' },
+    }))
+    wrapper.unmount()
+  })
+
+  test('opens a version designer using the stable version record ID', async () => {
+    const wrapper = await mountAndWait()
+    const version = { id: 92, version: 7 }
+
+    await wrapper.vm.openVersionDesigner(version)
+
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'DecisionTable',
+      query: { sourceType: 'VERSION', sourceId: '92' },
+    }))
+    wrapper.unmount()
+  })
+
+  test('does not navigate when the model type has no designer route', async () => {
+    const wrapper = await mountAndWait()
+    wrapper.vm.rule.modelType = 'UNKNOWN'
+
+    await wrapper.vm.openRevisionDesigner({ id: 91 })
+
+    expect(wrapper.vm.$router.push).not.toHaveBeenCalled()
+    expect(wrapper.vm.$message.error).toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  test('forks a version source once and navigates to the returned DRAFT revision', async () => {
+    const wrapper = await mountAndWait()
+    definitionApi.createDraftFromSource.mockResolvedValueOnce({
+      data: { revision: { id: 101, state: 'DRAFT' }, issues: [] },
+    })
+
+    await wrapper.vm.forkDesignerSource('VERSION', 92)
+
+    expect(definitionApi.createDraftFromSource).toHaveBeenCalledWith(1, {
+      sourceType: 'VERSION', sourceId: '92',
+    })
+    expect(definitionApi.rollbackVersion).not.toHaveBeenCalled()
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith(expect.objectContaining({
+      query: { sourceType: 'REVISION', sourceId: '101' },
+    }))
+    wrapper.unmount()
+  })
+
+  test('keeps the version dialog and current comparison when a source fork conflicts', async () => {
+    const wrapper = await mountAndWait()
+    wrapper.vm.versionVisible = true
+    wrapper.vm.leftVersionNumber = 3
+    wrapper.vm.rightVersionNumber = 7
+    definitionApi.createDraftFromSource.mockRejectedValueOnce({
+      response: { status: 409, data: { message: '草稿已存在' } },
+    })
+
+    await wrapper.vm.forkDesignerSource('VERSION', 92)
+
+    expect(wrapper.vm.versionVisible).toBe(true)
+    expect(wrapper.vm.leftVersionNumber).toBe(3)
+    expect(wrapper.vm.rightVersionNumber).toBe(7)
+    expect(wrapper.vm.$message.error).toHaveBeenCalledWith('草稿已存在')
+    expect(wrapper.vm.$router.push).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  test('blocks duplicate source fork requests while the first request is pending', async () => {
+    let resolveRequest
+    const request = new Promise((resolve) => { resolveRequest = resolve })
+    const wrapper = await mountAndWait()
+    definitionApi.createDraftFromSource.mockReturnValueOnce(request)
+
+    const first = wrapper.vm.forkDesignerSource('VERSION', 92)
+    const second = wrapper.vm.forkDesignerSource('VERSION', 92)
+    expect(definitionApi.createDraftFromSource).toHaveBeenCalledTimes(1)
+    resolveRequest({ data: { revision: { id: 101, state: 'DRAFT' }, issues: [] } })
+    await Promise.all([first, second])
+    wrapper.unmount()
+  })
+
+  test('does not let a late fork response override a later version view', async () => {
+    let resolveRequest
+    const request = new Promise((resolve) => { resolveRequest = resolve })
+    const wrapper = await mountAndWait()
+    definitionApi.createDraftFromSource.mockReturnValueOnce(request)
+
+    const forkRequest = wrapper.vm.forkDesignerSource('VERSION', 92)
+    await wrapper.vm.openVersionDesigner({ id: 93, version: 8 })
+    resolveRequest({ data: { revision: { id: 101, state: 'DRAFT' }, issues: [] } })
+    await forkRequest
+
+    expect(wrapper.vm.$router.push).toHaveBeenCalledTimes(1)
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith(expect.objectContaining({
+      query: { sourceType: 'VERSION', sourceId: '93' },
+    }))
+    wrapper.unmount()
+  })
+
+  test('does not navigate or report after a fork response arrives post-unmount', async () => {
+    let resolveRequest
+    const request = new Promise((resolve) => { resolveRequest = resolve })
+    const wrapper = await mountAndWait()
+    const push = wrapper.vm.$router.push
+    const message = wrapper.vm.$message.error
+    definitionApi.createDraftFromSource.mockReturnValueOnce(request)
+
+    const forkRequest = wrapper.vm.forkDesignerSource('VERSION', 92)
+    wrapper.unmount()
+    resolveRequest({ data: { revision: { id: 101, state: 'DRAFT' }, issues: [] } })
+    await forkRequest
+
+    expect(push).not.toHaveBeenCalled()
+    expect(message).not.toHaveBeenCalled()
   })
 
   test('发布请求始终携带当前 APPROVED revision ID', async () => {
@@ -118,6 +284,140 @@ describe('RuleDetail 生命周期治理', () => {
       approved.id,
       expect.any(Object)
     )
+    wrapper.unmount()
+  })
+
+  test('提交规则修订后跳转统一审批详情', async () => {
+    const draft = draftRevision()
+    const wrapper = await mountAndWait(undefined, [draft])
+    definitionApi.submitRuleRevision.mockResolvedValueOnce({
+      data: { ...draft, state: 'REVIEW', governanceRequestId: 41 },
+    })
+
+    await wrapper.vm.handleLifecycleAction({
+      action: 'submit',
+      comment: '提交规则审批',
+    })
+
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith('/approval/41')
+    expect(wrapper.vm.$message.success).toHaveBeenCalledWith('已提交统一审批')
+    wrapper.unmount()
+  })
+
+  test('加载 DRAFT 后以修订内容替换兼容内容', async () => {
+    const draft = draftRevision()
+    const wrapper = await mountAndWait(
+      { modelJson: '{"source":"compat"}', openApiConfigJson: null },
+      [draft]
+    )
+
+    expect(wrapper.vm.ruleContent.modelJson).toBe(draft.modelJson)
+    wrapper.unmount()
+  })
+
+  test('历史修复返回 DRAFT 后保存契约使用恢复后的稳定 ID 内容', async () => {
+    const draft = draftRevision({ id: 12, revisionNo: 1 })
+    const wrapper = await mountAndWait(
+      { modelJson: '{"source":"compat"}', openApiConfigJson: null },
+      []
+    )
+    wrapper.vm.repairPreview = {
+      sourceRevisionId: 8,
+      previewDigest: 'a'.repeat(64),
+      unresolvedInputs: [],
+    }
+    definitionApi.repairRuleRevision.mockResolvedValueOnce({ data: draft })
+
+    await wrapper.vm.repairLegacyRevision()
+    mockDraftSave({ ...draft, lockVersion: 1 })
+    await wrapper.vm.saveOpenApiConfig()
+
+    expect(definitionApi.repairRuleRevision).toHaveBeenCalledWith(1, {
+      sourceRevisionId: 8,
+      previewDigest: 'a'.repeat(64),
+    })
+    expect(definitionApi.saveContent).toHaveBeenCalledWith(
+      expect.objectContaining({ modelJson: draft.modelJson })
+    )
+    wrapper.unmount()
+  })
+
+  test('原子保存返回 DRAFT 后后续保存使用服务端修订内容', async () => {
+    const initial = draftRevision({ modelJson: '{"source":"initial"}' })
+    const saved = { ...initial, lockVersion: 1, modelJson: '{"source":"saved"}' }
+    const wrapper = await mountAndWait(undefined, [initial])
+    mockDraftSave(saved)
+
+    await wrapper.vm.saveOpenApiConfig()
+    mockDraftSave({ ...saved, lockVersion: 2 })
+    await wrapper.vm.saveOpenApiConfig()
+
+    expect(definitionApi.saveContent.mock.calls[1][0]).toEqual(
+      expect.objectContaining({
+        revisionId: saved.id,
+        lockVersion: saved.lockVersion,
+        modelJson: saved.modelJson,
+      })
+    )
+    wrapper.unmount()
+  })
+
+  test.each([
+    ['DRAFT', 'approve', 7],
+    ['REVIEW', 'publish', 7],
+    ['APPROVED', 'offline', 7],
+    ['PUBLISHED', 'publish', 7],
+    ['OFFLINE', 'preflight', 7],
+    ['DRAFT', 'unknown', 7],
+    ['APPROVED', 'download', null],
+  ])('%s 修订拒绝非法动作 %s 且不调用写接口', async (state, action, artifactId) => {
+    const wrapper = await mountAndWait(undefined, [{
+      id: 8,
+      definitionId: 1,
+      revisionNo: 2,
+      state,
+      artifactId,
+    }])
+    const mutationApis = [
+      definitionApi.preflightRuleRevision,
+      definitionApi.submitRuleRevision,
+      definitionApi.rejectRuleRevision,
+      definitionApi.approveRuleRevision,
+      definitionApi.publishRuleRevision,
+      definitionApi.offlineRuleRevision,
+      definitionApi.createDraftRevision,
+    ]
+    mutationApis.forEach((mock) => mock.mockClear())
+    artifactApi.downloadArtifact.mockClear()
+    wrapper.vm.$message.warning.mockClear()
+
+    await wrapper.vm.handleLifecycleAction({ action })
+
+    mutationApis.forEach((mock) => expect(mock).not.toHaveBeenCalled())
+    expect(artifactApi.downloadArtifact).not.toHaveBeenCalled()
+    expect(wrapper.vm.$message.warning).toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  test.each([
+    [{ sourceRevisionId: null, previewDigest: 'a'.repeat(64), unresolvedInputs: [] }],
+    [{ sourceRevisionId: 8, previewDigest: '', unresolvedInputs: [] }],
+    [{ sourceRevisionId: 8, previewDigest: 'a'.repeat(64) }],
+    [{
+      sourceRevisionId: 8,
+      previewDigest: 'a'.repeat(64),
+      unresolvedInputs: ['icekredit_vn_credit_profile_features'],
+    }],
+  ])('历史修复缺少完整可执行预览时拒绝请求', async (preview) => {
+    const wrapper = await mountAndWait(undefined, [])
+    wrapper.vm.repairPreview = preview
+    definitionApi.repairRuleRevision.mockClear()
+    wrapper.vm.$message.warning.mockClear()
+
+    await wrapper.vm.repairLegacyRevision()
+
+    expect(definitionApi.repairRuleRevision).not.toHaveBeenCalled()
+    expect(wrapper.vm.$message.warning).toHaveBeenCalled()
     wrapper.unmount()
   })
 })
@@ -691,21 +991,6 @@ describe('RuleDetail version history', () => {
     expect(definitionApi.compareVersions).not.toHaveBeenCalled()
   })
 
-  test('rollbackVersion calls rollback and refreshes data', async () => {
-    wrapper.vm.$confirm = vi.fn().mockResolvedValue('confirm')
-    definitionApi.rollbackVersion.mockResolvedValueOnce({})
-    definitionApi.refreshFields.mockResolvedValueOnce({ data: {} })
-    definitionApi.getDefinitionDetail.mockResolvedValueOnce({ data: mockRuleDetail(1) })
-    variableApi.listVariablesByProject.mockResolvedValueOnce({ data: mockVariables() })
-    variableApi.listVariables.mockResolvedValueOnce({ data: { records: [] } })
-    definitionApi.listVersions.mockResolvedValueOnce({ data: [{ version: 1 }] })
-
-    await wrapper.vm.rollbackVersion({ version: 1 })
-
-    expect(definitionApi.rollbackVersion).toHaveBeenCalledWith(1, 1)
-    expect(definitionApi.getDefinitionDetail).toHaveBeenCalled()
-    expect(definitionApi.listVersions).toHaveBeenCalled()
-  })
 })
 
 describe('RuleDetail — 输入字段校验配置', () => {

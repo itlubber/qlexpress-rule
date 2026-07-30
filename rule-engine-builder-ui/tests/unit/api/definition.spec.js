@@ -5,7 +5,9 @@ import {
   executeRule,
   approveRuleRevision,
   createDraftRevision,
+  createDraftFromSource,
   ensureDraftRevision,
+  getVersionById,
   getRuleRevisionRepairPreview,
   preflightRuleRevision,
   publishRuleRevision,
@@ -54,7 +56,10 @@ describe('definition API', () => {
   })
 
   test('历史规则修订只通过预览和显式修复接口治理', async () => {
-    const repair = { sourceRevisionId: 3, execute: true }
+    const repair = {
+      sourceRevisionId: 3,
+      previewDigest: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    }
 
     await getRuleRevisionRepairPreview(16)
     await repairRuleRevision(16, repair)
@@ -118,6 +123,48 @@ describe('definition API', () => {
       url: '/rule/definition/reference-integrity/migrate',
       method: 'post',
       data: migration
+    })
+  })
+})
+
+describe('definition source API', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  test('loads a version by immutable snapshot ID', async () => {
+    await getVersionById(16, 9)
+
+    expect(request).toHaveBeenCalledWith({
+      url: '/rule/definition/16/versions/9',
+      method: 'get',
+    })
+  })
+
+  test('creates a draft only from the supplied stable source reference', async () => {
+    await createDraftFromSource(16, { sourceType: 'VERSION', sourceId: 9 })
+
+    expect(request).toHaveBeenCalledWith({
+      url: '/rule/definition/16/revisions/draft/from-source',
+      method: 'post',
+      data: { sourceType: 'VERSION', sourceId: 9 },
+    })
+  })
+
+  test('preserves source IDs beyond Number safe precision in URL and request body', async () => {
+    const sourceId = '9007199254740993'
+
+    await getVersionById(16, sourceId)
+    await createDraftFromSource(16, { sourceType: 'VERSION', sourceId })
+
+    expect(request).toHaveBeenNthCalledWith(1, {
+      url: '/rule/definition/16/versions/9007199254740993',
+      method: 'get',
+    })
+    expect(request).toHaveBeenNthCalledWith(2, {
+      url: '/rule/definition/16/revisions/draft/from-source',
+      method: 'post',
+      data: { sourceType: 'VERSION', sourceId: '9007199254740993' },
     })
   })
 })

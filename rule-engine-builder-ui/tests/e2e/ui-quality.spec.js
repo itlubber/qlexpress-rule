@@ -340,7 +340,7 @@ test('列表操作按查看、编辑、执行、发布和危险动作展示稳�
       route: '/project/1',
       actions: [
         ['设计', 'warning'],
-        ['重新发布', 'success'],
+        ['生命周期', 'success'],
         ['下线', 'warning'],
         ['删除', 'danger'],
       ],

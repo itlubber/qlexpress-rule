@@ -45,6 +45,16 @@ public class RuleEngineConsoleLoginProperties {
     private String sessionUsernameAttribute = "RULE_CONSOLE_USERNAME";
 
     /**
+     * 登录成功后写入 HttpSession 的本地账户 ID 属性名。
+     */
+    private String sessionUserIdAttribute = "RULE_CONSOLE_USER_ID";
+
+    /**
+     * 登录成功时记录的权限版本属性名，权限调整后用于使旧会话失效。
+     */
+    private String sessionPermissionVersionAttribute = "RULE_CONSOLE_PERMISSION_VERSION";
+
+    /**
      * 内置账号：仅当未注册自定义 {@link ConsoleLoginAuthenticator} 时用于登录校验。
      */
     private Builtin builtin = new Builtin();

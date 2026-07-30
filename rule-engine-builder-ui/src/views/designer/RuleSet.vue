@@ -1,5 +1,16 @@
 <template>
   <div class="rs-designer uiue-compact-workbench uiue-compact-designer">
+    <rule-draft-read-only
+      :visible="!canEditDraft"
+      :loading="!draftGuardLoaded"
+      :load-error="Boolean(draftGuardError)"
+      :revision-label="viewRevisionLabel"
+      :revision-state="viewRevision ? viewRevision.state : ''"
+      :can-fork="canForkViewRevision"
+      @go-back="$router.back()"
+      @go-lifecycle="goRuleLifecycle"
+      @fork="forkViewRevision"
+    />
     <div class="rs-header">
       <div class="rs-title-area">
         <el-button
@@ -232,15 +243,7 @@
       ref="scriptPanel"
       :definitionId="definitionId"
       :onBeforeCompile="handleSave"
-      @mode-change="onScriptModeChange"
     />
-
-    <div v-if="scriptMode === 'script'" class="script-override-banner">
-      <el-icon><el-icon-warning /></el-icon>
-      <span
-        >脚本覆盖模式已激活，可视化编辑暂停。如需恢复请在脚本面板切换回「可视化模式」。</span
-      >
-    </div>
 
     <designer-test-dialog
       v-model:visible="testVisible"
@@ -307,8 +310,8 @@
               link
               size="small"
               type="success"
-              @click="publishVersion(row)"
-              >发布此版</el-button
+              @click="openLifecycle"
+              >进入生命周期</el-button
             >
           </template>
         </el-table-column>
@@ -358,7 +361,6 @@ import {
   SetUp as ElIconSCustom,
   CollectionTag as ElIconCollectionTag,
   Rank as ElIconRank,
-  Warning as ElIconWarning,
   Back as ElIconBack,
   Plus as ElIconPlus,
   Clock as ElIconTime,
@@ -369,21 +371,18 @@ import {
   Bottom as ElIconBottom,
 } from '@element-plus/icons-vue'
 import {
-  saveContent,
-  compileRule,
   executeRule,
-  getContent,
-  refreshFields,
   listVersions,
   getVersion,
   compareVersions,
   rollbackVersion,
-  publishRule,
 } from '@/api/definition'
 import varPickerMixin from '@/mixins/varPickerMixin'
 import ruleCallMixin from '@/mixins/ruleCallMixin'
+import ruleDraftMixin from '@/mixins/ruleDraftMixin'
 import ScriptPanel from '@/components/common/ScriptPanel.vue'
 import DesignerTestDialog from '@/components/common/DesignerTestDialog.vue'
+import RuleDraftReadOnly from '@/components/rule/RuleDraftReadOnly.vue'
 import OperandPicker from '@/components/common/OperandPicker.vue'
 import ConditionGroupEditor from '@/components/decision/ConditionGroupEditor.vue'
 import ActionBlockEditor from '@/components/flow/ActionBlockEditor.vue'
@@ -416,7 +415,6 @@ export default {
         rules: [],
       },
       resultOutputKinds: ['PATH', 'REFERENCE'],
-      scriptMode: 'visual',
       contentLoaded: false,
       draggedIndex: -1,
       testVisible: false,
@@ -441,6 +439,7 @@ export default {
     }
   },
   components: {
+    RuleDraftReadOnly,
     DesignerTestDialog,
     ScriptPanel,
     OperandPicker,
@@ -452,10 +451,9 @@ export default {
     ElIconSCustom,
     ElIconCollectionTag,
     ElIconRank,
-    ElIconWarning,
   },
   name: 'RuleSet',
-  mixins: [varPickerMixin, ruleCallMixin],
+  mixins: [varPickerMixin, ruleCallMixin, ruleDraftMixin],
   computed: {
     enabledRuleCount() {
       return (this.model.rules || []).filter((rule) => rule.enabled !== false)
@@ -492,8 +490,8 @@ export default {
   methods: {
     async loadContent() {
       try {
-        const res = await getContent(this.definitionId)
-        const content = res && res.data ? res.data : res
+        if (this.draftGuardPromise) await this.draftGuardPromise
+        const content = this.viewRevision
         if (content && content.modelJson && content.modelJson !== '{}') {
           this.model = JSON.parse(content.modelJson)
         }
@@ -741,11 +739,10 @@ export default {
           return false
         }
         const modelJson = JSON.stringify(model)
-        await saveContent({ definitionId: this.definitionId, modelJson })
-        await refreshFields(this.definitionId, modelJson)
+        const result = await this.saveDraftModel(modelJson)
         this.refreshProjectRefs()
-        this.$message.success('保存成功')
-        return true
+        this.$message.success('草稿已保存')
+        return result
       } catch (e) {
         this.$message.error(
           '保存失败: ' + (e && e.message ? e.message : '未知错误')
@@ -766,23 +763,30 @@ export default {
       return this.serializeModel()
     },
     async handleCompile() {
-      if ((await this.handleSave()) === false) return
-      const res = await compileRule(this.definitionId)
-      const body = res && res.data ? res.data : res
-      if (body && body.success) {
+      const result = await this.handleSave()
+      if (result === false) return false
+      if (result.compileSuccess) {
         this.$message.success('编译成功')
         await this.loadProjectVars(this.definitionId)
-        if (this.$refs.scriptPanel) this.$refs.scriptPanel.refresh()
       } else {
         this.$message.error(
-          '编译失败: ' + (body ? body.errorMessage : '未知错误')
+          '编译失败: ' + (result.compileMessage || '未知错误')
         )
       }
+      return result
     },
     buildTestParamsTemplate() {
       return buildSampleParamsFromCodes(this.testVarCodeList, this.projectRefs)
     },
-    handleTest() {
+    async handleTest() {
+      const result = await this.handleSave()
+      if (result === false) return
+      if (!result.compileSuccess) {
+        this.$message.error(
+          '编译失败: ' + (result.compileMessage || '未知错误')
+        )
+        return
+      }
       const template = this.buildTestParamsTemplate()
       this.testParamsTemplate = template
       this.testParams = template
@@ -835,9 +839,6 @@ export default {
       } catch (e) {
         return String(val)
       }
-    },
-    onScriptModeChange(mode) {
-      this.scriptMode = mode
     },
     async openVersionDialog() {
       this.versionVisible = true
@@ -897,39 +898,20 @@ export default {
         )
         await rollbackVersion(this.definitionId, row.version)
         this.$message.success('恢复成功')
+        this.draftGuardPromise = this.loadDraftRevision()
+        await this.draftGuardPromise
         await this.loadContent()
         await this.loadVersions()
       } catch (e) {
         if (e !== 'cancel') this.$message.error(e.message || '恢复失败')
       }
     },
-    async publishVersion(row) {
-      if (!row || !row.version) return
-      try {
-        await this.$confirm(
-          '将 v' + row.version + ' 恢复为当前草稿、重新编译并发布，确认继续？',
-          '发布指定版本',
-          { type: 'warning' }
-        )
-        await rollbackVersion(this.definitionId, row.version)
-        const compiled = await compileRule(this.definitionId)
-        const body = compiled && compiled.data ? compiled.data : compiled
-        if (!body || !body.success) {
-          this.$message.error(
-            '编译失败: ' + (body ? body.errorMessage : '未知错误')
-          )
-          return
-        }
-        await publishRule(this.definitionId, {
-          changeLog: '发布规则集 v' + row.version,
-        })
-        this.$message.success('发布成功')
-        await this.loadContent()
-        await this.loadVersions()
-        if (this.$refs.scriptPanel) this.$refs.scriptPanel.refresh()
-      } catch (e) {
-        if (e !== 'cancel') this.$message.error(e.message || '发布失败')
-      }
+    openLifecycle() {
+      this.$router.push({
+        name: 'RuleDetail',
+        params: { id: this.definitionId },
+        query: { focus: 'lifecycle' },
+      })
     },
     formatVersionTime(value) {
       return value ? String(value).replace('T', ' ') : '-'
@@ -948,6 +930,7 @@ export default {
 
 <style lang="scss" scoped>
 .rs-designer {
+  position: relative;
   background: #fff;
   border-radius: 4px;
   padding: 16px;

@@ -110,6 +110,64 @@ public class SchemaSyncServiceTest {
     }
 
     @Test
+    public void consoleRbacSchemaCreatesEveryAuthorizationTableWhenMissing() throws Exception {
+        SchemaSyncService service = new SchemaSyncService();
+        FakeJdbcTemplate jdbcTemplate = new FakeJdbcTemplate();
+        jdbcTemplate.missingTables.addAll(Arrays.asList(
+                "console_user",
+                "console_role",
+                "console_permission",
+                "console_user_role",
+                "console_role_permission",
+                "console_user_permission_override",
+                "console_security_audit_log"));
+        setField(service, "jdbcTemplate", jdbcTemplate);
+
+        Method method = SchemaSyncService.class.getDeclaredMethod("ensureConsoleRbacSchema");
+        method.setAccessible(true);
+        method.invoke(service);
+
+        assertTrue(containsSql(jdbcTemplate.sqlList, "CREATE TABLE `console_user`"));
+        assertTrue(containsSql(jdbcTemplate.sqlList, "CREATE TABLE `console_role`"));
+        assertTrue(containsSql(jdbcTemplate.sqlList, "CREATE TABLE `console_permission`"));
+        assertTrue(containsSql(jdbcTemplate.sqlList, "CREATE TABLE `console_user_role`"));
+        assertTrue(containsSql(jdbcTemplate.sqlList, "CREATE TABLE `console_role_permission`"));
+        assertTrue(containsSql(jdbcTemplate.sqlList,
+                "CREATE TABLE `console_user_permission_override`"));
+        assertTrue(containsSql(jdbcTemplate.sqlList,
+                "CREATE TABLE `console_security_audit_log`"));
+    }
+
+    @Test
+    public void governanceSchemaCreatesEveryLifecycleTableWhenMissing() throws Exception {
+        SchemaSyncService service = new SchemaSyncService();
+        FakeJdbcTemplate jdbcTemplate = new FakeJdbcTemplate();
+        jdbcTemplate.missingTables.addAll(Arrays.asList(
+                "governed_resource",
+                "governed_resource_version",
+                "governance_approval_request",
+                "governance_approval_event",
+                "governance_dependency_snapshot"));
+        setField(service, "jdbcTemplate", jdbcTemplate);
+
+        Method method = SchemaSyncService.class.getDeclaredMethod(
+                "ensureGovernanceSchema");
+        method.setAccessible(true);
+        method.invoke(service);
+
+        assertTrue(containsSql(jdbcTemplate.sqlList,
+                "CREATE TABLE `governed_resource`"));
+        assertTrue(containsSql(jdbcTemplate.sqlList,
+                "CREATE TABLE `governed_resource_version`"));
+        assertTrue(containsSql(jdbcTemplate.sqlList,
+                "CREATE TABLE `governance_approval_request`"));
+        assertTrue(containsSql(jdbcTemplate.sqlList,
+                "CREATE TABLE `governance_approval_event`"));
+        assertTrue(containsSql(jdbcTemplate.sqlList,
+                "CREATE TABLE `governance_dependency_snapshot`"));
+    }
+
+    @Test
     public void apiDocScenarioSchemaCreatesTableWhenMissing() throws Exception {
         SchemaSyncService service = new SchemaSyncService();
         FakeJdbcTemplate jdbcTemplate = new FakeJdbcTemplate();

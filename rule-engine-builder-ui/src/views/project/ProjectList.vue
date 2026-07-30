@@ -74,6 +74,7 @@
     <div class="uiue-btn-bar">
       <div class="btn-right">
         <el-button
+          v-permission="'project:edit'"
           type="primary"
           size="small"
           :icon="ElIconPlus"
@@ -118,7 +119,7 @@
       <el-table-column label="操作" width="220" align="center" fixed="right">
         <template v-slot="{ row }">
           <div class="project-action-links">
-            <el-button link size="small" type="primary" @click="handleEdit(row)"
+            <el-button v-permission="'project:edit'" link size="small" type="primary" @click="handleEdit(row)"
               >编辑</el-button
             >
             <el-button
@@ -135,6 +136,7 @@
               >API</el-button
             >
             <el-button
+              v-permission="'project:edit'"
               link
               size="small"
               type="danger"
@@ -202,7 +204,7 @@
           <el-button size="small" @click="dialogVisible = false"
             >取消</el-button
           >
-          <el-button size="small" type="primary" @click="handleSubmit"
+          <el-button v-permission="'project:edit'" size="small" type="primary" @click="handleSubmit"
             >确定</el-button
           >
         </div>
@@ -410,19 +412,17 @@ export default {
       this.$refs.form.validate(async (v) => {
         if (!v) return
         if (this.form.id) {
-          await updateProject(this.form)
-          this.$message.success('更新成功')
+          const res = await updateProject(this.form)
+          this.$message.success('审批草稿已创建')
           this.dialogVisible = false
-          this.loadData()
+          if (res.data && res.data.id)
+            this.$router.push('/approval/' + res.data.id)
         } else {
           const res = await createProject(this.form)
           if (res.code === 200 && res.data) {
-            this.$message.success('创建成功')
+            this.$message.success('审批草稿已创建')
             this.dialogVisible = false
-            const createdProject = res.data.project || { ...this.form }
-            await this.loadData()
-            this.currentAuthProject = createdProject
-            this.authDialogVisible = true
+            this.$router.push('/approval/' + res.data.id)
           }
         }
       })
@@ -432,9 +432,10 @@ export default {
         type: 'warning',
       })
         .then(async () => {
-          await deleteProject(row.id)
-          this.$message.success('删除成功')
-          this.loadData()
+          const res = await deleteProject(row.id)
+          this.$message.success('删除申请已创建')
+          if (res.data && res.data.id)
+            this.$router.push('/approval/' + res.data.id)
         })
         .catch(() => {})
     },

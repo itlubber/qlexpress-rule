@@ -1,4 +1,5 @@
 import request from './request'
+import { createResourceDraft } from './governance'
 
 export function listFunctionsByProject(projectId, params) {
   return request.get('/rule/function/project/' + projectId, { params })
@@ -19,15 +20,22 @@ export function getFunctionById(id) {
 }
 
 export function createFunction(data) {
-  return request.post('/rule/function', data)
+  return createResourceDraft('FUNCTION', data, 'CREATE', {
+    changeSummary: '新建函数'
+  })
 }
 
 export function updateFunction(data) {
-  return request.put('/rule/function', data)
+  return createResourceDraft('FUNCTION', data, 'UPDATE', {
+    changeSummary: '修改函数配置'
+  })
 }
 
 export function deleteFunction(id) {
-  return request.delete('/rule/function/' + id)
+  return createResourceDraft('FUNCTION', null, 'DELETE', {
+    resourceId: id,
+    changeSummary: '删除函数'
+  })
 }
 
 export function testFunction(id, params) {

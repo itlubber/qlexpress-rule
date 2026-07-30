@@ -107,6 +107,7 @@ public class RuleExperimentService extends ServiceImpl<RuleExperimentMapper, Rul
             return new Page<>(pageNum, pageSize);
         }
         LambdaQueryWrapper<RuleExperiment> wrapper = new LambdaQueryWrapper<>();
+        wrapper.ne(RuleExperiment::getStatus, -1);
         if (projectId != null) {
             wrapper.eq(RuleExperiment::getProjectId, projectId);
         }

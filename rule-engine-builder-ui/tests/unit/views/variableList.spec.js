@@ -362,9 +362,8 @@ describe('VariableList — 变量操作', () => {
     expect(variableApi.deleteVariable).toHaveBeenCalledWith(1)
   })
 
-  test('项目级变量确认后转为全局并刷新变量列表', async () => {
-    variableApi.toGlobalVariable.mockResolvedValue({ data: true })
-    const loadData = vi.spyOn(wrapper.vm, 'loadData').mockResolvedValue()
+  test('项目级变量确认后创建转全局审批并跳转审批详情', async () => {
+    variableApi.toGlobalVariable.mockResolvedValue({ data: { id: 41 } })
     const row = { id: 1, varLabel: '年龄', varSource: 'INPUT', scope: 'PROJECT' }
 
     await wrapper.vm.handleToGlobal(row)
@@ -375,24 +374,22 @@ describe('VariableList — 变量操作', () => {
       { type: 'warning' }
     )
     expect(variableApi.toGlobalVariable).toHaveBeenCalledWith(1)
-    expect(loadData).toHaveBeenCalled()
-    expect(wrapper.vm.$message.success).toHaveBeenCalledWith('转换成功，该变量已转为全局变量')
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith('/approval/41')
+    expect(wrapper.vm.$message.success).toHaveBeenCalledWith('已创建转全局审批，请完成审批后生效')
   })
 
-  test('项目级常量确认后转为全局并刷新常量列表', async () => {
-    variableApi.toGlobalVariable.mockResolvedValue({ data: true })
-    const loadConstants = vi.spyOn(wrapper.vm, 'loadConstants').mockResolvedValue()
+  test('项目级常量确认后创建转全局审批', async () => {
+    variableApi.toGlobalVariable.mockResolvedValue({ data: { id: 42 } })
     const row = { id: 3, varLabel: '最大年龄', varSource: 'CONSTANT', scope: 'PROJECT' }
 
     await wrapper.vm.handleToGlobal(row)
 
     expect(variableApi.toGlobalVariable).toHaveBeenCalledWith(3)
-    expect(loadConstants).toHaveBeenCalled()
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith('/approval/42')
   })
 
-  test('项目级数据对象确认后连同字段转为全局并刷新对象列表', async () => {
-    dataObjectApi.toGlobalDataObject.mockResolvedValue({ data: true })
-    const loadObjectTree = vi.spyOn(wrapper.vm, 'loadObjectTree').mockResolvedValue()
+  test('项目级数据对象确认后连同字段创建转全局审批', async () => {
+    dataObjectApi.toGlobalDataObject.mockResolvedValue({ data: { id: 43 } })
     const object = { id: 5, objectLabel: '请求对象', objectCode: 'TSRequestBody', scope: 'PROJECT' }
 
     await wrapper.vm.handleObjectToGlobal(object)
@@ -403,8 +400,8 @@ describe('VariableList — 变量操作', () => {
       { type: 'warning' }
     )
     expect(dataObjectApi.toGlobalDataObject).toHaveBeenCalledWith(5)
-    expect(loadObjectTree).toHaveBeenCalled()
-    expect(wrapper.vm.$message.success).toHaveBeenCalledWith('转换成功，该数据对象及其字段已转为全局')
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith('/approval/43')
+    expect(wrapper.vm.$message.success).toHaveBeenCalledWith('已创建转全局审批，请完成审批后生效')
   })
 
   test('变量列表和常量列表仅为项目级记录显示转为全局入口', () => {
@@ -445,6 +442,33 @@ describe('VariableList — 变量操作', () => {
     wrapper.vm.importJavaConstVisible = false
     wrapper.vm.handleImportCmd('json-const')
     expect(wrapper.vm.importJsonConstVisible).toBe(true)
+  })
+
+  test('常量导入只生成审批草稿并跳转审批管理', async () => {
+    variableApi.importJsonConstants.mockResolvedValue({
+      data: {
+        success: true,
+        constantCount: 2,
+        requestCount: 2,
+        requestIds: [51, 52]
+      }
+    })
+    const loadData = vi.spyOn(wrapper.vm, 'loadData')
+    const loadConstants = vi.spyOn(wrapper.vm, 'loadConstants')
+    wrapper.vm.importForm.scope = 'GLOBAL'
+    wrapper.vm.importForm.projectId = null
+    wrapper.vm.importForm.jsonContent = '{"MAX_AGE":65,"MIN_AGE":18}'
+
+    await wrapper.vm.doImportJsonConst()
+
+    expect(variableApi.importJsonConstants).toHaveBeenCalled()
+    expect(wrapper.vm.importResultVisible).toBe(true)
+    expect(wrapper.vm.importResult.requestIds).toEqual([51, 52])
+    expect(loadData).not.toHaveBeenCalled()
+    expect(loadConstants).not.toHaveBeenCalled()
+
+    wrapper.vm.goImportApprovals()
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith('/approval')
   })
 
   test('handleBatchValidate 打开验证弹窗', () => {

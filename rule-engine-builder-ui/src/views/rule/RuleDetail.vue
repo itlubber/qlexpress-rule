@@ -11,10 +11,16 @@
     >
       <h2 style="margin: 0">{{ rule.ruleName || '规则详情' }}</h2>
       <div>
-        <el-button size="small" :icon="ElIconEdit" @click="openBaseEditDialog"
+        <el-button
+          v-permission="'rule:edit'"
+          size="small"
+          :icon="ElIconEdit"
+          :disabled="!canEditDraft"
+          @click="openBaseEditDialog"
           >编辑基本信息</el-button
         >
         <el-button
+          v-permission="'rule:edit'"
           size="small"
           type="primary"
           :icon="ElIconVideoPlay"
@@ -69,14 +75,83 @@
       </el-descriptions-item>
     </el-descriptions>
 
+    <div
+      v-if="revisions.length"
+      class="governance-revision-selector"
+    >
+      <span>生命周期操作修订</span>
+      <el-select
+        v-model="lifecycleRevisionId"
+        data-testid="lifecycle-revision-selector"
+        size="small"
+        @change="preflightReport = null"
+      >
+        <el-option
+          v-for="item in revisions"
+          :key="item.id"
+          :label="revisionOptionLabel(item)"
+          :value="item.id"
+        />
+      </el-select>
+      <span class="governance-revision-state">{{
+        lifecycleStateLabel(lifecycleRevision.state)
+      }}</span>
+    </div>
     <rule-lifecycle-panel
-      v-if="activeRevision.id"
+      v-if="lifecycleRevision.id"
       class="governance-section"
-      :revision="activeRevision"
+      :lifecycle-revision="lifecycleRevision"
       :validation-report="preflightReport"
       :online-artifact-digest="publishedRevision.artifactDigest || ''"
+      :action-loading="forkingDesignerSource"
+      :approval-request-id="lifecycleRevision.governanceRequestId"
       @action="handleLifecycleAction"
     />
+    <el-card
+      v-if="!loading && !revisions.length"
+      data-testid="legacy-governance"
+      shadow="never"
+      class="governance-section"
+    >
+      <template #header><div style="font-weight: 600">历史规则治理</div></template>
+      <el-alert
+        title="该规则还没有治理修订。页面已按只读方式打开，请先预览历史引用或显式创建治理草稿。"
+        type="warning"
+        :closable="false"
+        show-icon
+      />
+      <div class="action-row">
+        <el-button
+          size="small"
+          :loading="repairPreviewLoading"
+          @click="loadRepairPreview"
+          >查看修复预览</el-button
+        >
+        <el-button
+          size="small"
+          type="primary"
+          @click="createLegacyDraft"
+          >创建治理草稿</el-button
+        >
+      </div>
+      <div v-if="repairPreview.previewDigest" class="legacy-repair-preview">
+        <div>
+          可恢复引用：{{ (repairPreview.recoverableReferenceKeys || []).length }}；
+          未解析输入：{{ (repairPreview.unresolvedInputs || []).length }}
+        </div>
+        <el-button
+          v-if="
+            repairPreview.sourceRevisionId &&
+            !(repairPreview.unresolvedInputs || []).length
+          "
+          size="small"
+          type="primary"
+          :loading="repairSaving"
+          @click="repairLegacyRevision"
+          >按预览创建治理草稿</el-button
+        >
+      </div>
+    </el-card>
     <el-card v-if="preflightReport" shadow="never" class="governance-section">
       <template #header><div style="font-weight: 600">发布前校验</div></template>
       <rule-validation-report :report="preflightReport" />
@@ -325,6 +400,7 @@
                 link
                 size="small"
                 type="warning"
+                :disabled="!canEditDraft"
                 @click="editInputField(row)"
               >
                 <el-icon><el-icon-edit /></el-icon> 编辑
@@ -472,6 +548,7 @@
                 link
                 size="small"
                 type="warning"
+                :disabled="!canEditDraft"
                 @click="editOutputField(row)"
               >
                 <el-icon><el-icon-edit /></el-icon> 编辑
@@ -528,6 +605,7 @@
                 size="small"
                 type="primary"
                 :loading="openApiSaving"
+                :disabled="!canEditDraft"
                 @click="saveOpenApiConfig"
                 >保存契约</el-button
               >
@@ -1094,8 +1172,18 @@
               link
               size="small"
               type="warning"
-              @click="rollbackVersion(row)"
-              >回滚</el-button
+              :loading="forkingDesignerSource"
+              :disabled="forkingDesignerSource"
+              @click="forkDesignerSource('VERSION', row.id)"
+              >基于此版本编辑</el-button
+            >
+            <el-button
+              link
+              size="small"
+              type="info"
+              :disabled="forkingDesignerSource"
+              @click="openVersionDesigner(row)"
+              >查看设计</el-button
             >
           </template>
         </el-table-column>
@@ -1266,6 +1354,26 @@ const MODEL_TYPE_LABELS = {
   SCRIPT: 'QL 脚本',
 }
 
+const DESIGNER_ROUTE_BY_MODEL_TYPE = {
+  TABLE: 'DecisionTable',
+  TREE: 'DecisionTree',
+  FLOW: 'DecisionFlow',
+  RULE_SET: 'RuleSet',
+  CROSS: 'CrossTable',
+  SCORE: 'Scorecard',
+  CROSS_ADV: 'AdvancedCrossTable',
+  SCORE_ADV: 'AdvancedScorecard',
+  SCRIPT: 'ScriptEditor',
+}
+
+const LIFECYCLE_ACTIONS_BY_STATE = {
+  DRAFT: ['preflight', 'submit'],
+  REVIEW: ['reject', 'approve'],
+  APPROVED: ['publish', 'download'],
+  PUBLISHED: ['download', 'offline'],
+  OFFLINE: ['download'],
+}
+
 const OPEN_API_STATUS_CODES = [
   { code: '000000', scene: '成功', message: '成功', httpStatus: 200 },
   {
@@ -1391,10 +1499,18 @@ export default {
       loading: false,
       rule: {},
       ruleContent: {},
+      revisions: [],
       activeRevision: {},
+      lifecycleRevisionId: null,
       publishedRevision: {},
       preflightReport: null,
       lifecycleEvents: [],
+      repairPreview: {},
+      repairPreviewLoading: false,
+      repairSaving: false,
+      forkingDesignerSource: false,
+      designerForkRequestId: 0,
+      designerForkActive: true,
       importedArtifact: {},
       deploymentVisible: false,
       openApiSaving: false,
@@ -1490,7 +1606,19 @@ export default {
     ElIconDocumentChecked,
   },
   name: 'RuleDetail',
+  beforeUnmount() {
+    this.designerForkActive = false
+    this.designerForkRequestId++
+  },
   computed: {
+    lifecycleRevision() {
+      return (
+        this.revisions.find((item) => item.id === this.lifecycleRevisionId) || {}
+      )
+    },
+    canEditDraft() {
+      return Boolean(this.activeRevision.id && this.activeRevision.state === 'DRAFT')
+    },
     inputFieldsTotal() {
       return this.rule && this.rule.inputFieldsJson
         ? this.rule.inputFieldsJson.length
@@ -1610,10 +1738,6 @@ export default {
       if (!id) return
       this.loading = true
       try {
-        // 先调用 refreshFields 从 modelJson 重新解析输入/输出字段（持久化到数据库）
-        // 不传 modelJson，由后端从数据库读取当前规则内容进行解析
-        await api.refreshFields(id)
-        // 再加载最新详情（含刷新后的字段列表）
         // 注意：request 拦截器已展开 R.data，生产环境 res 是对象本身；测试环境 mock 返回 {data: {...}} 需要 .data
         const res = await api.getDefinitionDetail(id)
         const nextRule = (res.data !== undefined ? res.data : res) || {}
@@ -1651,27 +1775,96 @@ export default {
         api.listRuleRevisions(definitionId),
         api.getRuleLifecycleTimeline(definitionId),
       ])
-      let revisions = (this.unwrapData(revisionsResponse) || []).filter(Boolean)
-      if (!revisions.length) {
-        const draftResponse = await api.ensureDraftRevision(definitionId)
-        const draft = this.unwrapData(draftResponse)
-        revisions = draft ? [draft] : []
-      }
+      const revisionData = this.unwrapData(revisionsResponse)
+      const revisions = Array.isArray(revisionData)
+        ? revisionData.filter(Boolean)
+        : []
+      this.revisions = revisions
       this.activeRevision =
-        revisions.find((item) => ['DRAFT', 'REVIEW', 'APPROVED'].includes(item.state)) ||
-        revisions[0] || {}
+        revisions.find((item) => item.state === 'DRAFT') ||
+        revisions.find((item) => item.state === 'REVIEW') ||
+        revisions.find((item) => item.state === 'APPROVED') ||
+        revisions.find((item) => item.state === 'PUBLISHED') ||
+        revisions.find((item) => item.state === 'OFFLINE') ||
+        {}
+      this.lifecycleRevisionId = this.activeRevision.id || null
       this.publishedRevision =
         revisions.find((item) => item.state === 'PUBLISHED') || {}
       this.lifecycleEvents = this.unwrapData(timelineResponse) || []
-      if (this.activeRevision.state === 'REVIEW') await this.runPreflight()
+      this.preflightReport = null
+      this.activateDraftRevision(this.activeRevision, false)
     },
     unwrapData(response) {
       return response && response.data !== undefined ? response.data : response
     },
+    lifecycleStateLabel(state) {
+      return (
+        {
+          DRAFT: '草稿',
+          REVIEW: '评审中',
+          APPROVED: '已批准',
+          REJECTED: '已驳回',
+          PUBLISHED: '已发布',
+          OFFLINE: '已下线',
+        }[state] ||
+        state ||
+        '—'
+      )
+    },
+    revisionOptionLabel(revision) {
+      return (
+        'v' +
+        (revision.revisionNo || '—') +
+        ' · ' +
+        this.lifecycleStateLabel(revision.state)
+      )
+    },
+    replaceRevision(revision) {
+      if (!revision || !revision.id) return
+      const index = this.revisions.findIndex((item) => item.id === revision.id)
+      if (index >= 0) this.revisions.splice(index, 1, revision)
+      else this.revisions.unshift(revision)
+      if (revision.state === 'DRAFT') this.activeRevision = revision
+      if (revision.state === 'PUBLISHED') this.publishedRevision = revision
+    },
+    syncDraftContent(revision) {
+      if (!revision || revision.state !== 'DRAFT') return
+      const nextContent = { ...this.ruleContent }
+      if (Object.prototype.hasOwnProperty.call(revision, 'modelJson')) {
+        nextContent.modelJson = revision.modelJson || '{}'
+      }
+      if (Object.prototype.hasOwnProperty.call(revision, 'openApiConfigJson')) {
+        nextContent.openApiConfigJson = revision.openApiConfigJson
+      }
+      this.ruleContent = nextContent
+      this.loadOpenApiConfig(nextContent.openApiConfigJson)
+    },
+    activateDraftRevision(revision, selectLifecycle = true) {
+      if (!revision || revision.state !== 'DRAFT') return
+      this.replaceRevision(revision)
+      this.activeRevision = revision
+      this.syncDraftContent(revision)
+      if (selectLifecycle) this.lifecycleRevisionId = revision.id
+    },
+    showDraftDiagnostics(issues, compileSuccess) {
+      const normalizedIssues = Array.isArray(issues) ? issues : []
+      if (compileSuccess) {
+        this.preflightReport = null
+        this.$message.success('草稿已保存并解析')
+        return
+      }
+      this.preflightReport = {
+        valid: false,
+        errors: normalizedIssues.filter((item) => item.severity !== 'WARNING'),
+        warnings: normalizedIssues.filter((item) => item.severity === 'WARNING'),
+      }
+      this.$message.warning('草稿已保存，但解析存在问题，请查看校验报告')
+    },
     async runPreflight() {
-      if (!this.activeRevision.id) return
+      const revision = this.lifecycleRevision
+      if (!revision.id) return
       try {
-        const response = await api.preflightRuleRevision(this.rule.id, this.activeRevision.id)
+        const response = await api.preflightRuleRevision(this.rule.id, revision.id)
         this.preflightReport = this.unwrapData(response)
       } catch (error) {
         if (error && error.response && error.response.data && error.response.data.data) {
@@ -1682,31 +1875,194 @@ export default {
       }
     },
     async handleLifecycleAction(payload) {
-      const revisionId = this.activeRevision.id
+      const revision = this.lifecycleRevision
+      if (!revision.id) {
+        this.$message.warning('请先选择要操作的规则修订')
+        return
+      }
+      const action = payload && payload.action
+      if (action === 'view-design') {
+        await this.openRevisionDesigner(revision)
+        return
+      }
+      if (action === 'edit-design') {
+        await this.forkDesignerSource('REVISION', revision.id)
+        return
+      }
+      if (action === 'go-approval' && revision.governanceRequestId) {
+        this.$router.push(`/approval/${revision.governanceRequestId}`)
+        return
+      }
+      const allowedActions = LIFECYCLE_ACTIONS_BY_STATE[revision.state] || []
+      if (
+        !allowedActions.includes(action) ||
+        (action === 'download' && !revision.artifactId)
+      ) {
+        this.$message.warning('当前修订状态不支持该生命周期操作')
+        return
+      }
+      const revisionId = revision.id
       try {
-        if (payload.action === 'preflight') await this.runPreflight()
-        else if (payload.action === 'submit') await api.submitRuleRevision(this.rule.id, revisionId, payload)
-        else if (payload.action === 'return') await api.returnRuleRevision(this.rule.id, revisionId, payload)
-        else if (payload.action === 'approve') await api.approveRuleRevision(this.rule.id, revisionId, payload)
-        else if (payload.action === 'publish') await api.publishRuleRevision(this.rule.id, revisionId, payload)
-        else if (payload.action === 'offline') await api.offlineRuleRevision(this.rule.id, revisionId, payload)
-        else if (payload.action === 'download') {
-          await this.downloadDecisionArtifact(this.activeRevision.artifactId)
+        if (action === 'preflight') await this.runPreflight()
+        else if (action === 'submit') {
+          const response = await api.submitRuleRevision(this.rule.id, revisionId, payload)
+          const approvalRequestId = response && response.data
+            ? response.data.governanceRequestId
+            : null
+          if (approvalRequestId) {
+            this.$message.success('已提交统一审批')
+            this.$router.push(`/approval/${approvalRequestId}`)
+            return
+          }
+        }
+        else if (action === 'reject') await api.rejectRuleRevision(this.rule.id, revisionId, payload)
+        else if (action === 'approve') await api.approveRuleRevision(this.rule.id, revisionId, payload)
+        else if (action === 'publish') await api.publishRuleRevision(this.rule.id, revisionId, payload)
+        else if (action === 'offline') {
+          const response = await api.offlineRuleRevision(this.rule.id, revisionId, payload)
+          if (response && response.data && response.data.id) {
+            this.$message.success('下线审批草稿已创建')
+            this.$router.push(`/approval/${response.data.id}`)
+            return
+          }
+        }
+        else if (action === 'download') {
+          await this.downloadDecisionArtifact(revision.artifactId)
           return
         }
-        if (payload.action !== 'preflight') {
+        if (action !== 'preflight') {
           const messages = {
             submit: '已提交评审',
-            return: '已退回草稿',
+            reject: '本次申请已驳回，规则继续使用当前生效版本',
             approve: '审批已通过，决策制品已固化',
             publish: '制品已发布，线上版本已更新',
             offline: '线上制品已下线',
           }
-          this.$message.success(messages[payload.action] || '生命周期操作已完成')
+          this.$message.success(messages[action] || '生命周期操作已完成')
           await this.loadLifecycle(this.rule.id)
         }
       } catch (error) {
         this.$message.error(error.message || '生命周期操作失败')
+      }
+    },
+    designerRouteName(modelType) {
+      return DESIGNER_ROUTE_BY_MODEL_TYPE[modelType] || null
+    },
+    async openRevisionDesigner(revision, invalidatePendingFork = true) {
+      if (!revision || revision.id === undefined || revision.id === null) return
+      return this.openDesignerSource('REVISION', revision.id, invalidatePendingFork)
+    },
+    async openVersionDesigner(version, invalidatePendingFork = true) {
+      if (!version || version.id === undefined || version.id === null) return
+      return this.openDesignerSource('VERSION', version.id, invalidatePendingFork)
+    },
+    async openDesignerSource(sourceType, sourceId, invalidatePendingFork = true) {
+      if (invalidatePendingFork) {
+        this.designerForkRequestId++
+        this.forkingDesignerSource = false
+      }
+      const routeName = this.designerRouteName(this.rule.modelType)
+      if (!routeName) {
+        this.$message.error('当前规则模型类型没有可用的设计器入口')
+        return
+      }
+      await this.$router.push({
+        name: routeName,
+        params: { id: String(this.rule.id) },
+        query: { sourceType, sourceId: String(sourceId) },
+      })
+    },
+    async forkDesignerSource(sourceType, sourceId) {
+      if (this.forkingDesignerSource) return
+      if (sourceId === undefined || sourceId === null) {
+        this.$message.error('缺少派生草稿的来源 ID')
+        return
+      }
+      const requestId = ++this.designerForkRequestId
+      this.forkingDesignerSource = true
+      try {
+        const response = await api.createDraftFromSource(this.rule.id, {
+          sourceType,
+          sourceId: String(sourceId),
+        })
+        if (
+          requestId !== this.designerForkRequestId ||
+          !this.designerForkActive
+        ) return
+        const result = this.unwrapData(response) || {}
+        const draft = result.revision
+        if (
+          !draft ||
+          draft.state !== 'DRAFT' ||
+          draft.id === undefined ||
+          draft.id === null
+        ) {
+          throw new Error('服务端未返回新建草稿')
+        }
+        await this.openRevisionDesigner(draft, false)
+      } catch (error) {
+        if (
+          requestId !== this.designerForkRequestId ||
+          !this.designerForkActive
+        ) return
+        const responseData = error && error.response && error.response.data
+        this.$message.error(
+          (responseData && (responseData.message || (responseData.data && responseData.data.message))) ||
+            error.message ||
+            '基于来源创建草稿失败'
+        )
+      } finally {
+        if (
+          requestId === this.designerForkRequestId &&
+          this.designerForkActive
+        ) this.forkingDesignerSource = false
+      }
+    },
+    async loadRepairPreview() {
+      this.repairPreviewLoading = true
+      try {
+        const response = await api.getRuleRevisionRepairPreview(this.rule.id)
+        this.repairPreview = this.unwrapData(response) || {}
+      } catch (error) {
+        this.$message.error(error.message || '加载历史修复预览失败')
+      } finally {
+        this.repairPreviewLoading = false
+      }
+    },
+    async createLegacyDraft() {
+      try {
+        const response = await api.createDraftRevision(this.rule.id)
+        const draft = this.unwrapData(response)
+        this.activateDraftRevision(draft)
+        this.$message.success('治理草稿已创建')
+      } catch (error) {
+        this.$message.error(error.message || '创建治理草稿失败')
+      }
+    },
+    async repairLegacyRevision() {
+      const unresolvedInputs = this.repairPreview.unresolvedInputs
+      if (
+        !this.repairPreview.sourceRevisionId ||
+        !String(this.repairPreview.previewDigest || '').trim() ||
+        !Array.isArray(unresolvedInputs) ||
+        unresolvedInputs.length
+      ) {
+        this.$message.warning('修复预览不完整或仍有未解析输入，不能执行修复')
+        return
+      }
+      this.repairSaving = true
+      try {
+        const response = await api.repairRuleRevision(this.rule.id, {
+          sourceRevisionId: this.repairPreview.sourceRevisionId,
+          previewDigest: this.repairPreview.previewDigest,
+        })
+        const draft = this.unwrapData(response)
+        this.activateDraftRevision(draft)
+        this.$message.success('历史引用已修复并创建治理草稿')
+      } catch (error) {
+        this.$message.error(error.message || '历史规则修复失败')
+      } finally {
+        this.repairSaving = false
       }
     },
     async downloadDecisionArtifact(artifactId) {
@@ -2074,6 +2430,7 @@ export default {
       }
     },
     async saveOpenApiConfig() {
+      if (!this.requireEditableDraft()) return
       let contract
       try {
         contract = this.buildOpenApiContract()
@@ -2085,21 +2442,42 @@ export default {
       this.openApiSaving = true
       try {
         const openApiConfigJson = JSON.stringify(contract)
-        await api.saveContent({
+        const saved = await api.saveContent({
           definitionId: this.rule.id,
+          revisionId: this.activeRevision.id,
+          lockVersion: this.activeRevision.lockVersion,
           modelJson: this.ruleContent.modelJson || '{}',
           openApiConfigJson,
         })
-        this.ruleContent['openApiConfigJson'] = openApiConfigJson
-        this.loadOpenApiConfig(openApiConfigJson)
-        this.$message.success('开放接口契约已保存，请发布规则后生效')
+        const saveResult = this.unwrapData(saved) || {}
+        this.activateDraftRevision(saveResult.revision, false)
+        if (saveResult.designVersion !== undefined) {
+          this.rule.currentVersion = saveResult.designVersion
+        }
+        if (
+          !saveResult.revision ||
+          !Object.prototype.hasOwnProperty.call(
+            saveResult.revision,
+            'openApiConfigJson'
+          )
+        ) {
+          this.ruleContent['openApiConfigJson'] = openApiConfigJson
+          this.loadOpenApiConfig(openApiConfigJson)
+        }
+        this.showDraftDiagnostics(saveResult.issues, saveResult.compileSuccess)
       } catch (e) {
         this.$message.error(e.message || '保存开放接口契约失败')
       } finally {
         this.openApiSaving = false
       }
     },
+    requireEditableDraft() {
+      if (this.canEditDraft) return true
+      this.$message.warning('当前没有可编辑草稿，请先创建或退回草稿')
+      return false
+    },
     openBaseEditDialog() {
+      if (!this.requireEditableDraft()) return
       this.baseForm = {
         ruleName: this.rule.ruleName || '',
         description: this.rule.description || '',
@@ -2107,6 +2485,7 @@ export default {
       this.baseEditVisible = true
     },
     async saveBaseInfo() {
+      if (!this.requireEditableDraft()) return
       const ruleName = (this.baseForm.ruleName || '').trim()
       if (!ruleName) {
         this.$message.warning('规则名称不能为空')
@@ -2462,6 +2841,7 @@ export default {
 
     // ========== 输入字段编辑 ==========
     editInputField(row) {
+      if (!this.requireEditableDraft()) return
       if (this.rule.inputFieldsJson) {
         this.rule.inputFieldsJson.forEach((f) => {
           if (f !== row) f['_editing'] = false
@@ -2494,6 +2874,7 @@ export default {
       }
     },
     async saveInputField(row) {
+      if (!this.requireEditableDraft()) return
       row['_saving'] = true
       try {
         const validationRuleIds = row.validationRuleIdList || []
@@ -2522,6 +2903,7 @@ export default {
       row['_editing'] = false
     },
     async restoreInheritedValidation(row) {
+      if (!this.requireEditableDraft()) return
       row['_saving'] = true
       try {
         await api.updateInputField(row.id, this.inputFieldPayload(row, 0, []))
@@ -2539,6 +2921,7 @@ export default {
 
     // ========== 输出字段编辑 ==========
     editOutputField(row) {
+      if (!this.requireEditableDraft()) return
       if (this.rule.outputFieldsJson) {
         this.rule.outputFieldsJson.forEach((f) => {
           if (f !== row) f['_editing'] = false
@@ -2553,6 +2936,7 @@ export default {
       }
     },
     async saveOutputField(row) {
+      if (!this.requireEditableDraft()) return
       row['_saving'] = true
       try {
         await api.updateOutputField(row.id, {
@@ -2715,26 +3099,6 @@ export default {
       this.leftVersionNumber = this.rightVersionNumber
       this.rightVersionNumber = left
       return this.loadSelectedVersionCompare()
-    },
-    async rollbackVersion(row) {
-      if (!row || !row.version) return
-      try {
-        await this.$confirm(
-          '回滚会覆盖当前草稿内容，但不会自动发布，确认回滚到 v' +
-            row.version +
-            '？',
-          '确认回滚',
-          { type: 'warning' }
-        )
-        await api.rollbackVersion(this.rule.id, row.version)
-        this.$message.success('回滚成功')
-        await this.load()
-        await this.loadVersions()
-      } catch (e) {
-        if (e !== 'cancel') {
-          this.$message.error(e.message || '回滚失败')
-        }
-      }
     },
     formatVersionTime(value) {
       return value ? String(value).replace('T', ' ') : '-'
@@ -3242,6 +3606,35 @@ export default {
 }
 .governance-section {
   margin-bottom: 16px;
+}
+.governance-revision-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  color: #4b5563;
+  font-size: 13px;
+}
+.governance-revision-selector :deep(.el-select) {
+  width: 240px;
+}
+.governance-revision-state {
+  color: #315ca8;
+  font-weight: 600;
+}
+.action-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+.legacy-repair-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+  color: #4b5563;
+  font-size: 13px;
 }
 .governance-card-header {
   display: flex;

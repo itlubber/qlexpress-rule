@@ -1,5 +1,16 @@
 <template>
   <div class="tree-designer uiue-compact-workbench uiue-compact-designer">
+    <rule-draft-read-only
+      :visible="!canEditDraft"
+      :loading="!draftGuardLoaded"
+      :load-error="Boolean(draftGuardError)"
+      :revision-label="viewRevisionLabel"
+      :revision-state="viewRevision ? viewRevision.state : ''"
+      :can-fork="canForkViewRevision"
+      @go-back="$router.back()"
+      @go-lifecycle="goRuleLifecycle"
+      @fork="forkViewRevision"
+    />
     <!-- 顶部工具栏 -->
     <div class="tree-toolbar">
       <div class="toolbar-left">
@@ -413,7 +424,6 @@
         ref="scriptPanel"
         :definitionId="definitionId"
         :onBeforeCompile="handleSave"
-        @mode-change="onScriptModeChange"
       />
     </div>
 
@@ -498,21 +508,17 @@ import {
   applyGlobalEdgeTypeToInheritedEdges,
   mergeEdgePropertiesFromForm,
 } from '@/components/flow/edgeLineType'
-import {
-  saveContent,
-  compileRule,
-  executeRule,
-  getContent,
-  refreshFields,
-} from '@/api/definition'
+import { executeRule } from '@/api/definition'
 import {
   generateScript,
   normalizeGraphActionData,
 } from '@/utils/actionDataCodegen'
 import varPickerMixin from '@/mixins/varPickerMixin'
 import ruleCallMixin from '@/mixins/ruleCallMixin'
+import ruleDraftMixin from '@/mixins/ruleDraftMixin'
 import ScriptPanel from '@/components/common/ScriptPanel.vue'
 import DesignerTestDialog from '@/components/common/DesignerTestDialog.vue'
+import RuleDraftReadOnly from '@/components/rule/RuleDraftReadOnly.vue'
 import EndNodeScopeDialog from '@/components/flow/EndNodeScopeDialog.vue'
 import ActionBlockEditor from '@/components/flow/ActionBlockEditor.vue'
 import ConditionGroupEditor from '@/components/decision/ConditionGroupEditor.vue'
@@ -539,7 +545,6 @@ import {
   collectScriptInputCodes,
   refCodeById,
 } from '@/utils/testSampleParams'
-import { isSuccessResult, resultErrorMessage } from '@/utils/apiResponse'
 import { clampDesignerPanelWidth } from '@/utils/designerPanelWidth'
 import {
   END_SCOPE_ALL_RULES,
@@ -564,7 +569,6 @@ export default {
       pendingConnectedNode: null,
       anchorGesture: null,
       zoomPercent: 100,
-      scriptMode: 'visual',
       nodeProps: {},
       edgeProps: {},
       nodeCondMode: 'visual',
@@ -624,6 +628,7 @@ export default {
     }
   },
   components: {
+    RuleDraftReadOnly,
     DesignerTestDialog,
     EndNodeScopeDialog,
     FlowNodeAddMenu,
@@ -638,7 +643,7 @@ export default {
     ElIconShare,
   },
   name: 'DecisionTree',
-  mixins: [varPickerMixin, ruleCallMixin, graphDesignerToolsMixin],
+  mixins: [varPickerMixin, ruleCallMixin, graphDesignerToolsMixin, ruleDraftMixin],
   computed: {
     isEdge() {
       return this.activeElement && this.activeElement.baseType === 'edge'
@@ -1495,8 +1500,8 @@ export default {
 
     async loadContent() {
       try {
-        const res = await getContent(this.definitionId)
-        const content = res && res.data ? res.data : res
+        if (this.draftGuardPromise) await this.draftGuardPromise
+        const content = this.viewRevision
         if (content && content.modelJson && content.modelJson !== '{}') {
           const modelData = normalizeGraphActionData(
             JSON.parse(content.modelJson)
@@ -1753,12 +1758,11 @@ export default {
         return false
       }
       const modelJson = JSON.stringify(model)
-      await saveContent({ definitionId: this.definitionId, modelJson })
-      await refreshFields(this.definitionId, modelJson)
+      const result = await this.saveDraftModel(modelJson)
       this.refreshProjectRefs()
 
-      this.$message.success('保存成功')
-      return true
+      this.$message.success('草稿已保存')
+      return result
     },
 
     buildRuleCallValidationModel() {
@@ -1766,21 +1770,28 @@ export default {
     },
 
     async handleCompile() {
-      if ((await this.handleSave()) === false) return
-      const res = await compileRule(this.definitionId)
-      if (isSuccessResult(res)) {
+      const result = await this.handleSave()
+      if (result === false) return false
+      if (result.compileSuccess) {
         this.$message.success('编译成功')
-        // 异步刷新变量映射和脚本面板
         await this.loadProjectVars(this.definitionId)
-        if (this.$refs.scriptPanel) {
-          this.$refs.scriptPanel.refresh()
-        }
       } else {
-        this.$message.error('编译失败: ' + resultErrorMessage(res))
+        this.$message.error(
+          '编译失败: ' + (result.compileMessage || '未知错误')
+        )
       }
+      return result
     },
 
-    handleTest() {
+    async handleTest() {
+      const result = await this.handleSave()
+      if (result === false) return
+      if (!result.compileSuccess) {
+        this.$message.error(
+          '编译失败: ' + (result.compileMessage || '未知错误')
+        )
+        return
+      }
       this.testParamsTemplate = this.buildTestParamsTemplate()
       this.testParamsJson = JSON.stringify(
         this.buildTestParamsTemplate(),
@@ -1848,9 +1859,6 @@ export default {
       }
       const res = await executeRule({ definitionId: this.definitionId, params })
       this.testResult = res && res.data ? res.data : res
-    },
-    onScriptModeChange(mode) {
-      this.scriptMode = mode
     },
     varTypeTag(varType) {
       return this.varTypeColor(varType)
@@ -1996,6 +2004,7 @@ export default {
 
 <style lang="scss" scoped>
 .tree-designer {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: calc(100vh - 82px);

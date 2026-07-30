@@ -33,12 +33,11 @@ describe('flow designer style regressions', () => {
     })
   })
 
-  test('属性面板和脚本面板的模式切换选中态使用主题色', () => {
+  test('属性面板的模式切换选中态使用主题色', () => {
     const tree = readSource('src/views/designer/DecisionTree.vue')
     const flow = readSource('src/views/designer/DecisionFlow.vue')
-    const scriptPanel = readSource('src/components/common/ScriptPanel.vue')
 
-    ;[tree, flow, scriptPanel].forEach(source => {
+    ;[tree, flow].forEach(source => {
       const normalized = source.toLowerCase()
       expect(source).toContain('.el-radio-button__orig-radio:checked + .el-radio-button__inner')
       expect(normalized).toContain('background: #2639e9;')

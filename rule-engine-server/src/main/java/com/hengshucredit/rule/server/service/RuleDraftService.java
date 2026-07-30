@@ -187,6 +187,42 @@ public class RuleDraftService {
         return response;
     }
 
+    /**
+     * 审批驳回后将兼容业务投影恢复为当前生效修订。
+     * 审批修订和事件仍然完整保留，仅覆盖详情页、设计器读取的当前内容投影。
+     */
+    @Transactional
+    public void restoreEffectiveProjection(RuleRevision effective) {
+        if (effective == null || effective.getDefinitionId() == null
+                || effective.getModelJson() == null) {
+            return;
+        }
+        RuleDefinition definition = loadDefinition(effective.getDefinitionId());
+        if (definition == null) {
+            throw governance(400, "DEFINITION_NOT_FOUND", "规则定义不存在");
+        }
+        RuleFieldAnalyzer.ResolvedFields fields =
+                resolveFields(definition, effective.getModelJson());
+        RuleDefinitionContent content = loadContent(definition.getId());
+        if (content == null) {
+            content = new RuleDefinitionContent();
+            content.setDefinitionId(definition.getId());
+        }
+        content.setModelJson(effective.getModelJson());
+        content.setCompiledScript(effective.getCompiledScript());
+        content.setCompiledType(effective.getCompiledType());
+        content.setCompileStatus(1);
+        content.setCompileMessage(null);
+        content.setCompileTime(LocalDateTime.now());
+        content.setOpenApiConfigJson(effective.getOpenApiConfigJson());
+        if ("SCRIPT".equalsIgnoreCase(definition.getModelType())) {
+            content.setScriptMode("script");
+        }
+        persistContent(content);
+        persistResolvedFields(definition.getId(), fields);
+        incrementDesignVersion(definition);
+    }
+
     private void requireSaveContract(RuleDraftSaveRequest request) {
         if (request == null || request.getDefinitionId() == null
                 || request.getRevisionId() == null

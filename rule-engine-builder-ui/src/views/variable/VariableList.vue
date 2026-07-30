@@ -39,6 +39,7 @@
           </template>
         </el-dropdown>
         <el-button
+          v-permission="'field:edit'"
           size="small"
           :icon="ElIconPlus"
           @click="handlePrimaryCreate"
@@ -259,6 +260,7 @@
             <el-table-column label="操作" width="250" align="center" fixed="right">
               <template v-slot="{ row }">
                 <el-button
+                  v-permission="'field:edit'"
                   link
                   size="small"
                   type="warning"
@@ -298,6 +300,7 @@
                   >转为全局</el-button
                 >
                 <el-button
+                  v-permission="'field:edit'"
                   link
                   size="small"
                   type="danger"
@@ -471,6 +474,7 @@
                 >{{ countObjectFields(node.variables) }} 个字段</span
               >
               <el-button
+                v-permission="'field:edit'"
                 link
                 size="small"
                 :icon="ElIconEdit"
@@ -2250,28 +2254,38 @@
     <!-- Import Result Dialog -->
     <el-dialog title="导入结果" v-model="importResultVisible" width="500px">
       <div class="import-result-body">
-        <el-icon style="font-size: 48px; color: #67c23a"
+        <el-icon
+          v-if="importResult.success"
+          style="font-size: 48px; color: #67c23a"
           ><el-icon-success
         /></el-icon>
-        <h3>导入完成</h3>
-        <p v-if="importResult.objectCount != null">
-          创建/更新 <b>{{ importResult.objectCount }}</b> 个数据对象，<b>{{
+        <el-icon v-else style="font-size: 48px; color: #f56c6c"
+          ><el-icon-info
+        /></el-icon>
+        <h3>{{ importResult.success ? '审批草稿已生成' : '导入内容存在冲突' }}</h3>
+        <p v-if="importResult.success && importResult.objectCount != null">
+          已生成 <b>{{ importResult.objectCount }}</b> 个数据对象审批草稿，涉及
+          <b>{{
             importResult.variableCount
           }}</b>
-          个变量
+          个字段
         </p>
-        <p v-if="importResult.constantCount != null">
-          创建/更新 <b>{{ importResult.constantCount }}</b> 个常量
+        <p v-if="importResult.success && importResult.constantCount != null">
+          已生成 <b>{{ importResult.constantCount }}</b> 个常量审批草稿
+        </p>
+        <p v-if="!importResult.success">{{ importResult.error }}</p>
+        <p v-if="importResult.success">
+          生效数据尚未改变，请前往审批管理完成血缘检查、提交与审批。
         </p>
       </div>
       <template v-slot:footer>
         <div>
           <el-button
+            v-if="importResult.success"
             size="small"
             type="primary"
-            :icon="ElIconVideoPlay"
-            @click="handleImportBatchValidate"
-            >验证项目规则</el-button
+            @click="goImportApprovals"
+            >前往审批管理</el-button
           >
           <el-button size="small" @click="importResultVisible = false"
             >关闭</el-button
@@ -3410,11 +3424,12 @@ export default {
       }
     },
     async onObjectTypeChange(obj) {
-      await updateObjectType(obj.id, obj.objectType)
-      this.$message.success('对象类型已更新')
+      const response = await updateObjectType(obj.id, obj.objectType)
+      this.openApproval(response, '对象类型变更已送审')
     },
     async onObjectScriptNameChange(obj) {
-      await updateObjectScriptName(obj.id, obj.scriptName)
+      const response = await updateObjectScriptName(obj.id, obj.scriptName)
+      this.openApproval(response, '对象脚本名变更已送审')
     },
     /**
      * 列表行内修改脚本名：变量走 variable 接口；数据对象字段走 dataobject field 接口。
@@ -3424,13 +3439,14 @@ export default {
         await this.onObjectFieldScriptNameBlur(row)
         return
       }
-      await updateVariable(row)
+      const response = await updateVariable(row)
+      this.openApproval(response, '字段脚本名变更已送审')
     },
     /**
      * 数据对象表格中字段脚本名失焦保存。
      */
     async onObjectFieldScriptNameBlur(row) {
-      await updateDataObjectField({
+      const response = await updateDataObjectField({
         id: row.id,
         projectId: row.projectId,
         objectId: row.objectId,
@@ -3445,6 +3461,7 @@ export default {
         sortOrder: row.sortOrder,
         status: row.status,
       })
+      this.openApproval(response, '对象字段变更已送审')
     },
     async handleDeleteObject(obj) {
       await this.$confirm(
@@ -3452,11 +3469,8 @@ export default {
         '确认删除',
         { type: 'warning' }
       )
-      await deleteDataObject(obj.id)
-      this.$message.success('删除成功')
-      this.objPageNum = 1
-      this.loadObjectTree()
-      this.loadData()
+      const response = await deleteDataObject(obj.id)
+      this.openApproval(response, '数据对象删除已送审')
     },
     async handleObjectToGlobal(obj) {
       try {
@@ -3467,9 +3481,10 @@ export default {
           '转为全局',
           { type: 'warning' }
         )
-        await toGlobalDataObject(obj.id)
-        this.$message.success('转换成功，该数据对象及其字段已转为全局')
-        await this.loadObjectTree()
+        const response = await toGlobalDataObject(obj.id)
+        this.$message.success('已创建转全局审批，请完成审批后生效')
+        if (response.data && response.data.id)
+          this.$router.push('/approval/' + response.data.id)
       } catch (e) {
         if (e !== 'cancel' && e !== 'close')
           this.$message.error('转换失败: ' + (e.message || '未知错误'))
@@ -3524,11 +3539,9 @@ export default {
           return
         }
         try {
-          await createOrUpdateDataObject(this.objectForm)
-          this.$message.success('操作成功')
+          const response = await createOrUpdateDataObject(this.objectForm)
+          this.openApproval(response, '数据对象变更已送审')
           this.objectDialogVisible = false
-          this.objPageNum = 1
-          this.loadObjectTree()
         } catch (e) {
           this.$message.error('保存失败: ' + (e.message || ''))
         }
@@ -3595,9 +3608,8 @@ export default {
         '确认删除',
         { type: 'warning' }
       )
-      await deleteDataObjectField(row.id)
-      this.$message.success('删除成功')
-      this.loadObjectTree()
+      const response = await deleteDataObjectField(row.id, row.objectId)
+      this.openApproval(response, '对象字段删除已送审')
     },
     getObjectCode(objectId) {
       const obj = this.objectMap[objectId]
@@ -3903,15 +3915,15 @@ export default {
             sortOrder: this.form.sortOrder,
             status: this.form.status,
           }
-          if (this.form.id) {
-            await updateDataObjectField(payload)
-          } else {
-            await createDataObjectField(this.objectFieldParentId, payload)
-          }
-          this.$message.success('操作成功')
+          const response = this.form.id
+            ? await updateDataObjectField(payload)
+            : await createDataObjectField(
+                this.objectFieldParentId,
+                payload
+              )
+          this.openApproval(response, '对象字段变更已送审')
           this.dialogVisible = false
           this.isObjectField = false
-          this.loadObjectTree()
           return
         }
         if (!this.form.projectId) this.form.projectId = this.currentProjectId
@@ -3933,16 +3945,13 @@ export default {
         if (!payload) return
         const wasConstant =
           payload.varSource === 'CONSTANT' || this.isConstantCreate
-        if (payload.id) {
-          await updateVariable(payload)
-        } else {
-          await createVariable(payload)
-        }
-        this.$message.success('操作成功')
+        const response = payload.id
+          ? await updateVariable(payload)
+          : await createVariable(payload)
+        this.openApproval(response, '字段变更已送审')
         this.dialogVisible = false
         this.isConstantCreate = false
-        this.loadData()
-        if (wasConstant) this.loadConstants()
+        if (wasConstant) this.activeTab = 'constants'
       })
     },
     handleDelete(row) {
@@ -3950,10 +3959,8 @@ export default {
         type: 'warning',
       })
         .then(async () => {
-          await deleteVariable(row.id)
-          this.$message.success('删除成功')
-          this.loadData()
-          if (row.varSource === 'CONSTANT') this.loadConstants()
+          const response = await deleteVariable(row.id)
+          this.openApproval(response, '字段删除已送审')
         })
         .catch(() => {})
     },
@@ -3966,10 +3973,10 @@ export default {
           '转为全局',
           { type: 'warning' }
         )
-        await toGlobalVariable(row.id)
-        this.$message.success('转换成功，该变量已转为全局变量')
-        if (row.varSource === 'CONSTANT') await this.loadConstants()
-        else await this.loadData()
+        const response = await toGlobalVariable(row.id)
+        this.$message.success('已创建转全局审批，请完成审批后生效')
+        if (response.data && response.data.id)
+          this.$router.push('/approval/' + response.data.id)
       } catch (e) {
         if (e !== 'cancel' && e !== 'close')
           this.$message.error('转换失败: ' + (e.message || '未知错误'))
@@ -4382,13 +4389,26 @@ export default {
         this.$message.warning('请填写完整的选项值和标签')
         return
       }
+      let response
       if (this.optionTargetIsField) {
-        await saveDataObjectFieldOptions(this.currentVar.id, this.optionList)
+        response = await saveDataObjectFieldOptions(
+          this.currentVar.id,
+          this.optionList,
+          this.currentVar.objectId
+        )
       } else {
-        await saveVariableOptions(this.currentVar.id, this.optionList)
+        response = await saveVariableOptions(
+          this.currentVar.id,
+          this.optionList
+        )
       }
-      this.$message.success('保存成功')
+      this.openApproval(response, '字段选项变更已送审')
       this.optionDialogVisible = false
+    },
+    openApproval(response, message) {
+      this.$message.success(message)
+      if (response && response.data && response.data.id)
+        this.$router.push('/approval/' + response.data.id)
     },
 
     // ── Import ──
@@ -4440,8 +4460,6 @@ export default {
         this.importResult = res.data || {}
         this.importJavaEntityVisible = false
         this.importResultVisible = true
-        this.loadData()
-        this.loadObjectTree()
       } catch (e) {
         this.$message.error('导入失败: ' + (e.message || ''))
       } finally {
@@ -4477,8 +4495,6 @@ export default {
         this.importResult = res.data || {}
         this.importJsonObjectVisible = false
         this.importResultVisible = true
-        this.loadData()
-        this.loadObjectTree()
       } catch (e) {
         this.$message.error('导入失败: ' + (e.message || ''))
       } finally {
@@ -4510,8 +4526,6 @@ export default {
         this.importResult = res.data || {}
         this.importDdlVisible = false
         this.importResultVisible = true
-        this.loadData()
-        this.loadObjectTree()
       } catch (e) {
         this.$message.error('导入失败: ' + (e.message || ''))
       } finally {
@@ -4541,8 +4555,6 @@ export default {
         this.importResult = res.data || {}
         this.importJavaConstVisible = false
         this.importResultVisible = true
-        this.loadData()
-        this.loadConstants()
       } catch (e) {
         this.$message.error('导入失败: ' + (e.message || ''))
       } finally {
@@ -4572,8 +4584,6 @@ export default {
         this.importResult = res.data || {}
         this.importJsonConstVisible = false
         this.importResultVisible = true
-        this.loadData()
-        this.loadConstants()
       } catch (e) {
         this.$message.error('导入失败: ' + (e.message || ''))
       } finally {
@@ -4586,11 +4596,9 @@ export default {
       this.validateProjectId = this.currentProjectId || ''
       this.validateDialogVisible = true
     },
-    handleImportBatchValidate() {
+    goImportApprovals() {
       this.importResultVisible = false
-      this.validateProjectId =
-        this.importForm.scope === 'PROJECT' ? this.importForm.projectId : null
-      this.validateDialogVisible = true
+      this.$router.push('/approval')
     },
     async doBatchValidate() {
       this.validating = true

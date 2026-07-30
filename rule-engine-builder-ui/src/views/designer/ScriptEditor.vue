@@ -1,5 +1,16 @@
 <template>
   <div class="se-designer uiue-compact-workbench uiue-compact-designer">
+    <rule-draft-read-only
+      :visible="!canEditDraft"
+      :loading="!draftGuardLoaded"
+      :load-error="Boolean(draftGuardError)"
+      :revision-label="viewRevisionLabel"
+      :revision-state="viewRevision ? viewRevision.state : ''"
+      :can-fork="canForkViewRevision"
+      @go-back="$router.back()"
+      @go-lifecycle="goRuleLifecycle"
+      @fork="forkViewRevision"
+    />
     <!-- 顶部工具栏 -->
     <div class="se-header">
       <div class="se-title-area">
@@ -296,16 +307,12 @@ import {
   VideoPlay as ElIconVideoPlay,
   Search as ElIconSearch,
 } from '@element-plus/icons-vue'
-import {
-  saveContent,
-  compileRule,
-  executeRule,
-  getContent,
-  refreshFields,
-} from '@/api/definition'
+import { executeRule } from '@/api/definition'
 import varPickerMixin from '@/mixins/varPickerMixin'
+import ruleDraftMixin from '@/mixins/ruleDraftMixin'
 import MonacoEditor from '@/components/MonacoEditor'
 import DesignerTestDialog from '@/components/common/DesignerTestDialog.vue'
+import RuleDraftReadOnly from '@/components/rule/RuleDraftReadOnly.vue'
 import {
   buildSampleParamsFromCodes,
   collectScriptInputCodes,
@@ -333,6 +340,7 @@ export default {
       testParamsJson: '{}',
       testResult: null,
       monacoEditor: null,
+      pendingVarInsertions: [],
       varPanelWidth: DEFAULT_VAR_PANEL_WIDTH,
       varPanelMinWidth: 220,
       varPanelMaxWidth: 560,
@@ -350,6 +358,7 @@ export default {
     }
   },
   components: {
+    RuleDraftReadOnly,
     DesignerTestDialog,
     MonacoEditor,
     ElIconEditOutline,
@@ -362,7 +371,7 @@ export default {
     ElIconInfo,
   },
   name: 'ScriptEditor',
-  mixins: [varPickerMixin],
+  mixins: [varPickerMixin, ruleDraftMixin],
   computed: {
     varPanelStyle() {
       if (this.varPanelCollapsed) return {}
@@ -658,12 +667,10 @@ export default {
     },
     async loadContent() {
       try {
-        const res = await getContent(this.definitionId)
-        const content = res && res.data ? res.data : res
+        if (this.draftGuardPromise) await this.draftGuardPromise
+        const content = this.viewRevision
         if (content) {
-          if (content.compiledScript) {
-            this.script = content.compiledScript
-          } else if (content.modelJson && content.modelJson !== '{}') {
+          if (content.modelJson && content.modelJson !== '{}') {
             try {
               const model = JSON.parse(content.modelJson)
               if (model.script) this.script = model.script
@@ -674,9 +681,11 @@ export default {
             } catch (e) {
               this.script = content.modelJson
             }
+          } else if (content.compiledScript) {
+            this.script = content.compiledScript
           }
-          this.compileStatus = content.compileStatus || 0
-          this.compileMessage = content.compileMessage || ''
+          this.compileStatus = content.compiledScript ? 1 : 0
+          this.compileMessage = ''
         }
       } catch (e) {
         this.$message.error('加载内容失败: ' + (e.message || '未知错误'))
@@ -694,27 +703,30 @@ export default {
     async handleSave() {
       // 保存前：从脚本中提取实际引用的变量，更新 scriptVarRefs
       const modelJson = JSON.stringify(this.buildModelJson())
-      await saveContent({ definitionId: this.definitionId, modelJson })
-      await refreshFields(this.definitionId, modelJson)
-      this.$message.success('保存成功')
+      const result = await this.saveDraftModel(modelJson)
+      this.compileStatus = result.compileSuccess ? 1 : 2
+      this.compileMessage = result.compileMessage || ''
+      this.$message.success('草稿已保存')
       this.refreshProjectRefs()
+      return result
     },
     async handleCompile() {
-      await this.handleSave()
-      const res = await compileRule(this.definitionId)
-      const result = res && res.data ? res.data : res
-      if (result && result.success) {
-        this.compileStatus = 1
-        this.compileMessage = ''
+      const result = await this.handleSave()
+      if (result.compileSuccess) {
         this.$message.success('脚本验证通过')
       } else {
-        this.compileStatus = 2
-        this.compileMessage =
-          result && result.errorMessage ? result.errorMessage : '未知错误'
         this.$message.error('脚本验证失败: ' + this.compileMessage)
       }
+      return result
     },
-    handleTest() {
+    async handleTest() {
+      const result = await this.handleSave()
+      if (!result.compileSuccess) {
+        this.$message.error(
+          '脚本验证失败: ' + (result.compileMessage || '未知错误')
+        )
+        return
+      }
       this.testParamsTemplate = this.buildTestParamsTemplate()
       const codes = collectScriptInputCodes(this.script, this.projectRefs)
       this.testParamsJson = JSON.stringify(
@@ -741,7 +753,11 @@ export default {
       this.testResult = res && res.data ? res.data : res
     },
     insertVar(v) {
-      if (!this.monacoEditor || !v) return
+      if (!v) return
+      if (!this.monacoEditor) {
+        this.pendingVarInsertions.push(v)
+        return
+      }
       const code = v.varCode
       const editor = this.monacoEditor
       const selection = editor.getSelection()
@@ -771,6 +787,8 @@ export default {
     },
     onEditorReady(editor) {
       this.monacoEditor = editor
+      const pending = this.pendingVarInsertions.splice(0)
+      pending.forEach((variable) => this.insertVar(variable))
     },
     /**
      * 仅清理通过选择器显式记录、但已不再出现在脚本中的引用。
@@ -824,6 +842,7 @@ $editor-line-text: #9399b2;
 $editor-border: #313244;
 
 .se-designer {
+  position: relative;
   background: #f3f3f3;
   height: calc(100vh - 82px);
   min-height: 0;

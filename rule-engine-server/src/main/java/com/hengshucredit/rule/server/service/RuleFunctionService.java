@@ -148,6 +148,7 @@ public class RuleFunctionService {
             }
         }
         LambdaQueryWrapper<RuleFunction> wrapper = new LambdaQueryWrapper<>();
+        wrapper.ne(RuleFunction::getStatus, -1);
         if (scope != null && !scope.isEmpty()) {
             wrapper.eq(RuleFunction::getScope, scope);
         }
@@ -205,6 +206,7 @@ public class RuleFunctionService {
             }
         }
         LambdaQueryWrapper<RuleFunction> wrapper = new LambdaQueryWrapper<>();
+        wrapper.ne(RuleFunction::getStatus, -1);
         if (scope != null && !scope.isEmpty()) {
             wrapper.eq(RuleFunction::getScope, scope);
         }

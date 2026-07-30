@@ -441,6 +441,22 @@ describe('ModelList — 模型操作', () => {
     expect(wrapper.vm.toGlobalForm.modelCode).toBe('')
   })
 
+  test('确认转全局后创建审批并跳转详情', async () => {
+    modelApi.toGlobalModel.mockResolvedValue({ data: { id: 51 } })
+    wrapper.vm.toGlobalModelInfo = {
+      id: 1,
+      modelCode: 'project_model',
+      modelName: '项目模型'
+    }
+    wrapper.vm.toGlobalForm.modelCode = 'global_model'
+
+    wrapper.vm.handleDoToGlobal()
+    await new Promise(resolve => setTimeout(resolve, 20))
+
+    expect(modelApi.toGlobalModel).toHaveBeenCalledWith(1, 'global_model')
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith('/approval/51')
+  })
+
   test('全局模型项目列忽略残留项目名称', () => {
     expect(ModelList.methods.modelProjectName).toEqual(expect.any(Function))
     expect(ModelList.methods.modelProjectName({ scope: 'GLOBAL', projectName: '项目A' })).toBe('—')

@@ -36,6 +36,7 @@ public class RuleDbDatasourceService extends ServiceImpl<RuleDbDatasourceMapper,
             return new Page<>(pageNum, pageSize);
         }
         LambdaQueryWrapper<RuleDbDatasource> wrapper = new LambdaQueryWrapper<>();
+        wrapper.ne(RuleDbDatasource::getStatus, -1);
         if (hasText(scope)) {
             wrapper.eq(RuleDbDatasource::getScope, scope);
         }

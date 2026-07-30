@@ -16,6 +16,7 @@
         >
         <el-button size="small" @click="handleTestDraft">测试连接</el-button>
         <el-button
+          v-permission="'database:edit'"
           size="small"
           type="primary"
           :loading="saving"
@@ -569,14 +570,12 @@ export default {
         this.saving = true
         try {
           const data = this.normalizeForm(this.form)
-          if (data.id) {
-            await updateDbDatasource(data)
-            this.$message.success('更新成功')
-          } else {
-            await createDbDatasource(data)
-            this.$message.success('创建成功')
-          }
-          this.$router.push('/database')
+          const response = data.id
+            ? await updateDbDatasource(data)
+            : await createDbDatasource(data)
+          this.$message.success('数据库连接变更已送审')
+          if (response.data && response.data.id)
+            this.$router.push('/approval/' + response.data.id)
         } finally {
           this.saving = false
         }

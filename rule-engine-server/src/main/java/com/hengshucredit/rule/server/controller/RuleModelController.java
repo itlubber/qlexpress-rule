@@ -1,5 +1,7 @@
 package com.hengshucredit.rule.server.controller;
 
+import com.alibaba.fastjson.JSON;
+import com.hengshucredit.rule.model.dto.GovernanceDraftRequest;
 import com.hengshucredit.rule.model.entity.RuleModel;
 import com.hengshucredit.rule.model.entity.RuleModelInputField;
 import com.hengshucredit.rule.model.entity.RuleModelOutputField;
@@ -7,6 +9,12 @@ import com.hengshucredit.rule.model.entity.RuleModelVersion;
 import com.hengshucredit.rule.model.entity.ResourceImpactAnalysis;
 import com.hengshucredit.rule.model.entity.RuleRuntimeCallLog;
 import com.hengshucredit.rule.server.common.R;
+import com.hengshucredit.rule.server.governance.GovernanceApprovalService;
+import com.hengshucredit.rule.server.governance.GovernanceRequestView;
+import com.hengshucredit.rule.server.governance.GovernedProjectionMutation;
+import com.hengshucredit.rule.server.governance.LegacyGovernanceRestoreService;
+import com.hengshucredit.rule.server.security.RequirePermission;
+import com.hengshucredit.rule.server.service.ConsoleOperatorResolver;
 import com.hengshucredit.rule.server.service.RuleModelService;
 import com.hengshucredit.rule.server.service.ResourceImpactAnalysisService;
 import com.hengshucredit.rule.server.service.RuleRuntimeCallLogService;
@@ -30,6 +38,15 @@ public class RuleModelController {
 
     @Resource
     private ResourceImpactAnalysisService impactAnalysisService;
+
+    @Resource
+    private LegacyGovernanceRestoreService legacyRestoreService;
+
+    @Resource
+    private GovernanceApprovalService governanceApprovalService;
+
+    @Resource
+    private ConsoleOperatorResolver operatorResolver;
 
     /**
      * 健康检查
@@ -68,7 +85,8 @@ public class RuleModelController {
      * 上传并解析模型文件
      */
     @PostMapping("/upload")
-    public R<RuleModel> upload(
+    @RequirePermission("approval:submit")
+    public R<GovernanceRequestView> upload(
             @RequestParam("file") MultipartFile file,
             @RequestParam(required = false) Long projectId,
             @RequestParam(required = false) String scope,
@@ -83,10 +101,14 @@ public class RuleModelController {
             @RequestParam(defaultValue = "0") Integer preloadOnStartup,
             @RequestParam(defaultValue = "120000") Integer executionTimeoutMs) {
         try {
-            RuleModel model = modelService.uploadAndParse(
-                    file, projectId, scope, modelCode, modelName, modelType, description, changeLog, testParams,
-                    onnxTaskType, onnxConfig, preloadOnStartup, executionTimeoutMs);
-            return R.ok(model);
+            RuleModel model = modelService.buildUploadSnapshot(
+                    file, projectId, scope, modelCode, modelName,
+                    modelType, description, testParams,
+                    onnxTaskType, onnxConfig,
+                    preloadOnStartup, executionTimeoutMs);
+            return R.ok(createModelDraft(model, "CREATE",
+                    changeLog == null || changeLog.isBlank()
+                            ? "上传并新建模型" : changeLog));
         } catch (IllegalArgumentException e) {
             return R.fail(e.getMessage());
         } catch (RuntimeException e) {
@@ -126,6 +148,7 @@ public class RuleModelController {
      * 更新模型元信息（不包括文件内容）
      */
     @PutMapping
+    @GovernedProjectionMutation
     public R<Void> update(@RequestBody RuleModel model) {
         try {
             modelService.update(model);
@@ -139,6 +162,7 @@ public class RuleModelController {
      * 删除模型
      */
     @DeleteMapping("/{id}")
+    @GovernedProjectionMutation
     public R<Void> delete(@PathVariable Long id, @RequestParam String impactToken) {
         try {
             modelService.delete(id, impactToken);
@@ -152,6 +176,7 @@ public class RuleModelController {
      * 发布模型
      */
     @PostMapping("/publish/{id}")
+    @GovernedProjectionMutation
     public R<Void> publish(@PathVariable Long id,
             @RequestParam(required = false) String changeLog) {
         try {
@@ -166,6 +191,7 @@ public class RuleModelController {
      * 下线模型
      */
     @PostMapping("/unpublish/{id}")
+    @GovernedProjectionMutation
     public R<Void> unpublish(@PathVariable Long id, @RequestParam String impactToken) {
         try {
             modelService.unpublish(id, impactToken);
@@ -186,7 +212,8 @@ public class RuleModelController {
     }
 
     @PostMapping("/replace/{id}")
-    public R<RuleModel> replace(@PathVariable Long id,
+    @RequirePermission("approval:submit")
+    public R<GovernanceRequestView> replace(@PathVariable Long id,
                                 @RequestParam("file") MultipartFile file,
                                 @RequestParam String impactToken,
                                 @RequestParam(required = false) String changeLog,
@@ -194,8 +221,12 @@ public class RuleModelController {
                                 @RequestParam(required = false) String onnxTaskType,
                                 @RequestParam(required = false) String onnxConfig) {
         try {
-            return R.ok(modelService.replaceFile(id, file, changeLog, testParams,
-                    onnxTaskType, onnxConfig, impactToken));
+            RuleModel model = modelService.buildReplacementSnapshot(
+                    id, file, testParams, onnxTaskType,
+                    onnxConfig, impactToken);
+            return R.ok(createModelDraft(model, "UPDATE",
+                    changeLog == null || changeLog.isBlank()
+                            ? "替换模型文件" : changeLog));
         } catch (IllegalArgumentException | IllegalStateException e) {
             return R.fail(e.getMessage());
         }
@@ -224,10 +255,13 @@ public class RuleModelController {
     }
 
     @PostMapping("/rollback/{modelId}/{version}")
-    public R<Void> rollback(@PathVariable Long modelId, @PathVariable Integer version) {
+    @RequirePermission("approval:submit")
+    public R<GovernanceRequestView> rollback(@PathVariable Long modelId,
+                                             @PathVariable Integer version) {
         try {
-            modelService.rollbackToVersion(modelId, version);
-            return R.ok();
+            return R.ok(GovernanceRequestView.from(
+                    legacyRestoreService.restoreModel(modelId, version,
+                            operatorResolver.resolve())));
         } catch (IllegalArgumentException e) {
             return R.fail(e.getMessage());
         }
@@ -271,6 +305,7 @@ public class RuleModelController {
      * @param testParams JSON字符串的测试参数
      */
     @PostMapping("/testParams/{id}")
+    @GovernedProjectionMutation
     public R<Void> saveTestParams(@PathVariable Long id, @RequestBody Map<String, String> body) {
         try {
             modelService.saveTestParams(id, body.get("testParams"));
@@ -294,6 +329,7 @@ public class RuleModelController {
      * 更新模型输入字段（关联变量映射）
      */
     @PutMapping("/inputField/{id}")
+    @GovernedProjectionMutation
     public R<Void> updateInputField(@PathVariable Long id, @RequestBody RuleModelInputField field) {
         try {
             modelService.updateInputField(id, field);
@@ -307,6 +343,7 @@ public class RuleModelController {
      * 更新模型输出字段（关联变量映射）
      */
     @PutMapping("/outputField/{id}")
+    @GovernedProjectionMutation
     public R<Void> updateOutputField(@PathVariable Long id, @RequestBody RuleModelOutputField field) {
         try {
             modelService.updateOutputField(id, field);
@@ -322,11 +359,22 @@ public class RuleModelController {
      * @param newModelCode 新的全局编码（用户重新填写）
      */
     @PostMapping("/toGlobal/{id:\\d+}")
-    public R<Void> toGlobal(@PathVariable Long id, @RequestBody Map<String, String> body) {
+    @RequirePermission("approval:submit")
+    public R<GovernanceRequestView> toGlobal(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
         try {
-            String newModelCode = body.get("modelCode");
-            modelService.toGlobal(id, newModelCode);
-            return R.ok();
+            RuleModel model = modelService.getDetail(id);
+            if (model == null) {
+                return R.fail("模型不存在");
+            }
+            model.setModelCode(body.get("modelCode"));
+            model.setScope("GLOBAL");
+            model.setProjectId(0L);
+            model.setProjectCode(null);
+            model.setProjectName(null);
+            return R.ok(createModelDraft(
+                    model, "UPDATE", "将模型转为全局资源"));
         } catch (IllegalArgumentException e) {
             return R.fail(e.getMessage());
         }
@@ -353,5 +401,20 @@ public class RuleModelController {
         log.setErrorMessage(errorMessage);
         log.setCostTimeMs(costTimeMs);
         runtimeCallLogService.safeSave(log);
+    }
+
+    private GovernanceRequestView createModelDraft(
+            RuleModel model, String action, String changeSummary) {
+        GovernanceDraftRequest request = new GovernanceDraftRequest();
+        request.setResourceType("MODEL");
+        request.setResourceId("CREATE".equals(action)
+                ? null : model.getId());
+        request.setProjectId(model.getProjectId());
+        request.setAction(action);
+        request.setSnapshotJson(JSON.toJSONString(model));
+        request.setChangeSummary(changeSummary);
+        return GovernanceRequestView.from(
+                governanceApprovalService.createDraft(
+                        request, operatorResolver.resolve()));
     }
 }

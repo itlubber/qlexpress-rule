@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import com.hengshucredit.rule.server.governance.GovernanceApprovalService;
 
 @Slf4j
 @RestControllerAdvice
@@ -27,6 +28,18 @@ public class GlobalExceptionHandler {
     public Result<Void> handleException(Exception e) {
         log.error("Unhandled exception", e);
         return Result.fail(e.getMessage());
+    }
+
+    @ExceptionHandler(
+            GovernanceApprovalService.GovernanceStateException.class)
+    public Result<Map<String, Object>> handleGovernanceState(
+            GovernanceApprovalService.GovernanceStateException e) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("errorCode", e.getCode());
+        Result<Map<String, Object>> result =
+                Result.fail(409, e.getMessage());
+        result.setData(data);
+        return result;
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

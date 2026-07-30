@@ -18,6 +18,7 @@
           >版本</el-button
         >
         <el-button
+          v-permission="'experiment:edit'"
           size="small"
           type="primary"
           :loading="saving"
@@ -1341,11 +1342,9 @@ export default {
               : ''
             delete data.requestKeyOperand
             const res = await saveExperiment(data)
-            this.$message.success('保存成功')
-            if (!this.form.id && res.data && res.data.id) {
-              this.form.id = res.data.id
-              this.$router.replace('/experiment/detail/' + res.data.id)
-            }
+            this.$message.success('审批草稿已创建')
+            if (res.data && res.data.id)
+              this.$router.push('/approval/' + res.data.id)
             resolve(true)
           } finally {
             this.saving = false
@@ -1536,10 +1535,11 @@ export default {
       await this.$confirm('确认回滚到 v' + row.version + '？', '提示', {
         type: 'warning',
       })
-      await rollbackVersion(this.form.id, row.version)
-      this.$message.success('已回滚')
-      await this.loadDetail()
-      await this.openVersionDialog()
+      const response = await rollbackVersion(this.form.id, row.version)
+      this.$message.success('已创建历史版本恢复审批')
+      this.versionVisible = false
+      if (response.data && response.data.id)
+        this.$router.push('/approval/' + response.data.id)
     },
     prettyVersionJson(value) {
       if (!value) return ''

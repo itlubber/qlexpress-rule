@@ -177,7 +177,7 @@ describe('ExperimentDetail', () => {
     expect(payload.requestKeyOperand).toBeUndefined()
   })
 
-  test('新建保存成功后跳转到详情页', async () => {
+  test('新建保存成功后跳转到统一审批详情', async () => {
     saveExperiment.mockResolvedValue({ data: { id: 12 } })
     const ctx = createContext()
     ctx.form.projectId = 1
@@ -190,7 +190,7 @@ describe('ExperimentDetail', () => {
     await ctx.handleSave()
 
     expect(saveExperiment).toHaveBeenCalled()
-    expect(ctx.$router.replace).toHaveBeenCalledWith('/experiment/detail/12')
+    expect(ctx.$router.push).toHaveBeenCalledWith('/approval/12')
   })
 
   test('openVersionDialog loads versions and compareWithNext compares adjacent versions', async () => {

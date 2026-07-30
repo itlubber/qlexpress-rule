@@ -4,7 +4,12 @@ import com.hengshucredit.rule.model.dto.RulePushMessage;
 import com.hengshucredit.rule.model.entity.RuleFunction;
 import com.hengshucredit.rule.model.entity.RuleFunctionVersion;
 import com.hengshucredit.rule.server.common.Result;
+import com.hengshucredit.rule.server.governance.GovernanceRequestView;
+import com.hengshucredit.rule.server.governance.GovernedProjectionMutation;
+import com.hengshucredit.rule.server.governance.LegacyGovernanceRestoreService;
 import com.hengshucredit.rule.server.publish.RulePushService;
+import com.hengshucredit.rule.server.security.RequirePermission;
+import com.hengshucredit.rule.server.service.ConsoleOperatorResolver;
 import com.hengshucredit.rule.server.service.RuleFunctionService;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import org.springframework.web.bind.annotation.*;
@@ -22,6 +27,12 @@ public class RuleFunctionController {
 
     @Resource
     private RulePushService pushService;
+
+    @Resource
+    private LegacyGovernanceRestoreService legacyRestoreService;
+
+    @Resource
+    private ConsoleOperatorResolver operatorResolver;
 
     /**
      * 按项目分页查询函数列表（管理页面）
@@ -73,6 +84,7 @@ public class RuleFunctionController {
     }
 
     @PostMapping
+    @GovernedProjectionMutation
     public Result<Void> create(@RequestBody RuleFunction func) {
         functionService.create(func);
         pushFuncUpdate(func);
@@ -80,6 +92,7 @@ public class RuleFunctionController {
     }
 
     @PutMapping
+    @GovernedProjectionMutation
     public Result<Void> update(@RequestBody RuleFunction func) {
         functionService.update(func);
         pushFuncUpdate(func);
@@ -87,6 +100,7 @@ public class RuleFunctionController {
     }
 
     @DeleteMapping("/{id}")
+    @GovernedProjectionMutation
     public Result<Void> delete(@PathVariable Long id) {
         RuleFunction func = functionService.getById(id);
         functionService.delete(id);
@@ -134,13 +148,15 @@ public class RuleFunctionController {
     }
 
     @PostMapping("/rollback/{functionId}/{version}")
-    public Result<Void> rollback(@PathVariable Long functionId, @PathVariable Integer version) {
+    @RequirePermission("approval:submit")
+    public Result<GovernanceRequestView> rollback(
+            @PathVariable Long functionId,
+            @PathVariable Integer version) {
         try {
-            RuleFunction func = functionService.rollbackToVersion(functionId, version);
-            if (func != null) {
-                pushFuncUpdate(func);
-            }
-            return Result.ok();
+            return Result.ok(GovernanceRequestView.from(
+                    legacyRestoreService.restoreFunction(
+                            functionId, version,
+                            operatorResolver.resolve())));
         } catch (IllegalArgumentException e) {
             return Result.fail(e.getMessage());
         }

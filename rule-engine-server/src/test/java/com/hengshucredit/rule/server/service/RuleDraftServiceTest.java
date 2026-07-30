@@ -86,6 +86,33 @@ public class RuleDraftServiceTest {
     }
 
     @Test
+    public void restoreEffectiveProjectionReplacesRejectedDraftContentAndFields() {
+        RuleRevision effective = new RuleRevision();
+        effective.setDefinitionId(30L);
+        effective.setModelJson("{\"script\":\"effective = 1\"}");
+        effective.setCompiledScript("return effective;");
+        effective.setCompiledType("QLEXPRESS");
+        effective.setOpenApiConfigJson("{\"enabled\":true}");
+
+        service.restoreEffectiveProjection(effective);
+
+        assertEquals(effective.getModelJson(),
+                fixture.databaseContent.getModelJson());
+        assertEquals(effective.getCompiledScript(),
+                fixture.databaseContent.getCompiledScript());
+        assertEquals(effective.getOpenApiConfigJson(),
+                fixture.databaseContent.getOpenApiConfigJson());
+        assertEquals(Integer.valueOf(1),
+                fixture.databaseContent.getCompileStatus());
+        assertEquals(inputNames(fixture.resolvedFields.getInputFields()),
+                inputNames(fixture.databaseFields));
+        assertEquals(outputNames(fixture.resolvedFields.getOutputFields()),
+                outputNames(fixture.databaseOutputFields));
+        assertEquals(List.of("content", "fields", "designVersion"),
+                fixture.writeOrder);
+    }
+
+    @Test
     public void failureAfterRevisionUpdateRollsBackAllThreeProjections() {
         fixture.failFieldPersistence = true;
 

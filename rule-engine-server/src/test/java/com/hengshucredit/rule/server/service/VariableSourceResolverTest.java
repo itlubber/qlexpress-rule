@@ -231,6 +231,30 @@ public class VariableSourceResolverTest {
     }
 
     @Test
+    public void suppliedApiObjectSatisfiesDottedRequirementsWithoutInvoke() throws Exception {
+        RuleVariable variable = variable("api_features", "API",
+                "{\"apiConfigId\":7,\"resultPath\":\"body.features\"}");
+        variable.setVarType("OBJECT");
+        FakeApiService apiService = new FakeApiService(
+                responseBody("features", singletonMap("credit_score_v1", 600)));
+        VariableSourceResolver resolver = resolver(Collections.singletonList(variable),
+                apiService, new FakeDbPools(Collections.emptyList()));
+        Map<String, Object> features = mapOf(
+                "credit_score_v1", 600,
+                "credit_apply_count_1m", 2);
+        VariableResolveOptions options = VariableResolveOptions.defaults();
+        options.setRequiredScriptNames(new LinkedHashSet<>(Arrays.asList(
+                "api_features.credit_score_v1",
+                "api_features.credit_apply_count_1m")));
+
+        Map<String, Object> resolved = resolver.resolve(
+                1L, singletonMap("api_features", features), options);
+
+        assertSame(features, resolved.get("api_features"));
+        assertEquals(0, apiService.callCount);
+    }
+
+    @Test
     public void explicitEmptyRequiredNamesSkipAllSourceVariables() throws Exception {
         RuleVariable variable = variable("legacyListHit", "LIST", "{\"listId\":9,\"queryField\":\"mobile\"}");
         FakeRuleListService listService = new FakeRuleListService(true);

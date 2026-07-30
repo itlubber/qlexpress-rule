@@ -11,9 +11,9 @@
     >
       <h2 style="margin: 0">{{ model.modelName || '模型详情' }}</h2>
       <div>
-        <el-button size="small" @click="openImpact('REPLACE')">替换模型文件</el-button>
-        <el-button v-if="model.publishedVersion" size="small" @click="openImpact('OFFLINE')">下线</el-button>
-        <el-button size="small" @click="openImpact('DELETE')">删除</el-button>
+        <el-button v-permission="'model:edit'" size="small" @click="openImpact('REPLACE')">替换模型文件</el-button>
+        <el-button v-if="model.publishedVersion" v-permission="'model:submit'" size="small" @click="openImpact('OFFLINE')">下线</el-button>
+        <el-button v-permission="'model:edit'" size="small" @click="openImpact('DELETE')">删除</el-button>
         <el-button size="small" :icon="ElIconTime" @click="openVersionDialog"
           >版本历史</el-button
         >
@@ -1086,12 +1086,19 @@ export default {
         return
       }
       try {
-        if (action === 'OFFLINE') await api.unpublishModel(this.model.id, impactToken)
-        else if (action === 'DELETE') await api.deleteModel(this.model.id, impactToken)
+        let response
+        if (action === 'OFFLINE')
+          response = await api.unpublishModel(this.model.id, impactToken)
+        else if (action === 'DELETE')
+          response = await api.deleteModel(this.model.id, impactToken)
         this.impactVisible = false
-        this.$message.success(action === 'DELETE' ? '模型已逻辑删除' : '模型已下线')
-        if (action === 'DELETE') this.$router.push('/model')
-        else await this.load()
+        this.$message.success(
+          action === 'DELETE'
+            ? '已创建模型删除审批'
+            : '已创建模型停用审批'
+        )
+        if (response && response.data && response.data.id)
+          this.$router.push('/approval/' + response.data.id)
       } catch (error) {
         this.$message.error(error.message || '模型操作失败')
       }
@@ -1108,11 +1115,16 @@ export default {
         formData.append('onnxConfig', JSON.stringify(config))
       }
       try {
-        await api.replaceModel(this.model.id, formData, this.replaceImpactToken)
-        this.$message.success('模型已替换并生成新版本')
+        const response = await api.replaceModel(
+          this.model.id,
+          formData,
+          this.replaceImpactToken
+        )
+        this.$message.success('模型替换已送审')
         this.replaceImpactToken = ''
         event.target.value = ''
-        await this.load()
+        if (response.data && response.data.id)
+          this.$router.push('/approval/' + response.data.id)
       } catch (error) {
         this.$message.error(error.message || '模型替换失败')
       }
@@ -1654,26 +1666,32 @@ export default {
     async saveInputField(row) {
       row['_saving'] = true
       try {
-        await api.updateModelInputField(row.id, {
-          varId: row.varId,
-          refType: row.refType,
-          scriptName: row.scriptName,
-          fieldLabel: row.fieldLabel,
-          fieldType: row.fieldType,
-          defaultValue: row.defaultValue,
-          sourceOperand: row.sourceOperand
-            ? JSON.stringify(row.sourceOperand)
-            : null,
-          defaultOperand: row.defaultOperand
-            ? JSON.stringify(row.defaultOperand)
-            : null,
-          transformType: row.transformType,
-          transformParams: row.transformParams,
-          validValues: row.validValues,
-        })
+        const response = await api.updateModelInputField(
+          row.id,
+          {
+            varId: row.varId,
+            refType: row.refType,
+            scriptName: row.scriptName,
+            fieldLabel: row.fieldLabel,
+            fieldType: row.fieldType,
+            defaultValue: row.defaultValue,
+            sourceOperand: row.sourceOperand
+              ? JSON.stringify(row.sourceOperand)
+              : null,
+            defaultOperand: row.defaultOperand
+              ? JSON.stringify(row.defaultOperand)
+              : null,
+            transformType: row.transformType,
+            transformParams: row.transformParams,
+            validValues: row.validValues,
+          },
+          this.model.id
+        )
         row['_editing'] = false
         row['_saving'] = false
-        this.$message.success('保存成功')
+        this.$message.success('模型输入字段变更已送审')
+        if (response.data && response.data.id)
+          this.$router.push('/approval/' + response.data.id)
       } catch (e) {
         row['_saving'] = false
         this.$message.error('保存失败: ' + (e.message || e))
@@ -1715,23 +1733,29 @@ export default {
     async saveOutputField(row) {
       row['_saving'] = true
       try {
-        await api.updateModelOutputField(row.id, {
-          varId: row.varId,
-          refType: row.refType,
-          scriptName: row.scriptName,
-          fieldLabel: row.fieldLabel,
-          fieldType: row.fieldType,
-          targetField: row.targetField,
-          targetOperand: row.targetOperand
-            ? JSON.stringify(row.targetOperand)
-            : null,
-          transformOperand: row.transformOperand
-            ? JSON.stringify(row.transformOperand)
-            : null,
-        })
+        const response = await api.updateModelOutputField(
+          row.id,
+          {
+            varId: row.varId,
+            refType: row.refType,
+            scriptName: row.scriptName,
+            fieldLabel: row.fieldLabel,
+            fieldType: row.fieldType,
+            targetField: row.targetField,
+            targetOperand: row.targetOperand
+              ? JSON.stringify(row.targetOperand)
+              : null,
+            transformOperand: row.transformOperand
+              ? JSON.stringify(row.transformOperand)
+              : null,
+          },
+          this.model.id
+        )
         row['_editing'] = false
         row['_saving'] = false
-        this.$message.success('保存成功')
+        this.$message.success('模型输出字段变更已送审')
+        if (response.data && response.data.id)
+          this.$router.push('/approval/' + response.data.id)
       } catch (e) {
         row['_saving'] = false
         this.$message.error('保存失败: ' + (e.message || e))
@@ -1796,10 +1820,14 @@ export default {
           '确认回滚',
           { type: 'warning' }
         )
-        await api.rollbackVersion(this.model.id, row.version)
-        this.$message.success('回滚成功')
+        const response = await api.rollbackVersion(
+          this.model.id,
+          row.version
+        )
+        this.$message.success('已创建历史版本恢复审批')
         this.versionVisible = false
-        await this.load()
+        if (response.data && response.data.id)
+          this.$router.push('/approval/' + response.data.id)
       } catch (e) {
         if (e !== 'cancel') this.$message.error(e.message || '回滚失败')
       }

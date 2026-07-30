@@ -118,6 +118,17 @@ function createDesignerApiData() {
       modelJson: '{}',
       scriptMode: definition.modelType === 'SCRIPT' ? 'script' : 'visual'
     })
+    routes.set(`/api/rule/definition/${definition.id}/revisions`, [
+      {
+        id: 2000 + definition.id,
+        definitionId: definition.id,
+        revisionNo: 1,
+        state: 'DRAFT',
+        lockVersion: 0,
+        modelJson: '{}',
+        createTime: '2026-07-23 12:00:00'
+      }
+    ])
   }
 
   return routes

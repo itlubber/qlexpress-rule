@@ -33,6 +33,7 @@ public class RuleExternalDatasourceService extends ServiceImpl<RuleExternalDatas
             return new Page<>(pageNum, pageSize);
         }
         LambdaQueryWrapper<RuleExternalDatasource> wrapper = new LambdaQueryWrapper<>();
+        wrapper.ne(RuleExternalDatasource::getStatus, -1);
         if (hasText(scope)) {
             wrapper.eq(RuleExternalDatasource::getScope, scope);
         }

@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.hengshucredit.rule.model.entity.RuleExternalApiConfig;
 import com.hengshucredit.rule.model.entity.RuleExternalDatasource;
 import com.hengshucredit.rule.server.common.R;
+import com.hengshucredit.rule.server.governance.GovernedProjectionMutation;
 import com.hengshucredit.rule.server.service.ExternalApiInvokeService;
 import com.hengshucredit.rule.server.service.RuleExternalApiConfigService;
 import com.hengshucredit.rule.server.service.RuleExternalDatasourceService;
@@ -49,18 +50,21 @@ public class ExternalDatasourceController {
     }
 
     @PostMapping
+    @GovernedProjectionMutation
     public R<Void> create(@RequestBody RuleExternalDatasource datasource) {
         datasourceService.saveWithDefaults(datasource);
         return R.ok();
     }
 
     @PutMapping
+    @GovernedProjectionMutation
     public R<Void> update(@RequestBody RuleExternalDatasource datasource) {
         datasourceService.updateWithDefaults(datasource);
         return R.ok();
     }
 
     @DeleteMapping("/{id:\\d+}")
+    @GovernedProjectionMutation
     public R<Void> delete(@PathVariable Long id) {
         apiConfigService.deleteByDatasourceId(id);
         datasourceService.removeById(id);
@@ -89,16 +93,19 @@ public class ExternalDatasourceController {
     }
 
     @PostMapping("/api-config")
+    @GovernedProjectionMutation
     public R<RuleExternalApiConfig> createApiConfig(@RequestBody RuleExternalApiConfig config) {
         return R.ok(apiConfigService.saveWithDefaults(config));
     }
 
     @PutMapping("/api-config")
+    @GovernedProjectionMutation
     public R<RuleExternalApiConfig> updateApiConfig(@RequestBody RuleExternalApiConfig config) {
         return R.ok(apiConfigService.updateWithDefaults(config));
     }
 
     @DeleteMapping("/api-config/{id:\\d+}")
+    @GovernedProjectionMutation
     public R<Void> deleteApiConfig(@PathVariable Long id) {
         apiConfigService.removeApiConfig(id);
         return R.ok();

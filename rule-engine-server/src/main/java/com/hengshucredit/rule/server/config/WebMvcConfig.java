@@ -1,5 +1,6 @@
 package com.hengshucredit.rule.server.config;
 
+import com.hengshucredit.rule.server.governance.GovernedProjectionMutationInterceptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
@@ -18,5 +19,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(tokenAuthInterceptor)
                 .addPathPatterns("/api/**");
+        registry.addInterceptor(new GovernedProjectionMutationInterceptor())
+                .addPathPatterns("/api/rule/**");
     }
 }

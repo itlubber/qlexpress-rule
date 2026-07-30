@@ -7,6 +7,11 @@ import com.hengshucredit.rule.model.entity.RuleExperiment;
 import com.hengshucredit.rule.model.entity.RuleExperimentExecutionLog;
 import com.hengshucredit.rule.model.entity.RuleExperimentVersion;
 import com.hengshucredit.rule.server.common.R;
+import com.hengshucredit.rule.server.governance.GovernanceRequestView;
+import com.hengshucredit.rule.server.governance.GovernedProjectionMutation;
+import com.hengshucredit.rule.server.governance.LegacyGovernanceRestoreService;
+import com.hengshucredit.rule.server.security.RequirePermission;
+import com.hengshucredit.rule.server.service.ConsoleOperatorResolver;
 import com.hengshucredit.rule.server.service.RuleExperimentService;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,6 +32,12 @@ public class RuleExperimentController {
 
     @Resource
     private RuleExperimentService experimentService;
+
+    @Resource
+    private LegacyGovernanceRestoreService legacyRestoreService;
+
+    @Resource
+    private ConsoleOperatorResolver operatorResolver;
 
     @GetMapping("/list")
     public R<IPage<RuleExperiment>> list(@RequestParam(value = "pageNum", defaultValue = "1") int pageNum,
@@ -61,6 +72,7 @@ public class RuleExperimentController {
     }
 
     @PostMapping
+    @GovernedProjectionMutation
     public R<RuleExperiment> save(@RequestBody RuleExperiment experiment) {
         try {
             return R.ok(experimentService.saveExperiment(experiment));
@@ -70,6 +82,7 @@ public class RuleExperimentController {
     }
 
     @DeleteMapping("/{id}")
+    @GovernedProjectionMutation
     public R<Void> delete(@PathVariable Long id) {
         experimentService.deleteExperiment(id);
         return R.ok();
@@ -98,10 +111,15 @@ public class RuleExperimentController {
     }
 
     @PostMapping("/rollback/{experimentId}/{version}")
-    public R<Void> rollback(@PathVariable Long experimentId, @PathVariable Integer version) {
+    @RequirePermission("approval:submit")
+    public R<GovernanceRequestView> rollback(
+            @PathVariable Long experimentId,
+            @PathVariable Integer version) {
         try {
-            experimentService.rollbackToVersion(experimentId, version);
-            return R.ok();
+            return R.ok(GovernanceRequestView.from(
+                    legacyRestoreService.restoreExperiment(
+                            experimentId, version,
+                            operatorResolver.resolve())));
         } catch (IllegalArgumentException e) {
             return R.fail(e.getMessage());
         }

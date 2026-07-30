@@ -1,5 +1,8 @@
 package com.hengshucredit.rule.server.consolelogin;
 
+import com.hengshucredit.rule.server.security.ConsolePermissionInterceptor;
+import com.hengshucredit.rule.server.security.ConsolePermissionService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -17,6 +20,16 @@ public class ConsoleLoginConfiguration implements WebMvcConfigurer {
 
     private final ConsoleSessionAuthInterceptor consoleSessionAuthInterceptor;
     private final RuleEngineConsoleLoginProperties ruleEngineConsoleLoginProperties;
+
+    @Autowired(required = false)
+    private ConsolePermissionService consolePermissionService;
+
+    @Autowired(required = false)
+    void setDatabaseAccountService(
+            DatabaseConsoleAccountService databaseAccountService) {
+        consoleSessionAuthInterceptor.setDatabaseAccountService(
+                databaseAccountService);
+    }
 
     public ConsoleLoginConfiguration(RuleEngineConsoleLoginProperties ruleEngineConsoleLoginProperties) {
         this.ruleEngineConsoleLoginProperties = ruleEngineConsoleLoginProperties;
@@ -48,5 +61,11 @@ public class ConsoleLoginConfiguration implements WebMvcConfigurer {
         registry.addInterceptor(consoleSessionAuthInterceptor)
                 .addPathPatterns(ruleEngineConsoleLoginProperties.getIncludePatterns())
                 .excludePathPatterns(ruleEngineConsoleLoginProperties.getExcludePatterns());
+        if (consolePermissionService != null) {
+            registry.addInterceptor(new ConsolePermissionInterceptor(
+                            ruleEngineConsoleLoginProperties, consolePermissionService))
+                    .addPathPatterns(ruleEngineConsoleLoginProperties.getIncludePatterns())
+                    .excludePathPatterns(ruleEngineConsoleLoginProperties.getExcludePatterns());
+        }
     }
 }

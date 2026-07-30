@@ -34,27 +34,30 @@ import {
   writeSidebarState
 } from '@/layout/layoutState'
 describe('Layout — 菜单与路由归属', () => {
-  test('包含 13 个路由唯一、图标唯一的菜单项', () => {
-    expect(SIDEBAR_MENUS).toHaveLength(13)
-    expect(new Set(SIDEBAR_MENUS.map(item => item.index)).size).toBe(13)
-    expect(new Set(SIDEBAR_MENUS.map(item => item.icon)).size).toBe(13)
+  test('包含 15 个路由唯一、图标唯一且带访问权限的菜单项', () => {
+    expect(SIDEBAR_MENUS).toHaveLength(15)
+    expect(new Set(SIDEBAR_MENUS.map(item => item.index)).size).toBe(15)
+    expect(new Set(SIDEBAR_MENUS.map(item => item.icon)).size).toBe(15)
+    expect(SIDEBAR_MENUS.every(item => item.permission)).toBe(true)
   })
 
   test('菜单使用确认后的语义图标映射', () => {
     expect(SIDEBAR_MENUS).toEqual([
-      { index: '/project', label: '项目管理', icon: 'FolderOpened' },
-      { index: '/rule', label: '规则管理', icon: 'Operation' },
-      { index: '/variable', label: '变量管理', icon: 'Collection' },
-      { index: '/list', label: '名单管理', icon: 'Notebook' },
-      { index: '/datasource', label: '外数管理', icon: 'Connection' },
-      { index: '/database', label: '数据库管理', icon: 'Coin' },
-      { index: '/model', label: '模型管理', icon: 'Cpu' },
-      { index: '/function', label: '函数管理', icon: 'ScaleToOriginal' },
-      { index: '/test', label: '规则测试', icon: 'VideoPlay' },
-      { index: '/lineage', label: '血缘分析', icon: 'Share' },
-      { index: '/experiment', label: '分流实验', icon: 'Flag' },
-      { index: '/log', label: '执行日志', icon: 'DocumentChecked' },
-      { index: '/billing', label: '账单管理', icon: 'Wallet' }
+      { index: '/project', label: '项目管理', icon: 'FolderOpened', permission: 'project:view' },
+      { index: '/rule', label: '规则管理', icon: 'Operation', permission: 'rule:view' },
+      { index: '/variable', label: '变量管理', icon: 'Collection', permission: 'field:view' },
+      { index: '/list', label: '名单管理', icon: 'Notebook', permission: 'field:view' },
+      { index: '/datasource', label: '外数管理', icon: 'Connection', permission: 'datasource:view' },
+      { index: '/database', label: '数据库管理', icon: 'Coin', permission: 'database:view' },
+      { index: '/model', label: '模型管理', icon: 'Cpu', permission: 'model:view' },
+      { index: '/function', label: '函数管理', icon: 'ScaleToOriginal', permission: 'function:view' },
+      { index: '/test', label: '规则测试', icon: 'VideoPlay', permission: 'rule:view' },
+      { index: '/lineage', label: '血缘分析', icon: 'Share', permission: 'approval:view' },
+      { index: '/experiment', label: '分流实验', icon: 'Flag', permission: 'experiment:view' },
+      { index: '/log', label: '执行日志', icon: 'DocumentChecked', permission: 'rule:view' },
+      { index: '/billing', label: '账单管理', icon: 'Wallet', permission: 'project:view' },
+      { index: '/approval', label: '审批管理', icon: 'Stamp', permission: 'approval:view' },
+      { index: '/account', label: '账户管理', icon: 'User', permission: 'account:view' }
     ])
   })
 
@@ -69,7 +72,9 @@ describe('Layout — 菜单与路由归属', () => {
     ['/datasource/api/1', '/datasource'],
     ['/database/1', '/database'],
     ['/experiment/detail/1', '/experiment'],
-    ['/billing', '/billing']
+    ['/billing', '/billing'],
+    ['/approval/1', '/approval'],
+    ['/account', '/account']
   ])('%s 高亮 %s', (path, menu) => {
     expect(getActiveMenuIndex(path)).toBe(menu)
   })

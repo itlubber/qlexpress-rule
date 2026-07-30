@@ -1,4 +1,5 @@
 import request from './request'
+import { createResourceDraft } from './governance'
 
 /** 健康检查 */
 export function checkModelHealth() {
@@ -42,23 +43,38 @@ export function getModel(id) {
 }
 
 /** 更新模型 */
-export function updateModel(data) {
-  return request({ url: '/rule/model', method: 'put', data })
+export async function updateModel(data) {
+  const response = await getModel(data.id)
+  return createResourceDraft(
+    'MODEL',
+    { ...(response.data || {}), ...data },
+    'UPDATE',
+    { changeSummary: '修改模型配置' }
+  )
 }
 
 /** 删除模型 */
 export function deleteModel(id, impactToken) {
-  return request({ url: `/rule/model/${id}`, method: 'delete', params: { impactToken } })
+  return createResourceDraft('MODEL', null, 'DELETE', {
+    resourceId: id,
+    changeSummary: impactToken ? '影响分析确认后删除模型' : '删除模型'
+  })
 }
 
 /** 发布模型 */
 export function publishModel(id, changeLog) {
-  return request({ url: `/rule/model/publish/${id}`, method: 'post', params: { changeLog } })
+  return createResourceDraft('MODEL', null, 'ENABLE', {
+    resourceId: id,
+    changeSummary: changeLog || '启用模型'
+  })
 }
 
 /** 下线模型 */
 export function unpublishModel(id, impactToken) {
-  return request({ url: `/rule/model/unpublish/${id}`, method: 'post', params: { impactToken } })
+  return createResourceDraft('MODEL', null, 'DISABLE', {
+    resourceId: id,
+    changeSummary: impactToken ? '影响分析确认后停用模型' : '停用模型'
+  })
 }
 
 export function analyzeModelImpact(id, action) {
@@ -88,8 +104,14 @@ export function executeModel(id, params, timeoutMs) {
 }
 
 /** 保存模型测试参数（JSON） */
-export function saveTestParams(id, testParams) {
-  return request({ url: `/rule/model/testParams/${id}`, method: 'post', data: { testParams } })
+export async function saveTestParams(id, testParams) {
+  const response = await getModel(id)
+  return createResourceDraft(
+    'MODEL',
+    { ...(response.data || {}), testParams },
+    'UPDATE',
+    { changeSummary: '修改模型测试参数' }
+  )
 }
 
 /** 获取模型测试参数（JSON） */
@@ -98,18 +120,43 @@ export function getTestParams(id) {
 }
 
 /** 更新模型输入字段（关联变量映射） */
-export function updateModelInputField(id, data) {
-  return request({ url: `/rule/model/inputField/${id}`, method: 'put', data })
+export async function updateModelInputField(id, data, modelId) {
+  const response = await getModel(modelId)
+  const model = response.data || {}
+  model.inputFields = (model.inputFields || []).map(field =>
+    field.id === id ? { ...field, ...data } : field
+  )
+  return createResourceDraft('MODEL', model, 'UPDATE', {
+    changeSummary: '修改模型输入字段'
+  })
 }
 
 /** 更新模型输出字段（关联变量映射） */
-export function updateModelOutputField(id, data) {
-  return request({ url: `/rule/model/outputField/${id}`, method: 'put', data })
+export async function updateModelOutputField(id, data, modelId) {
+  const response = await getModel(modelId)
+  const model = response.data || {}
+  model.outputFields = (model.outputFields || []).map(field =>
+    field.id === id ? { ...field, ...data } : field
+  )
+  return createResourceDraft('MODEL', model, 'UPDATE', {
+    changeSummary: '修改模型输出字段'
+  })
 }
 
 /** 将项目级模型转为全局模型 */
-export function toGlobalModel(id, modelCode) {
-  return request({ url: `/rule/model/toGlobal/${id}`, method: 'post', data: { modelCode } })
+export async function toGlobalModel(id, modelCode) {
+  const response = await getModel(id)
+  return createResourceDraft(
+    'MODEL',
+    {
+      ...(response.data || {}),
+      modelCode,
+      scope: 'GLOBAL',
+      projectId: 0
+    },
+    'UPDATE',
+    { changeSummary: '将模型转为全局资源' }
+  )
 }
 
 export function listVersions(modelId) {

@@ -29,7 +29,7 @@ export default {
   },
   methods: {
     actionLabel(action) {
-      return ({ CREATE_DRAFT: '创建草稿', SUBMIT: '提交评审', RETURN_TO_DRAFT: '退回草稿', APPROVE: '批准', PUBLISH: '发布', OFFLINE: '下线', AUTO_OFFLINE: '自动下线', IMPORT_APPROVED_ARTIFACT: '导入制品' })[action] || action
+      return ({ CREATE_DRAFT: '创建草稿', SUBMIT: '提交评审', REJECT: '驳回申请', RETURN_TO_DRAFT: '历史退回草稿', APPROVE: '批准', PUBLISH: '发布', OFFLINE: '下线', AUTO_OFFLINE: '自动下线', IMPORT_APPROVED_ARTIFACT: '导入制品' })[action] || action
     },
     stateLabel(state) {
       return ({ DRAFT: '草稿', REVIEW: '评审中', APPROVED: '已批准', PUBLISHED: '已发布', OFFLINE: '已下线' })[state] || state || '—'

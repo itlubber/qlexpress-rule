@@ -25,6 +25,9 @@ public class ConsoleAuthController {
     @Autowired(required = false)
     private ConsoleLoginAuthenticator consoleLoginAuthenticator;
 
+    @Autowired(required = false)
+    private DatabaseConsoleAccountService databaseAccountService;
+
     /**
      * 返回是否启用用户名密码登录，供前端决定是否展示登录页与携带 Cookie。
      */
@@ -56,11 +59,12 @@ public class ConsoleAuthController {
      * 校验用户名密码并建立会话；启用登录时才会校验成功。
      */
     @PostMapping("/console/login")
-    public R<Map<String, String>> login(@RequestBody LoginRequest body, HttpServletRequest request) {
+    public R<Map<String, Object>> login(@RequestBody LoginRequest body,
+                                        HttpServletRequest request) {
         if (!consoleLoginProperties.isEnabled()) {
             return R.fail("控制台用户名密码登录未启用");
         }
-        if (consoleLoginAuthenticator == null) {
+        if (databaseAccountService == null && consoleLoginAuthenticator == null) {
             return R.fail("登录认证组件未就绪");
         }
         if (body == null || body.getUsername() == null || body.getPassword() == null) {
@@ -70,8 +74,16 @@ public class ConsoleAuthController {
         if (username.isEmpty()) {
             return R.fail("用户名不能为空");
         }
-        if (!consoleLoginAuthenticator.authenticate(username, body.getPassword())) {
-            return R.fail(401, "用户名或密码错误");
+        DatabaseConsoleAccountService.ConsoleLoginResult loginResult = null;
+        if (databaseAccountService != null) {
+            loginResult = databaseAccountService.authenticate(
+                    username, body.getPassword());
+            if (!loginResult.authenticated()) {
+                return R.fail(401, "用户名或密码错误");
+            }
+        } else if (!consoleLoginAuthenticator.authenticate(
+                username, body.getPassword())) {
+                return R.fail(401, "用户名或密码错误");
         }
         HttpSession old = request.getSession(false);
         if (old != null) {
@@ -79,8 +91,18 @@ public class ConsoleAuthController {
         }
         HttpSession session = request.getSession(true);
         session.setAttribute(consoleLoginProperties.getSessionUsernameAttribute(), username);
-        Map<String, String> data = new HashMap<>(2);
-        data.put("username", username);
+        Map<String, Object> data;
+        if (loginResult == null) {
+            data = new HashMap<>(2);
+            data.put("username", username);
+        } else {
+            session.setAttribute(consoleLoginProperties.getSessionUserIdAttribute(),
+                    loginResult.userId());
+            session.setAttribute(
+                    consoleLoginProperties.getSessionPermissionVersionAttribute(),
+                    loginResult.permissionVersion());
+            data = loginResultData(loginResult);
+        }
         return R.ok(data);
     }
 
@@ -100,7 +122,7 @@ public class ConsoleAuthController {
      * 查询当前登录用户名；未启用登录时返回 data 为 null；启用但未登录返回 401。
      */
     @GetMapping("/console/me")
-    public R<Map<String, String>> me(HttpServletRequest request) {
+    public R<Map<String, Object>> me(HttpServletRequest request) {
         if (!consoleLoginProperties.isEnabled()) {
             return R.ok(null);
         }
@@ -112,9 +134,33 @@ public class ConsoleAuthController {
         if (u == null) {
             return R.fail(401, "未登录");
         }
-        Map<String, String> data = new HashMap<>(2);
+        Object userIdValue = session.getAttribute(
+                consoleLoginProperties.getSessionUserIdAttribute());
+        if (databaseAccountService != null && userIdValue instanceof Number number) {
+            DatabaseConsoleAccountService.ConsoleLoginResult current =
+                    databaseAccountService.currentUser(number.longValue());
+            if (!current.authenticated()) {
+                session.invalidate();
+                return R.fail(401, "账户已停用或不存在");
+            }
+            return R.ok(loginResultData(current));
+        }
+        Map<String, Object> data = new HashMap<>(2);
         data.put("username", u.toString());
         return R.ok(data);
+    }
+
+    private Map<String, Object> loginResultData(
+            DatabaseConsoleAccountService.ConsoleLoginResult result) {
+        Map<String, Object> data = new HashMap<>(8);
+        data.put("userId", result.userId());
+        data.put("username", result.username());
+        data.put("displayName", result.displayName());
+        data.put("permissionVersion", result.permissionVersion());
+        data.put("roleCodes", result.roleCodes());
+        data.put("permissions", result.permissions());
+        data.put("bootstrapped", result.bootstrapped());
+        return data;
     }
 
     @Data

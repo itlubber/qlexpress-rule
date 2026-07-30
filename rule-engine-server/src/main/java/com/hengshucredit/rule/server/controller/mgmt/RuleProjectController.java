@@ -3,6 +3,7 @@ package com.hengshucredit.rule.server.controller.mgmt;
 import com.hengshucredit.rule.model.dto.ApiDocDTO;
 import com.hengshucredit.rule.model.entity.RuleProject;
 import com.hengshucredit.rule.server.common.R;
+import com.hengshucredit.rule.server.governance.GovernedProjectionMutation;
 import com.hengshucredit.rule.server.service.RuleProjectService;
 import com.hengshucredit.rule.server.service.ProjectAuthService;
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -45,6 +46,7 @@ public class RuleProjectController {
     }
 
     @PostMapping
+    @GovernedProjectionMutation
     public R<Map<String, Object>> create(@RequestBody RuleProject project,
                                          HttpServletRequest request,
                                          HttpServletResponse response) {
@@ -58,12 +60,14 @@ public class RuleProjectController {
     }
 
     @PutMapping
+    @GovernedProjectionMutation
     public R<Void> update(@RequestBody RuleProject project) {
         projectService.updateById(project);
         return R.ok();
     }
 
     @DeleteMapping("/{id}")
+    @GovernedProjectionMutation
     public R<Void> delete(@PathVariable Long id) {
         projectService.removeById(id);
         return R.ok();

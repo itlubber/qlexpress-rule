@@ -80,6 +80,7 @@
     <div class="uiue-btn-bar">
       <div class="btn-right">
         <el-button
+          v-permission="'function:edit'"
           size="small"
           :icon="ElIconPlus"
           type="primary"
@@ -180,6 +181,7 @@
             >测试</el-button
           >
           <el-button
+            v-permission="'function:edit'"
             link
             size="small"
             type="warning"
@@ -194,6 +196,7 @@
             >版本</el-button
           >
           <el-button
+            v-permission="'function:edit'"
             link
             size="small"
             type="danger"
@@ -381,7 +384,7 @@
       </el-form>
       <template v-slot:footer>
         <el-button size="small" @click="dialogVisible = false">取消</el-button>
-        <el-button size="small" type="primary" @click="handleSave"
+        <el-button v-permission="'function:edit'" size="small" type="primary" @click="handleSave"
           >保存</el-button
         >
       </template>
@@ -853,14 +856,13 @@ export default {
         this.editParams.filter((p) => p.name)
       )
       try {
-        if (this.editForm.id) {
-          await updateFunction(this.editForm)
-        } else {
-          await createFunction(this.editForm)
-        }
-        this.$message.success('保存成功')
+        const response = this.editForm.id
+          ? await updateFunction(this.editForm)
+          : await createFunction(this.editForm)
+        this.$message.success('函数变更已送审')
         this.dialogVisible = false
-        this.loadFunctions()
+        if (response.data && response.data.id)
+          this.$router.push('/approval/' + response.data.id)
       } catch (e) {
         this.$message.error('保存失败')
       }
@@ -893,10 +895,14 @@ export default {
       await this.$confirm('确认回滚到 v' + row.version + '？', '提示', {
         type: 'warning',
       })
-      await rollbackVersion(this.versionRow.id, row.version)
-      this.$message.success('已回滚')
-      await this.loadFunctions()
-      await this.openVersionDialog(this.versionRow)
+      const response = await rollbackVersion(
+        this.versionRow.id,
+        row.version
+      )
+      this.$message.success('已创建历史版本恢复审批')
+      this.versionVisible = false
+      if (response.data && response.data.id)
+        this.$router.push('/approval/' + response.data.id)
     },
     prettyVersionJson(text) {
       if (!text) return ''
@@ -911,9 +917,10 @@ export default {
         await this.$confirm('确认删除函数「' + row.funcName + '」？', '提示', {
           type: 'warning',
         })
-        await deleteFunction(row.id)
-        this.$message.success('已删除')
-        this.loadFunctions()
+        const response = await deleteFunction(row.id)
+        this.$message.success('函数删除已送审')
+        if (response.data && response.data.id)
+          this.$router.push('/approval/' + response.data.id)
       } catch (e) {
         /* cancel */
       }

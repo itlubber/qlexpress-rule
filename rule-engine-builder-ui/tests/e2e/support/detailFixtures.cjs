@@ -17,7 +17,7 @@ const definition = {
   projectName: 'E2E 项目',
   ruleCode: 'age_rule',
   ruleName: '年龄判断规则',
-  modelType: 'TABLE',
+  modelType: 'SCRIPT',
   scope: 'PROJECT',
   currentVersion: 2,
   publishedVersion: 1,
@@ -89,15 +89,42 @@ function createDetailApiData() {
     ]
   })
   routes.set('/api/rule/field-validation/available', [])
+  routes.set('/api/rule/definition/101', definition)
   routes.set('/api/rule/definition/101/revisions', [
     {
-      id: 2001,
+      id: 41,
       definitionId: 101,
-      revisionNo: 2,
-      state: 'DRAFT',
+      revisionNo: 7,
+      state: 'PUBLISHED',
+      lockVersion: 3,
+      modelJson: JSON.stringify({ script: "result = 'revision-41'" }),
       createTime: '2026-07-23 12:00:00'
     }
   ])
+  routes.set('/api/rule/definition/101/revisions/41', {
+    id: 41,
+    definitionId: 101,
+    revisionNo: 7,
+    state: 'PUBLISHED',
+    lockVersion: 3,
+    modelJson: JSON.stringify({ script: "result = 'revision-41'" })
+  })
+  routes.set('/api/rule/definition/versions/101', [
+    {
+      id: 81,
+      definitionId: 101,
+      version: 2,
+      publishBy: 'e2e',
+      publishTime: '2026-07-23 12:00:00',
+      changeLog: '本地版本快照'
+    }
+  ])
+  routes.set('/api/rule/definition/101/versions/81', {
+    id: 81,
+    definitionId: 101,
+    version: 2,
+    modelJson: JSON.stringify({ script: "result = 'version-81'" })
+  })
   routes.set('/api/rule/definition/101/revisions/timeline', [])
   routes.set('/api/rule/dataobject/tree/1', [])
   routes.set('/api/rule/dataobject/tree/0', [])

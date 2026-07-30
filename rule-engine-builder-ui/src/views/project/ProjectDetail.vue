@@ -187,9 +187,9 @@
           <el-button link size="small" type="warning" @click="go(row)"
             >设计</el-button
           >
-          <el-button link size="small" type="success" @click="pub(row)">{{
-            row.status === 1 ? '重新发布' : '发布'
-          }}</el-button>
+          <el-button link size="small" type="success" @click="pub(row)"
+            >生命周期</el-button
+          >
           <el-button
             link
             size="small"
@@ -575,24 +575,19 @@ export default {
       }
       this.$router.push('/designer/' + m[r.modelType] + '/' + r.id)
     },
-    async pub(r) {
-      await this.$confirm('确定发布?')
-      await request({
-        url: '/rule/definition/publish/' + r.id,
-        method: 'post',
-        data: {},
+    pub(r) {
+      this.$router.push({
+        name: 'RuleDetail',
+        params: { id: r.id },
+        query: { focus: 'lifecycle' },
       })
-      this.$message.success('发布成功')
-      this.load()
     },
-    async unpub(r) {
-      await this.$confirm('确定下线?')
-      await request({
-        url: '/rule/definition/unpublish/' + r.id,
-        method: 'post',
+    unpub(r) {
+      this.$router.push({
+        name: 'RuleDetail',
+        params: { id: r.id },
+        query: { focus: 'lifecycle', action: 'offline' },
       })
-      this.$message.success('下线成功')
-      this.load()
     },
     async del(r) {
       await this.$confirm('确定删除?')

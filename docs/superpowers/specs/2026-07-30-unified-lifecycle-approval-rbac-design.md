@@ -143,10 +143,11 @@ public interface GovernedResourceAdapter {
 - `id`
 - `request_no`
 - `resource_type`
-- `resource_id`：新建资源在审批前使用预分配 ID。
+- `resource_id`：已有资源保存真实 ID；新建资源在审批通过前使用 `0`，适配器落库后回填真实 ID。
 - `project_id`
 - `action`：`CREATE`、`UPDATE`、`ENABLE`、`DISABLE`、`DELETE`、`RESTORE`
 - `status`：`EDITING`、`PENDING`、`APPROVED`、`REJECTED`、`CANCELLED`、`CONFLICT`
+- `active_resource_key`：活动申请唯一键，终态清空。
 - `base_version_id`
 - `base_version_no`
 - `source_version_id`：`RESTORE` 时必填。
@@ -168,7 +169,9 @@ public interface GovernedResourceAdapter {
 - `create_time`
 - `update_time`
 
-`EDITING` 内容可修改；进入 `PENDING` 后提交快照不可修改。`APPROVED`、`REJECTED`、`CANCELLED`、`CONFLICT` 均为只读记录。
+`EDITING` 内容仅申请人本人可修改、预检、提交或取消；进入 `PENDING` 后提交快照不可修改，申请人仍可撤回。审批权限与草稿所有权分离，因此允许申请人自行审批，也允许其他审批人审批，但审批人不能改写申请内容。`APPROVED`、`REJECTED`、`CANCELLED`、`CONFLICT` 均为只读记录。
+
+已有资源的活动键为“资源类型 + 资源 ID”；新建资源按数据库业务唯一约束提取“作用域/项目 + 业务编码”等身份字段，并保存其规范摘要。同一业务身份只能存在一个 `EDITING/PENDING` 申请；并发碰撞返回稳定业务冲突。资源名称等可变展示字段不参与身份键，资源之间的依赖关联仍严格使用 ID。
 
 `governance_approval_event`
 
@@ -224,6 +227,8 @@ public interface GovernedResourceAdapter {
 
 账户密码只保存 BCrypt 哈希，不提供密码回显。至少保留一个启用且拥有账户和角色管理权限的用户，避免系统被锁死。
 
+用户名是登录、审批归属与审计记录使用的稳定身份，账户创建后不可修改；需要调整人员展示信息时只修改显示名称。
+
 ## 6. 状态流
 
 ### 6.1 编辑与提交
@@ -251,14 +256,14 @@ public interface GovernedResourceAdapter {
 9. 审批单进入 `APPROVED`。
 10. 规则生成决策制品并通过 outbox 发布；数据库连接池、函数注册器等运行时刷新也通过提交后事件执行。
 
-适配器应用失败时事务回滚，审批单继续保持 `PENDING`，不会出现“已批准但未生效”。
+适配器应用失败时事务回滚，审批单继续保持 `PENDING`，不会出现“已批准但未生效”；业务唯一键碰撞会明确转为 `CONFLICT`，释放活动键并保留完整审批记录。
 
 ### 6.3 驳回和取消
 
 - `PENDING` 可被审批人驳回为 `REJECTED`。
-- `EDITING` 可由申请人取消为 `CANCELLED`。
+- `EDITING` 或 `PENDING` 可由申请人取消为 `CANCELLED`。
 - 驳回和取消后编辑副本不可继续修改。
-- 业务模块继续展示当前生效版本。
+- 业务模块继续展示终止操作时的当前生效版本；发生基准冲突时不得用旧基准覆盖更新后的生效版本。
 - 新建资源不进入业务列表。
 - 完整提交快照和事件记录永久保留。
 

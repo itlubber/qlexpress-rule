@@ -333,13 +333,10 @@ describe('ProjectList — 项目操作', () => {
     expect(wrapper.vm.dialogVisible).toBe(false)
   })
 
-  test('新建项目成功后打开统一鉴权弹窗', async () => {
+  test('新建项目成功后跳转统一审批且不提前开放鉴权', async () => {
     projectApi.createProject.mockResolvedValue({
       code: 200,
-      data: {
-        project: { id: 9, projectCode: 'new_project', projectName: '新项目' },
-        accessToken: 'secret'
-      }
+      data: { id: 41 }
     })
     wrapper.vm.form = { id: null, projectCode: 'new_project', projectName: '新项目', status: 1 }
     withFormRef(wrapper)
@@ -348,8 +345,8 @@ describe('ProjectList — 项目操作', () => {
     await new Promise(r => setTimeout(r, 50))
     await nextTick()
 
-    expect(wrapper.vm.authDialogVisible).toBe(true)
-    expect(wrapper.vm.currentAuthProject.id).toBe(9)
+    expect(wrapper.vm.authDialogVisible).toBe(false)
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith('/approval/41')
     expect(wrapper.vm).not.toHaveProperty('tokenDialogVisible')
   })
 })

@@ -12,6 +12,7 @@
         <div class="uiue-btn-bar">
           <div class="btn-right">
             <el-button
+              v-permission="'model:edit'"
               size="small"
               type="primary"
               :icon="ElIconUpload2"
@@ -154,7 +155,7 @@
             min-width="160"
             show-overflow-tooltip
           />
-          <el-table-column label="模型大类" min-width="90" align="center">
+          <el-table-column label="模型大类" min-width="170" align="center">
             <template v-slot="{ row }"
               ><el-tag size="small">{{
                 modelTypeLabel(row.modelType)
@@ -1312,15 +1313,16 @@ export default {
               })
             )
           }
-          await api.uploadModel(formData, (event) => {
+          const response = await api.uploadModel(formData, (event) => {
             if (event && event.total)
               this.uploadProgress = Math.round(
                 (event.loaded * 100) / event.total
               )
           })
-          this.$message.success('上传成功')
+          this.$message.success('模型已校验，审批通过后创建')
           this.uploadVisible = false
-          this.load()
+          if (response.data && response.data.id)
+            this.$router.push('/approval/' + response.data.id)
         } catch (e) {
           this.$message.error(e.message || '上传失败')
         } finally {
@@ -1332,9 +1334,10 @@ export default {
     async handlePublish(row) {
       try {
         await this.$confirm('确定发布模型「' + row.modelName + '」？')
-        await api.publishModel(row.id)
-        this.$message.success('发布成功')
-        this.load()
+        const response = await api.publishModel(row.id)
+        this.$message.success('已创建模型启用审批')
+        if (response.data && response.data.id)
+          this.$router.push('/approval/' + response.data.id)
       } catch (e) {
         if (e !== 'cancel') this.$message.error(e.message || '发布失败')
       }
@@ -1349,11 +1352,22 @@ export default {
     },
     async handleImpactConfirmed({ action, impactToken }) {
       try {
-        if (action === 'DELETE') await api.deleteModel(this.pendingModel.id, impactToken)
-        else if (action === 'OFFLINE') await api.unpublishModel(this.pendingModel.id, impactToken)
+        let response
+        if (action === 'DELETE')
+          response = await api.deleteModel(this.pendingModel.id, impactToken)
+        else if (action === 'OFFLINE')
+          response = await api.unpublishModel(
+            this.pendingModel.id,
+            impactToken
+          )
         this.impactVisible = false
-        this.$message.success(action === 'DELETE' ? '模型已逻辑删除' : '模型已下线')
-        await this.load()
+        this.$message.success(
+          action === 'DELETE'
+            ? '已创建模型删除审批'
+            : '已创建模型停用审批'
+        )
+        if (response && response.data && response.data.id)
+          this.$router.push('/approval/' + response.data.id)
       } catch (error) {
         this.$message.error(error.message || '模型操作失败')
       }
@@ -1403,10 +1417,11 @@ export default {
               ...onnxRuntimePayload(this.editForm),
             })
           }
-          await api.updateModel(payload)
-          this.$message.success('保存成功')
+          const response = await api.updateModel(payload)
+          this.$message.success('模型配置变更已送审')
           this.editVisible = false
-          this.load()
+          if (response.data && response.data.id)
+            this.$router.push('/approval/' + response.data.id)
         } catch (e) {
           this.$message.error(e.message || '保存失败')
         } finally {
@@ -1431,13 +1446,14 @@ export default {
         if (!valid) return
         this.toGlobalLoading = true
         try {
-          await api.toGlobalModel(
+          const response = await api.toGlobalModel(
             this.toGlobalModelInfo.id,
             this.toGlobalForm.modelCode.trim()
           )
-          this.$message.success('转换成功，该模型已转为全局模型')
+          this.$message.success('已创建转全局审批，请完成审批后生效')
           this.toGlobalVisible = false
-          this.load()
+          if (response.data && response.data.id)
+            this.$router.push('/approval/' + response.data.id)
         } catch (e) {
           this.$message.error(e.message || '转换失败')
         } finally {

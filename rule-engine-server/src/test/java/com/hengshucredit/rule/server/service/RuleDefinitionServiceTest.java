@@ -166,6 +166,24 @@ public class RuleDefinitionServiceTest {
     }
 
     @Test
+    public void getVersionByIdRequiresDefinitionOwnership() {
+        RuleDefinitionService service = new RuleDefinitionService();
+        RuleDefinitionVersion snapshot = new RuleDefinitionVersion();
+        snapshot.setId(81L);
+        snapshot.setDefinitionId(30L);
+        snapshot.setVersion(4);
+        snapshot.setModelJson("{\"source\":\"v4\"}");
+        ReflectionTestUtils.setField(service, "versionMapper",
+                mapper(RuleDefinitionVersionMapper.class, (proxy, method, args) -> {
+                    if ("selectById".equals(method.getName())) return snapshot;
+                    return defaultValue(method.getReturnType());
+                }));
+
+        assertSame(snapshot, service.getVersionById(30L, 81L));
+        assertNull(service.getVersionById(31L, 81L));
+    }
+
+    @Test
     public void compareVersionsReportsChangedSections() {
         RuleDefinitionService service = new RuleDefinitionService();
         RuleDefinitionVersion left = version(1, "{\"a\":1}", "return 1;");

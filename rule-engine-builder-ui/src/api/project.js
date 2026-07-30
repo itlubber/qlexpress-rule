@@ -1,4 +1,5 @@
 import request from './request'
+import { createResourceDraft } from './governance'
 
 export function listProjects(params) {
   return request({ url: '/rule/project/list', method: 'get', params })
@@ -9,15 +10,25 @@ export function getProject(id) {
 }
 
 export function createProject(data) {
-  return request({ url: '/rule/project', method: 'post', data })
+  return createResourceDraft('PROJECT', data, 'CREATE', {
+    projectId: null,
+    changeSummary: '新建项目'
+  })
 }
 
 export function updateProject(data) {
-  return request({ url: '/rule/project', method: 'put', data })
+  return createResourceDraft('PROJECT', data, 'UPDATE', {
+    projectId: data.id,
+    changeSummary: '修改项目配置'
+  })
 }
 
 export function deleteProject(id) {
-  return request({ url: `/rule/project/${id}`, method: 'delete' })
+  return createResourceDraft('PROJECT', null, 'DELETE', {
+    resourceId: id,
+    projectId: id,
+    changeSummary: '删除项目'
+  })
 }
 
 export function getMaskedToken(id) {

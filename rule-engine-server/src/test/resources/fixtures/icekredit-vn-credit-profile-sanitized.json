@@ -1,0 +1,11 @@
+{
+  "body": {
+    "features": {
+      "credit_score_v1": 600,
+      "credit_apply_count_1m": 2
+    }
+  },
+  "cached": false,
+  "mapped": true,
+  "success": true
+}

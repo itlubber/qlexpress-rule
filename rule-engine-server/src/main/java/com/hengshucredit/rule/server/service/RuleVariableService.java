@@ -109,6 +109,7 @@ public class RuleVariableService extends ServiceImpl<RuleVariableMapper, RuleVar
             }
         }
         LambdaQueryWrapper<RuleVariable> wrapper = new LambdaQueryWrapper<>();
+        wrapper.ne(RuleVariable::getStatus, -1);
         if (scope != null && !scope.isEmpty()) {
             wrapper.eq(RuleVariable::getScope, scope);
         }
@@ -161,6 +162,7 @@ public class RuleVariableService extends ServiceImpl<RuleVariableMapper, RuleVar
     public List<RuleVariable> listByProject(Long projectId, String varSource) {
         if (baseMapper == null) return Collections.emptyList();
         LambdaQueryWrapper<RuleVariable> wrapper = new LambdaQueryWrapper<>();
+        wrapper.ne(RuleVariable::getStatus, -1);
         if (projectId != null && projectId > 0) {
             // 同时查询全局变量和指定项目的变量
             wrapper.and(w -> w

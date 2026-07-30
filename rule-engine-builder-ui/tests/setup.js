@@ -124,14 +124,16 @@ vi.mock('@/api/definition', () => ({
   migrateFields: vi.fn(),
   ensureDraftRevision: vi.fn(),
   createDraftRevision: vi.fn(),
+  createDraftFromSource: vi.fn(),
   getRuleRevisionRepairPreview: vi.fn(),
   repairRuleRevision: vi.fn(),
   listRuleRevisions: vi.fn(),
   getRuleRevision: vi.fn(),
+  getVersionById: vi.fn(),
   getCurrentDraftRevision: vi.fn(),
   preflightRuleRevision: vi.fn(),
   submitRuleRevision: vi.fn(),
-  returnRuleRevision: vi.fn(),
+  rejectRuleRevision: vi.fn(),
   approveRuleRevision: vi.fn(),
   publishRuleRevision: vi.fn(),
   offlineRuleRevision: vi.fn(),
@@ -341,6 +343,7 @@ const loadingDirectiveStub = {
   unmounted: vi.fn()
 }
 config.global.directives.loading = loadingDirectiveStub
+config.global.directives.permission = loadingDirectiveStub
 config.global.components.AppIcon = {
   name: 'AppIcon',
   props: ['name'],

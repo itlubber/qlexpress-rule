@@ -6,6 +6,7 @@ import App from './App.vue'
 import router from './router'
 import store from './store'
 import ElementTabFocusGuard from '@/plugins/elementTabFocusGuard'
+import permissionDirective from '@/directives/permission'
 import './styles/index.scss'
 
 // 覆盖 Element Plus 主题色为主色 #2639E9
@@ -39,6 +40,7 @@ const app = createApp(App)
 
 app.component('MonacoEditor', MonacoEditor)
 app.component('AppIcon', AppIcon)
+app.directive('permission', permissionDirective)
 app.use(store)
 app.use(router)
 app.use(ElementPlus, { size: 'small', locale: zhCn })

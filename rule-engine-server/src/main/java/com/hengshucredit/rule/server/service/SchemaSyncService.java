@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -39,6 +40,24 @@ public class SchemaSyncService {
             "rule_model_output_field"
     );
 
+    private static final List<String> CONSOLE_RBAC_TABLES = Arrays.asList(
+            "console_user",
+            "console_role",
+            "console_permission",
+            "console_user_role",
+            "console_role_permission",
+            "console_user_permission_override",
+            "console_security_audit_log"
+    );
+
+    private static final List<String> GOVERNANCE_TABLES = Arrays.asList(
+            "governed_resource",
+            "governed_resource_version",
+            "governance_approval_request",
+            "governance_approval_event",
+            "governance_dependency_snapshot"
+    );
+
     @PostConstruct
     public void ensureRuntimeSchema() {
         if (jdbcTemplate == null) return;
@@ -52,6 +71,9 @@ public class SchemaSyncService {
             ensureRuntimeCallLogTable();
             ensureTraceSchema();
             ensureProjectAuthSchema();
+            ensureConsoleRbacSchema();
+            ensureGovernanceSchema();
+            ensureRuleGovernanceLink();
             ensureApiDocScenarioSchema();
             ensureOpenApiContractColumns();
             ensureExternalApiCacheColumns();
@@ -87,6 +109,22 @@ public class SchemaSyncService {
         sb.append("rule_data_object: ").append(hasDataObject ? "OK" : "MISSING").append("; ");
         sb.append("rule_data_object_field: ").append(hasObjectField ? "OK" : "MISSING");
         return sb.toString();
+    }
+
+    private void ensureRuleGovernanceLink() {
+        if (!tableExists("rule_revision")) return;
+        addColumnIfMissing("rule_revision",
+                "governance_request_id",
+                "`governance_request_id` BIGINT DEFAULT NULL "
+                        + "COMMENT '统一生命周期审批申请ID' "
+                        + "AFTER `artifact_id`");
+        if (!indexExists("rule_revision",
+                "idx_revision_governance_request")) {
+            jdbcTemplate.execute(
+                    "ALTER TABLE `rule_revision` ADD INDEX "
+                            + "`idx_revision_governance_request` "
+                            + "(`governance_request_id`)");
+        }
     }
 
     private void ensureRefTypeColumns() {
@@ -485,6 +523,36 @@ public class SchemaSyncService {
         addAuthAttributionColumns("rule_billing_record", "occur_time", true);
         addAuthAttributionColumns("rule_billing_summary", "summary_date", false);
         ensureBillingSummaryAuthUniqueKey();
+    }
+
+    private void ensureConsoleRbacSchema() {
+        ensureTablesFromSchema(CONSOLE_RBAC_TABLES);
+    }
+
+    private void ensureGovernanceSchema() {
+        ensureTablesFromSchema(GOVERNANCE_TABLES);
+    }
+
+    private void ensureTablesFromSchema(List<String> tableNames) {
+        String schema;
+        try {
+            schema = readSchema();
+        } catch (IOException e) {
+            throw new IllegalStateException("无法读取控制台权限数据库结构", e);
+        }
+        for (String table : tableNames) {
+            if (tableExists(table)) continue;
+            Pattern pattern = Pattern.compile(
+                    "CREATE TABLE IF NOT EXISTS\\s+`" + Pattern.quote(table) + "`[\\s\\S]*?;",
+                    Pattern.CASE_INSENSITIVE);
+            Matcher matcher = pattern.matcher(schema);
+            if (!matcher.find()) {
+                throw new IllegalStateException("schema.sql 缺少表定义: " + table);
+            }
+            String ddl = matcher.group().replaceFirst(
+                    "(?i)CREATE TABLE IF NOT EXISTS", "CREATE TABLE");
+            jdbcTemplate.execute(ddl);
+        }
     }
 
     private void ensureOpenApiContractColumns() {

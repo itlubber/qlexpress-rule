@@ -27,6 +27,7 @@ public class RuleProjectService extends ServiceImpl<RuleProjectMapper, RuleProje
 
     public IPage<RuleProject> pageList(int pageNum, int pageSize, String keyword, String projectCode, String projectName, Integer status, String createBeginTime, String createEndTime) {
         LambdaQueryWrapper<RuleProject> wrapper = new LambdaQueryWrapper<>();
+        wrapper.ne(RuleProject::getStatus, -1);
         // 关键字搜索（模糊匹配编码或名称）
         if (keyword != null && !keyword.isEmpty()) {
             wrapper.and(w -> w

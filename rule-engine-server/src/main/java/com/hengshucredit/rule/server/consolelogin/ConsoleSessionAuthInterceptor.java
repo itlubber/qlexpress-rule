@@ -2,22 +2,39 @@ package com.hengshucredit.rule.server.consolelogin;
 
 import com.alibaba.fastjson.JSON;
 import com.hengshucredit.rule.server.common.R;
-import lombok.RequiredArgsConstructor;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
+import java.util.Objects;
 
 /**
  * 在启用控制台登录时，对配置的 include 路径校验 HttpSession 中是否已登录。
  */
-@RequiredArgsConstructor
 public class ConsoleSessionAuthInterceptor implements HandlerInterceptor {
 
     private final RuleEngineConsoleLoginProperties properties;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
+    private DatabaseConsoleAccountService databaseAccountService;
+
+    public ConsoleSessionAuthInterceptor(
+            RuleEngineConsoleLoginProperties properties) {
+        this(properties, null);
+    }
+
+    public ConsoleSessionAuthInterceptor(
+            RuleEngineConsoleLoginProperties properties,
+            DatabaseConsoleAccountService databaseAccountService) {
+        this.properties = properties;
+        this.databaseAccountService = databaseAccountService;
+    }
+
+    public void setDatabaseAccountService(
+            DatabaseConsoleAccountService databaseAccountService) {
+        this.databaseAccountService = databaseAccountService;
+    }
 
     /**
      * 判断当前请求是否允许访问：未命中需保护路径则放行；已登录则放行；否则返回 401 JSON。
@@ -43,7 +60,24 @@ public class ConsoleSessionAuthInterceptor implements HandlerInterceptor {
         if (user == null) {
             return writeUnauthorized(response, "需要登录");
         }
+        if (databaseAccountService != null
+                && !databaseSessionIsCurrent(session)) {
+            session.invalidate();
+            return writeUnauthorized(response, "会话权限已变更，请重新登录");
+        }
         return true;
+    }
+
+    private boolean databaseSessionIsCurrent(HttpSession session) {
+        Object userIdValue = session.getAttribute(
+                properties.getSessionUserIdAttribute());
+        if (!(userIdValue instanceof Number number)) return false;
+        DatabaseConsoleAccountService.ConsoleLoginResult current =
+                databaseAccountService.currentUser(number.longValue());
+        if (!current.authenticated()) return false;
+        Object sessionVersion = session.getAttribute(
+                properties.getSessionPermissionVersionAttribute());
+        return Objects.equals(current.permissionVersion(), sessionVersion);
     }
 
     /**

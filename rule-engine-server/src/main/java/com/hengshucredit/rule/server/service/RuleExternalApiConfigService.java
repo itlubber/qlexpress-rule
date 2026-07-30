@@ -46,6 +46,7 @@ public class RuleExternalApiConfigService extends ServiceImpl<RuleExternalApiCon
             return new Page<>(pageNum, pageSize);
         }
         LambdaQueryWrapper<RuleExternalApiConfig> wrapper = new LambdaQueryWrapper<>();
+        wrapper.ne(RuleExternalApiConfig::getStatus, -1);
         if (datasourceId != null && datasourceId > 0) {
             wrapper.eq(RuleExternalApiConfig::getDatasourceId, datasourceId);
         }

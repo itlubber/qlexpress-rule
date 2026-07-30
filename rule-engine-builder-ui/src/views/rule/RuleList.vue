@@ -107,6 +107,7 @@
     <div class="uiue-btn-bar">
       <div class="btn-right">
         <el-button
+          v-permission="'rule:edit'"
           type="primary"
           size="small"
           :icon="ElIconPlus"
@@ -202,6 +203,7 @@
             >详情</el-button
           >
           <el-button
+            v-permission="'rule:edit'"
             link
             size="small"
             type="warning"
@@ -216,6 +218,7 @@
             >生命周期</el-button
           >
           <el-button
+            v-permission="'rule:edit'"
             link
             size="small"
             type="danger"
@@ -329,7 +332,7 @@
           <el-button size="small" @click="dialogVisible = false"
             >取消</el-button
           >
-          <el-button size="small" type="primary" @click="handleSubmit"
+          <el-button v-permission="'rule:edit'" size="small" type="primary" @click="handleSubmit"
             >确定</el-button
           >
         </div>
@@ -611,9 +614,11 @@ export default {
         type: 'warning',
       })
         .then(async () => {
-          await deleteDefinition(row.id)
-          this.$message.success('删除成功')
-          this.loadData()
+          const response = await deleteDefinition(row.id)
+          this.$message.success('删除审批草稿已创建')
+          if (response.data && response.data.id) {
+            this.$router.push(`/approval/${response.data.id}`)
+          }
         })
         .catch(() => {})
     },

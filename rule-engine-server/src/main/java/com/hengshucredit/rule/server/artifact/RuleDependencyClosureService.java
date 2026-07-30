@@ -91,13 +91,14 @@ public class RuleDependencyClosureService {
             issues.add(RuleValidationIssue.error("REVISION_DEFINITION_MISMATCH", "$", "修订不属于指定规则"));
             return DependencyClosure.of(Collections.emptyList(), issues);
         }
-        collectDefinition(definitionId, revision, rootFields, dependencies, issues,
+        collectDefinition(definitionId, revision, rootFields, false, dependencies, issues,
                 new LinkedHashSet<>(), new LinkedHashSet<>());
         return DependencyClosure.of(new ArrayList<>(dependencies.values()), issues);
     }
 
     private void collectDefinition(Long definitionId, RuleRevision revision,
                                    RuleFieldAnalyzer.ResolvedFields resolvedFields,
+                                   boolean dependency,
                                    Map<String, ArtifactDependency> dependencies,
                                    List<RuleValidationIssue> issues,
                                    Set<Long> visitingRules, Set<Long> visitedRules) {
@@ -117,7 +118,7 @@ public class RuleDependencyClosureService {
             visitingRules.remove(definitionId);
             return;
         }
-        if (!active(definition.getStatus())) {
+        if (dependency && !active(definition.getStatus())) {
             issues.add(RuleValidationIssue.error("INACTIVE_DEPENDENCY", "$", "RULE", definitionId,
                     "规则依赖已停用"));
         }
@@ -203,7 +204,7 @@ public class RuleDependencyClosureService {
                     issues.add(RuleValidationIssue.error("MISSING_RULE_ID", reference.getPath(),
                             "规则调用缺少 ruleId，禁止通过规则编码关联"));
                 } else {
-                    collectDefinition(reference.getRefId(), null, null, dependencies, issues,
+                    collectDefinition(reference.getRefId(), null, null, true, dependencies, issues,
                             visitingRules, visitedRules);
                 }
             } else {

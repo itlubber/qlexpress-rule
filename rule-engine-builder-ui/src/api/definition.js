@@ -1,4 +1,5 @@
 import request from './request'
+import { createResourceDraft } from './governance'
 
 export function listDefinitions(params) {
   return request({ url: '/rule/definition/list', method: 'get', params })
@@ -25,7 +26,10 @@ export function updateDefinition(data) {
 }
 
 export function deleteDefinition(id) {
-  return request({ url: `/rule/definition/${id}`, method: 'delete' })
+  return createResourceDraft('RULE', null, 'DELETE', {
+    resourceId: id,
+    changeSummary: '删除规则'
+  })
 }
 
 export function saveContent(data) {
@@ -54,11 +58,17 @@ export function outputFields(definitionId) {
 }
 
 export function publish(id) {
-  return request({ url: `/rule/definition/publish/${id}`, method: 'post' })
+  return createResourceDraft('RULE', null, 'ENABLE', {
+    resourceId: id,
+    changeSummary: '启用规则'
+  })
 }
 
 export function unpublish(id) {
-  return request({ url: `/rule/definition/unpublish/${id}`, method: 'post' })
+  return createResourceDraft('RULE', null, 'DISABLE', {
+    resourceId: id,
+    changeSummary: '下线规则'
+  })
 }
 
 export function copyRule(id) {
@@ -74,15 +84,41 @@ export function validateCallCycle(definitionId, modelJson) {
 }
 
 export function publishRule(id, data) {
-  return request({ url: `/rule/definition/publish/${id}`, method: 'post', data })
+  return createResourceDraft('RULE', null, 'ENABLE', {
+    resourceId: id,
+    changeSummary: data && data.changeLog ? data.changeLog : '启用规则'
+  })
 }
 
 export function unpublishRule(id) {
-  return request({ url: `/rule/definition/unpublish/${id}`, method: 'post' })
+  return unpublish(id)
 }
 
 export function ensureDraftRevision(definitionId) {
   return request({ url: `/rule/definition/${definitionId}/revisions/draft`, method: 'post' })
+}
+
+export function createDraftRevision(definitionId, baseRevisionId) {
+  return request({
+    url: `/rule/definition/${definitionId}/revisions/draft`,
+    method: 'post',
+    data: baseRevisionId ? { baseRevisionId } : {}
+  })
+}
+
+export function getRuleRevisionRepairPreview(definitionId) {
+  return request({
+    url: `/rule/definition/${definitionId}/revisions/repair-preview`,
+    method: 'get'
+  })
+}
+
+export function repairRuleRevision(definitionId, data) {
+  return request({
+    url: `/rule/definition/${definitionId}/revisions/repair`,
+    method: 'post',
+    data
+  })
 }
 
 export function listRuleRevisions(definitionId) {
@@ -105,8 +141,8 @@ export function submitRuleRevision(definitionId, revisionId, data) {
   return lifecycleAction(definitionId, revisionId, 'submit', data)
 }
 
-export function returnRuleRevision(definitionId, revisionId, data) {
-  return lifecycleAction(definitionId, revisionId, 'return', data)
+export function rejectRuleRevision(definitionId, revisionId, data) {
+  return lifecycleAction(definitionId, revisionId, 'reject', data)
 }
 
 export function approveRuleRevision(definitionId, revisionId, data) {
@@ -117,8 +153,11 @@ export function publishRuleRevision(definitionId, revisionId, data) {
   return lifecycleAction(definitionId, revisionId, 'publish', data)
 }
 
-export function offlineRuleRevision(definitionId, revisionId, data) {
-  return lifecycleAction(definitionId, revisionId, 'offline', data)
+export function offlineRuleRevision(definitionId, _revisionId, data) {
+  return createResourceDraft('RULE', null, 'DISABLE', {
+    resourceId: definitionId,
+    changeSummary: data && data.comment ? data.comment : '下线规则'
+  })
 }
 
 export function getRuleLifecycleTimeline(definitionId) {
@@ -139,6 +178,18 @@ export function listVersions(definitionId) {
 
 export function getVersion(definitionId, version) {
   return request({ url: `/rule/definition/version/${definitionId}/${version}`, method: 'get' })
+}
+
+export function getVersionById(definitionId, versionId) {
+  return request({ url: `/rule/definition/${definitionId}/versions/${versionId}`, method: 'get' })
+}
+
+export function createDraftFromSource(definitionId, data) {
+  return request({
+    url: `/rule/definition/${definitionId}/revisions/draft/from-source`,
+    method: 'post',
+    data,
+  })
 }
 
 export function compareVersions(definitionId, leftVersion, rightVersion) {

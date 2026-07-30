@@ -5,19 +5,21 @@ export const SIDEBAR_COMPACT_THRESHOLD = 168
 export const SIDEBAR_STORAGE_KEY = 'tianshu:layout:sidebar'
 
 export const SIDEBAR_MENUS = [
-  { index: '/project', label: '项目管理', icon: 'FolderOpened' },
-  { index: '/rule', label: '规则管理', icon: 'Operation' },
-  { index: '/variable', label: '变量管理', icon: 'Collection' },
-  { index: '/list', label: '名单管理', icon: 'Notebook' },
-  { index: '/datasource', label: '外数管理', icon: 'Connection' },
-  { index: '/database', label: '数据库管理', icon: 'Coin' },
-  { index: '/model', label: '模型管理', icon: 'Cpu' },
-  { index: '/function', label: '函数管理', icon: 'ScaleToOriginal' },
-  { index: '/test', label: '规则测试', icon: 'VideoPlay' },
-  { index: '/lineage', label: '血缘分析', icon: 'Share' },
-  { index: '/experiment', label: '分流实验', icon: 'Flag' },
-  { index: '/log', label: '执行日志', icon: 'DocumentChecked' },
-  { index: '/billing', label: '账单管理', icon: 'Wallet' }
+  { index: '/project', label: '项目管理', icon: 'FolderOpened', permission: 'project:view' },
+  { index: '/rule', label: '规则管理', icon: 'Operation', permission: 'rule:view' },
+  { index: '/variable', label: '变量管理', icon: 'Collection', permission: 'field:view' },
+  { index: '/list', label: '名单管理', icon: 'Notebook', permission: 'field:view' },
+  { index: '/datasource', label: '外数管理', icon: 'Connection', permission: 'datasource:view' },
+  { index: '/database', label: '数据库管理', icon: 'Coin', permission: 'database:view' },
+  { index: '/model', label: '模型管理', icon: 'Cpu', permission: 'model:view' },
+  { index: '/function', label: '函数管理', icon: 'ScaleToOriginal', permission: 'function:view' },
+  { index: '/test', label: '规则测试', icon: 'VideoPlay', permission: 'rule:view' },
+  { index: '/lineage', label: '血缘分析', icon: 'Share', permission: 'approval:view' },
+  { index: '/experiment', label: '分流实验', icon: 'Flag', permission: 'experiment:view' },
+  { index: '/log', label: '执行日志', icon: 'DocumentChecked', permission: 'rule:view' },
+  { index: '/billing', label: '账单管理', icon: 'Wallet', permission: 'project:view' },
+  { index: '/approval', label: '审批管理', icon: 'Stamp', permission: 'approval:view' },
+  { index: '/account', label: '账户管理', icon: 'User', permission: 'account:view' }
 ]
 
 const MENU_PREFIXES = [
@@ -29,7 +31,9 @@ const MENU_PREFIXES = [
   ['/function/', '/function'],
   ['/datasource/', '/datasource'],
   ['/database/', '/database'],
-  ['/experiment/', '/experiment']
+  ['/experiment/', '/experiment'],
+  ['/approval/', '/approval'],
+  ['/account/', '/account']
 ]
 
 const PINYIN_BOUNDARIES = '阿八嚓哒妸发旮哈讥咔垃妈拏噢妑七呥仨他屲夕丫帀'

@@ -302,8 +302,21 @@ public class RuleModelServiceTest {
         ReflectionTestUtils.setField(service, "versionMapper", mapper(RuleModelVersionMapper.class,
                 (proxy, method, args) -> defaultValue(method.getReturnType())));
 
+        MockMultipartFile upload = new MockMultipartFile(
+                "file", "anti-spoof-mn3.onnx",
+                "application/octet-stream", new byte[]{1, 2, 3});
+        RuleModel draft = service.buildUploadSnapshot(
+                upload, null, "GLOBAL", "mn3", "MN3",
+                "NEURAL_NET", null, null,
+                "MN3_ANTISPOOF", "{}", 1, 90000);
+
+        assertEquals(null, insertedModel.get());
+        assertEquals("AQID", draft.getModelContent());
+        assertEquals(2, draft.getInputFields().size());
+        assertEquals(2, draft.getOutputFields().size());
+
         RuleModel model = service.uploadAndParse(
-                new MockMultipartFile("file", "anti-spoof-mn3.onnx", "application/octet-stream", new byte[]{1, 2, 3}),
+                upload,
                 null, "GLOBAL", "mn3", "MN3", "NEURAL_NET", null, "initial", null,
                 "MN3_ANTISPOOF", "{}", 1, 90000);
 

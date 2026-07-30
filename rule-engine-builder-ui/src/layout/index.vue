@@ -60,6 +60,11 @@ import {
 } from '@/layout/layoutState'
 import { readWorkspaceTabs } from '@/store/modules/workspaceTabs'
 import { getConsoleAuthConfig, consoleLogout, getConsoleMe } from '@/api/auth'
+import {
+  clearCurrentUser,
+  filterMenus,
+  setCurrentUser,
+} from '@/security/permissionState'
 
 function browserSessionStorage() {
   try {
@@ -230,19 +235,30 @@ export default {
         this.loginEnabled = !!(cfg.data && cfg.data.loginEnabled)
         if (!this.loginEnabled) {
           this.username = ''
+          clearCurrentUser()
+          this.sidebarMenus = filterMenus(SIDEBAR_MENUS)
           return
         }
         const me = await getConsoleMe()
         this.username = (me.data && me.data.username) || ''
+        if (me.data && Array.isArray(me.data.permissions)) {
+          setCurrentUser(me.data)
+        } else {
+          clearCurrentUser()
+        }
+        this.sidebarMenus = filterMenus(SIDEBAR_MENUS)
       } catch (e) {
         this.loginEnabled = false
         this.username = ''
+        clearCurrentUser()
+        this.sidebarMenus = filterMenus(SIDEBAR_MENUS)
       }
     },
     async doLogout() {
       try {
         await consoleLogout()
       } finally {
+        clearCurrentUser()
         this.$router.replace({ path: '/login' })
       }
     },

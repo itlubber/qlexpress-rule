@@ -1,7 +1,13 @@
 vi.unmock('@/api/model')
 
 import request from '@/api/request'
-import { analyzeModelImpact, deleteModel, executeModel, replaceModel } from '@/api/model'
+import {
+  analyzeModelImpact,
+  deleteModel,
+  executeModel,
+  replaceModel,
+  saveTestParams
+} from '@/api/model'
 
 describe('model API', () => {
   beforeEach(() => {
@@ -19,7 +25,7 @@ describe('model API', () => {
     })
   })
 
-  test('模型破坏性操作必须携带影响分析令牌', async () => {
+  test('模型删除进入统一审批，文件替换仍携带影响分析令牌', async () => {
     await analyzeModelImpact(10, 'DELETE')
     await deleteModel(10, 'impact-token')
     const data = new FormData()
@@ -29,10 +35,35 @@ describe('model API', () => {
     expect(request).toHaveBeenNthCalledWith(1, {
       url: '/rule/model/impact/10', method: 'post', params: { action: 'DELETE' }
     })
-    expect(request).toHaveBeenNthCalledWith(2, {
-      url: '/rule/model/10', method: 'delete', params: { impactToken: 'impact-token' }
-    })
+    expect(request).toHaveBeenNthCalledWith(2, '/rule/governance/drafts',
+      expect.objectContaining({
+        resourceType: 'MODEL',
+        resourceId: 10,
+        action: 'DELETE'
+      })
+    )
     expect(request.mock.calls[2][0].url).toBe('/rule/model/replace/10')
     expect(request.mock.calls[2][0].data.get('impactToken')).toBe('replace-token')
+  })
+
+  test('模型测试参数作为模型草稿提交，不直接修改生效模型', async () => {
+    request.mockResolvedValueOnce({
+      data: { id: 10, modelCode: 'risk_model', testParams: '{}' }
+    })
+
+    await saveTestParams(10, '{"score":720}')
+
+    expect(request).toHaveBeenNthCalledWith(1, {
+      url: '/rule/model/10',
+      method: 'get'
+    })
+    expect(request).toHaveBeenNthCalledWith(2, '/rule/governance/drafts',
+      expect.objectContaining({
+        resourceType: 'MODEL',
+        resourceId: 10,
+        action: 'UPDATE',
+        snapshotJson: expect.stringContaining('"testParams":"{\\"score\\":720}"')
+      })
+    )
   })
 })

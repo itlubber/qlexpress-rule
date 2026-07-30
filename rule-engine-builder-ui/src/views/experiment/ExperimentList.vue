@@ -12,6 +12,7 @@
         </div>
       </div>
       <el-button
+        v-permission="'experiment:edit'"
         size="small"
         type="primary"
         :icon="ElIconPlus"
@@ -135,6 +136,7 @@
       <el-table-column label="操作" width="190" align="center" fixed="right">
         <template v-slot="{ row }">
           <el-button
+            v-permission="'experiment:edit'"
             link
             size="small"
             type="success"
@@ -142,6 +144,7 @@
             >执行</el-button
           >
           <el-button
+            v-permission="'experiment:edit'"
             link
             size="small"
             type="primary"
@@ -476,7 +479,7 @@
       <template v-slot:footer>
         <div>
           <el-button size="small" @click="formVisible = false">取消</el-button>
-          <el-button size="small" type="primary" @click="handleSave"
+          <el-button v-permission="'experiment:edit'" size="small" type="primary" @click="handleSave"
             >保存</el-button
           >
         </div>
@@ -761,9 +764,10 @@ export default {
       await this.$confirm('确定删除实验 ' + row.experimentName + '？', '确认', {
         type: 'warning',
       })
-      await deleteExperiment(row.id)
-      this.$message.success('删除成功')
-      this.loadExperiments()
+      const response = await deleteExperiment(row.id)
+      this.$message.success('分流实验删除已送审')
+      if (response.data && response.data.id)
+        this.$router.push('/approval/' + response.data.id)
     },
     onProjectChange(projectId) {
       const project = this.projects.find((p) => p.id === projectId)
@@ -902,10 +906,11 @@ export default {
             return resolve(false)
           }
           const data = { ...this.form, groups: this.prepareGroupsForSave() }
-          await saveExperiment(data)
-          this.$message.success('保存成功')
+          const response = await saveExperiment(data)
+          this.$message.success('分流实验变更已送审')
           this.formVisible = false
-          this.loadExperiments()
+          if (response.data && response.data.id)
+            this.$router.push('/approval/' + response.data.id)
           resolve(true)
         })
       })

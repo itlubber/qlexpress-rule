@@ -113,6 +113,7 @@
         <div class="uiue-btn-bar">
           <div class="btn-right">
             <el-button
+              v-permission="'datasource:edit'"
               type="primary"
               size="small"
               :icon="ElIconPlus"
@@ -196,6 +197,7 @@
           <el-table-column label="操作" width="190" align="center" fixed="right">
             <template v-slot="{ row }">
               <el-button
+                v-permission="'datasource:edit'"
                 link
                 size="small"
                 type="warning"
@@ -217,6 +219,7 @@
                 >加接口</el-button
               >
               <el-button
+                v-permission="'datasource:edit'"
                 link
                 size="small"
                 type="danger"
@@ -333,6 +336,7 @@
         <div class="uiue-btn-bar">
           <div class="btn-right">
             <el-button
+              v-permission="'datasource:edit'"
               type="primary"
               size="small"
               :icon="ElIconPlus"
@@ -411,6 +415,7 @@
           <el-table-column label="操作" width="120" align="center" fixed="right">
             <template v-slot="{ row }">
               <el-button
+                v-permission="'datasource:edit'"
                 link
                 size="small"
                 type="warning"
@@ -425,6 +430,7 @@
                 >测试</el-button
               >
               <el-button
+                v-permission="'datasource:edit'"
                 link
                 size="small"
                 type="danger"
@@ -797,7 +803,7 @@
           <el-button size="small" @click="datasourceDialogVisible = false"
             >取消</el-button
           >
-          <el-button size="small" type="primary" @click="handleSaveDatasource"
+          <el-button v-permission="'datasource:edit'" size="small" type="primary" @click="handleSaveDatasource"
             >保存</el-button
           >
         </div>
@@ -1850,16 +1856,13 @@ export default {
           this.$message.error(e.message)
           return
         }
-        if (data.id) {
-          await updateDatasource(data)
-          this.$message.success('更新成功')
-        } else {
-          await createDatasource(data)
-          this.$message.success('创建成功')
-        }
+        const response = data.id
+          ? await updateDatasource(data)
+          : await createDatasource(data)
+        this.$message.success('外数数据源变更已送审')
         this.datasourceDialogVisible = false
-        await this.loadDatasources()
-        await this.loadDatasourceOptions()
+        if (response.data && response.data.id)
+          this.$router.push('/approval/' + response.data.id)
       })
     },
     handleSaveApi() {
@@ -1872,15 +1875,13 @@ export default {
           this.$message.error(e.message)
           return
         }
-        if (data.id) {
-          await updateApiConfig(data)
-          this.$message.success('更新成功')
-        } else {
-          await createApiConfig(data)
-          this.$message.success('创建成功')
-        }
+        const response = data.id
+          ? await updateApiConfig(data)
+          : await createApiConfig(data)
+        this.$message.success('外数 API 变更已送审')
         this.apiDialogVisible = false
-        this.loadApiConfigs()
+        if (response.data && response.data.id)
+          this.$router.push('/approval/' + response.data.id)
       })
     },
     handleDeleteDatasource(row) {
@@ -1890,10 +1891,10 @@ export default {
         { type: 'warning' }
       )
         .then(async () => {
-          await deleteDatasource(row.id)
-          this.$message.success('删除成功')
-          await this.loadDatasources()
-          await this.loadDatasourceOptions()
+          const response = await deleteDatasource(row.id)
+          this.$message.success('外数数据源删除已送审')
+          if (response.data && response.data.id)
+            this.$router.push('/approval/' + response.data.id)
         })
         .catch(() => {})
     },
@@ -1902,9 +1903,10 @@ export default {
         type: 'warning',
       })
         .then(async () => {
-          await deleteApiConfig(row.id)
-          this.$message.success('删除成功')
-          this.loadApiConfigs()
+          const response = await deleteApiConfig(row.id)
+          this.$message.success('外数 API 删除已送审')
+          if (response.data && response.data.id)
+            this.$router.push('/approval/' + response.data.id)
         })
         .catch(() => {})
     },

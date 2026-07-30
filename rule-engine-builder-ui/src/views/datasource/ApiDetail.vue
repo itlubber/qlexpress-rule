@@ -13,6 +13,7 @@
       <div class="detail-actions">
         <el-button size="small" @click="handleBack">返回</el-button>
         <el-button
+          v-permission="'datasource:edit'"
           size="small"
           type="primary"
           :loading="saving"
@@ -3111,18 +3112,14 @@ export default {
           let res
           if (data.id) {
             res = await updateApiConfig(data)
-            this.$message.success('更新成功')
+            this.$message.success('审批草稿已创建')
           } else {
             res = await createApiConfig(data)
-            this.$message.success('创建成功')
+            this.$message.success('审批草稿已创建')
           }
           const saved = res && res.data ? res.data : null
           if (saved && saved.id) {
-            this.form = { ...this.emptyForm(), ...saved }
-            if (this.$route.params.id !== String(saved.id)) {
-              this.$router.replace('/datasource/api/' + saved.id)
-            }
-            this.syncEditableRowsFromForm()
+            this.$router.push('/approval/' + saved.id)
           }
         } finally {
           this.saving = false
@@ -3295,11 +3292,9 @@ export default {
         const res = await updateApiConfig(data)
         const saved = res && res.data ? res.data : res
         if (saved && saved.id) {
-          this.form = { ...this.emptyForm(), ...saved }
-          this.syncEditableRowsFromForm()
-          this.loadSavedSample()
+          this.$router.push('/approval/' + saved.id)
         }
-        this.$message.success('测试样例已覆盖保存')
+        this.$message.success('测试样例变更已送审')
       } catch (e) {
         this.$message.error(e.message || '测试参数不是合法 JSON')
       }
