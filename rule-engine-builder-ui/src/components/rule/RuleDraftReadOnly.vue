@@ -3,6 +3,9 @@
     v-if="visible"
     class="rule-draft-read-only"
     data-testid="draft-read-only"
+    role="dialog"
+    aria-modal="true"
+    aria-label="规则只读提示"
     aria-live="polite"
   >
     <div class="rule-draft-read-only__card">
@@ -59,6 +62,11 @@
 <script>
 export default {
   name: 'RuleDraftReadOnly',
+  data() {
+    return {
+      inertedSiblings: [],
+    }
+  },
   props: {
     visible: { type: Boolean, default: false },
     loading: { type: Boolean, default: false },
@@ -68,6 +76,34 @@ export default {
     canFork: { type: Boolean, default: false },
   },
   emits: ['fork', 'go-back', 'go-lifecycle'],
+  mounted() {
+    this.syncInertSiblings()
+  },
+  updated() {
+    this.syncInertSiblings()
+  },
+  beforeUnmount() {
+    this.clearInertSiblings()
+  },
+  methods: {
+    clearInertSiblings() {
+      this.inertedSiblings.forEach(({ element, added }) => {
+        if (added) element.removeAttribute('inert')
+      })
+      this.inertedSiblings = []
+    },
+    syncInertSiblings() {
+      this.clearInertSiblings()
+      if (!this.visible || !this.$el?.parentElement) return
+      this.inertedSiblings = Array.from(this.$el.parentElement.children)
+        .filter((element) => element !== this.$el)
+        .map((element) => {
+          const added = !element.hasAttribute('inert')
+          if (added) element.setAttribute('inert', '')
+          return { element, added }
+        })
+    },
+  },
 }
 </script>
 

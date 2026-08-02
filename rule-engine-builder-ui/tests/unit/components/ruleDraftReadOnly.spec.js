@@ -1,4 +1,4 @@
-import { mount } from '@test-utils'
+import { flushPromises, mount } from '@test-utils'
 import RuleDraftReadOnly from '@/components/rule/RuleDraftReadOnly.vue'
 
 describe('RuleDraftReadOnly', () => {
@@ -93,5 +93,32 @@ describe('RuleDraftReadOnly source actions', () => {
 
     expect(wrapper.text()).toContain('当前节点加载失败')
     expect(wrapper.text()).toContain('无法显示当前节点')
+  })
+})
+
+describe('RuleDraftReadOnly interaction isolation', () => {
+  test('marks the underlying designer content inert while the read-only layer is visible', async () => {
+    const wrapper = mount({
+      components: { RuleDraftReadOnly },
+      data() {
+        return { visible: true }
+      },
+      template: `
+        <div>
+          <rule-draft-read-only :visible="visible" />
+          <section data-testid="designer-content">
+            <button data-testid="designer-save">Save</button>
+          </section>
+        </div>
+      `,
+    })
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="designer-content"]').attributes('inert')).toBe('')
+
+    wrapper.vm.visible = false
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="designer-content"]').attributes('inert')).toBeUndefined()
   })
 })
