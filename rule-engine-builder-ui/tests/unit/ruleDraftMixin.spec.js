@@ -162,6 +162,75 @@ describe('ruleDraftMixin', () => {
     wrapper.unmount()
   })
 
+  test('没有治理修订时回退展示旧版生效内容且保持只读', async () => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({ data: [] })
+    definitionApi.getContent.mockResolvedValueOnce({
+      data: {
+        id: 18,
+        definitionId: 30,
+        modelJson: '{"rules":[{"id":"legacy"}]}',
+      },
+    })
+    const wrapper = mountHost()
+    await flushPromises()
+
+    expect(wrapper.vm.viewRevision).toMatchObject({
+      id: 'legacy-content:30',
+      definitionId: 30,
+      state: 'LEGACY',
+      sourceType: 'LEGACY_CONTENT',
+      sourceId: '30',
+      modelJson: '{"rules":[{"id":"legacy"}]}',
+    })
+    expect(wrapper.vm.viewRevisionLabel).toBe('历史生效内容')
+    expect(wrapper.vm.canEditDraft).toBe(false)
+    expect(wrapper.vm.canForkViewRevision).toBe(false)
+    wrapper.unmount()
+  })
+
+  test('修订列表查询失败时不以旧内容掩盖治理服务错误', async () => {
+    definitionApi.listRuleRevisions.mockRejectedValueOnce(
+      new Error('revision query failed')
+    )
+    const wrapper = mountHost()
+    await wrapper.vm.draftGuardPromise
+
+    expect(definitionApi.getContent).not.toHaveBeenCalled()
+    expect(wrapper.vm.viewRevision).toBeNull()
+    expect(wrapper.vm.draftGuardError.message).toBe('revision query failed')
+    wrapper.unmount()
+  })
+
+  test('旧版生效内容不是合法 JSON 时显示加载错误而不是空白设计器', async () => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({ data: [] })
+    definitionApi.getContent.mockResolvedValueOnce({
+      data: { definitionId: 30, modelJson: '{broken json' },
+    })
+    const wrapper = mountHost()
+    await wrapper.vm.draftGuardPromise
+
+    expect(wrapper.vm.viewRevision).toBeNull()
+    expect(wrapper.vm.draftGuardError.message).toBe(
+      '当前规则的历史内容不是有效 JSON'
+    )
+    wrapper.unmount()
+  })
+
+  test('旧版生效内容为空时显示明确错误', async () => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({ data: [] })
+    definitionApi.getContent.mockResolvedValueOnce({
+      data: { definitionId: 30, modelJson: '' },
+    })
+    const wrapper = mountHost()
+    await wrapper.vm.draftGuardPromise
+
+    expect(wrapper.vm.viewRevision).toBeNull()
+    expect(wrapper.vm.draftGuardError.message).toBe(
+      '当前规则没有可查看的历史内容'
+    )
+    wrapper.unmount()
+  })
+
   test('编译失败仍更新锁与诊断且不调用旧编译接口', async () => {
     definitionApi.listRuleRevisions.mockResolvedValueOnce({
       data: [
@@ -445,6 +514,7 @@ describe('ruleDraftMixin stable source loading', () => {
     expect(wrapper.vm.viewRevision).toBeNull()
     expect(wrapper.vm.canEditDraft).toBe(false)
     expect(wrapper.vm.draftGuardError.message).toBe('source missing')
+    expect(definitionApi.getContent).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 

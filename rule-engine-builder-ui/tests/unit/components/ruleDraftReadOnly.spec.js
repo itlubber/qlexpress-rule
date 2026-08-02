@@ -70,6 +70,22 @@ describe('RuleDraftReadOnly source actions', () => {
     expect(wrapper.find('[data-testid="fork-view-revision"]').exists()).toBe(false)
   })
 
+  test('明确说明旧版历史内容只读且必须显式创建草稿', () => {
+    const wrapper = mount(RuleDraftReadOnly, {
+      props: {
+        visible: true,
+        loading: false,
+        revisionLabel: '历史生效内容',
+        revisionState: 'LEGACY',
+      },
+    })
+
+    expect(wrapper.text()).toContain('历史生效内容')
+    expect(wrapper.text()).toContain('旧版历史内容，只读展示')
+    expect(wrapper.text()).toContain('前往规则生命周期创建草稿')
+    expect(wrapper.find('[data-testid="fork-view-revision"]').exists()).toBe(false)
+  })
+
   test('distinguishes failed source loading from an ordinary read-only node', () => {
     const wrapper = mount(RuleDraftReadOnly, {
       props: { visible: true, loading: false, loadError: true },

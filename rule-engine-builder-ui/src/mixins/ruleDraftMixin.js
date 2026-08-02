@@ -37,6 +37,9 @@ export default {
     },
     viewRevisionLabel() {
       if (!this.viewRevision) return ''
+      if (this.viewRevision.sourceType === 'LEGACY_CONTENT') {
+        return '历史生效内容'
+      }
       const prefix = this.viewRevision.sourceType === 'VERSION' ? '版本' : '修订'
       return `${prefix} ${this.viewRevision.revisionNo || ''}`.trim()
     },
@@ -177,6 +180,28 @@ export default {
         this.draftRevision =
           revisions.find((item) => item.state === 'DRAFT') || null
         this.viewRevision = this.draftRevision || revisions[0] || null
+        if (!this.viewRevision) {
+          const contentResponse = await definitionApi.getContent(definitionId)
+          if (!this.isCurrentSource(requestedSourceKey, refreshToken)) return null
+          const content = unwrap(contentResponse)
+          const modelJson = content?.modelJson
+          if (typeof modelJson !== 'string' || !modelJson.trim()) {
+            throw new Error('当前规则没有可查看的历史内容')
+          }
+          try {
+            JSON.parse(modelJson)
+          } catch {
+            throw new Error('当前规则的历史内容不是有效 JSON')
+          }
+          this.viewRevision = {
+            id: `legacy-content:${definitionId}`,
+            definitionId,
+            state: 'LEGACY',
+            sourceType: 'LEGACY_CONTENT',
+            sourceId: String(definitionId),
+            modelJson,
+          }
+        }
         return { refreshToken, sourceKey: requestedSourceKey }
       } catch (error) {
         if (!this.isCurrentSource(requestedSourceKey, refreshToken)) return null

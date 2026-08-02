@@ -308,6 +308,42 @@ describe('九类设计器草稿保护', () => {
     wrapper.unmount()
   })
 
+  test.each(explicitRevisionSources)(
+    '$name 在没有治理修订时加载旧版生效内容并阻止保存',
+    async ({ component, model, assertLoaded }) => {
+      definitionApi.listRuleRevisions.mockResolvedValueOnce({ data: [] })
+      definitionApi.getContent.mockResolvedValueOnce({
+        data: {
+          id: 18,
+          definitionId: 30,
+          modelJson: JSON.stringify(model),
+        },
+      })
+
+      const wrapper = mountDesigner(component)
+      await flushPromises()
+
+      expect(wrapper.vm.viewRevision).toMatchObject({
+        id: 'legacy-content:30',
+        state: 'LEGACY',
+        sourceType: 'LEGACY_CONTENT',
+      })
+      assertLoaded(wrapper.vm)
+      const readOnly = wrapper.findComponent({ name: 'RuleDraftReadOnly' })
+      expect(readOnly.props()).toMatchObject({
+        visible: true,
+        loading: false,
+        loadError: false,
+        revisionLabel: '历史生效内容',
+        revisionState: 'LEGACY',
+        canFork: false,
+      })
+      await expect(wrapper.vm.handleSave()).rejects.toThrow('没有可编辑草稿')
+      expect(definitionApi.saveContent).not.toHaveBeenCalled()
+      wrapper.unmount()
+    }
+  )
+
   test.each(designers)('%s 将历史节点上下文和派生事件交给真实只读遮罩', async (
     _name,
     component

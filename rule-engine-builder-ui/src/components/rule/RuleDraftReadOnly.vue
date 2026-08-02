@@ -19,6 +19,9 @@
       <span v-else>
         <template v-if="revisionLabel">{{ revisionLabel }}：</template>
         <template v-if="canFork">当前内容只读，可基于此节点编辑。</template>
+        <template v-else-if="revisionState === 'LEGACY'">
+          该规则来自旧版历史内容，只读展示；如需修改，请先前往规则生命周期创建草稿。
+        </template>
         <template v-else-if="revisionState === 'REVIEW'">需前往规则生命周期退回后编辑。</template>
         <template v-else>当前内容可查看；如需修改，请先在规则生命周期中创建或退回草稿。</template>
       </span>

@@ -26,6 +26,7 @@
 **Files:**
 
 - Modify: `rule-engine-builder-ui/tests/unit/ruleDraftMixin.spec.js`
+- Modify: `rule-engine-builder-ui/tests/unit/components/ruleDraftReadOnly.spec.js`
 - Modify: `rule-engine-builder-ui/tests/unit/views/designerDraftLifecycle.spec.js`
 - Modify: `rule-engine-builder-ui/src/mixins/ruleDraftMixin.js`
 - Modify: `rule-engine-builder-ui/src/components/rule/RuleDraftReadOnly.vue`
