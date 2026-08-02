@@ -16,9 +16,10 @@ vi.mock('@/api/variable', () => ({
   importJsonConstants: vi.fn(),
   listFieldValidations: vi.fn(),
   listAvailableFieldValidations: vi.fn(),
-  createFieldValidation: vi.fn(),
-  updateFieldValidation: vi.fn(),
-  deleteFieldValidation: vi.fn()
+  createFieldValidationDraft: vi.fn(),
+  updateFieldValidationDraft: vi.fn(),
+  changeFieldValidationStatusDraft: vi.fn(),
+  deleteFieldValidationDraft: vi.fn()
 }))
 
 vi.mock('@/api/project', () => ({
@@ -765,7 +766,9 @@ describe('VariableList — 字段校验规则库', () => {
 
   test('新建字段校验保存稳定配置，不改写用户输入的编码', async () => {
     const wrapper = await mountAndWait()
-    variableApi.createFieldValidation.mockResolvedValueOnce({})
+    variableApi.createFieldValidationDraft.mockResolvedValueOnce({
+      data: { id: 91 }
+    })
     wrapper.vm.activeTab = 'validations'
     wrapper.vm.handlePrimaryCreate()
     wrapper.vm.validationForm = {
@@ -776,9 +779,32 @@ describe('VariableList — 字段校验规则库', () => {
 
     await wrapper.vm.saveFieldValidation()
 
-    expect(variableApi.createFieldValidation).toHaveBeenCalledWith(expect.objectContaining({
+    expect(variableApi.createFieldValidationDraft).toHaveBeenCalledWith(expect.objectContaining({
       validationCode: 'Mobile_Check', validationType: 'REGEX', projectId: 0
     }))
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith('/approval/91')
+    wrapper.unmount()
+  })
+
+  test('编辑字段校验改变状态时生成显式停用审批', async () => {
+    const wrapper = await mountAndWait()
+    variableApi.changeFieldValidationStatusDraft.mockResolvedValueOnce({
+      data: { id: 92 }
+    })
+    wrapper.vm.validationOriginalStatus = 1
+    wrapper.vm.validationForm = {
+      id: 11, scope: 'PROJECT', projectId: 7,
+      validationCode: 'Mobile_Check', validationName: '手机号校验',
+      validationType: 'REQUIRED', validationValue: null,
+      errorMessage: '手机号不能为空', description: '', status: 0
+    }
+
+    await wrapper.vm.saveFieldValidation()
+
+    expect(variableApi.changeFieldValidationStatusDraft)
+      .toHaveBeenCalledWith(expect.objectContaining({ id: 11 }), 0)
+    expect(variableApi.updateFieldValidationDraft).not.toHaveBeenCalled()
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith('/approval/92')
     wrapper.unmount()
   })
 
@@ -829,7 +855,7 @@ describe('VariableList — 字段校验规则库', () => {
 
     wrapper.vm.removeFieldValidation(builtin)
     expect(wrapper.vm.$confirm).not.toHaveBeenCalled()
-    expect(variableApi.deleteFieldValidation).not.toHaveBeenCalled()
+    expect(variableApi.deleteFieldValidationDraft).not.toHaveBeenCalled()
     expect(wrapper.vm.$message.warning).toHaveBeenCalledWith('系统内置校验规则不可删除')
     wrapper.unmount()
   })

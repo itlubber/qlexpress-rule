@@ -81,16 +81,38 @@ export function listAvailableFieldValidations(projectId) {
   })
 }
 
-export function createFieldValidation(data) {
-  return request({ url: '/rule/field-validation', method: 'post', data })
+export function createFieldValidationDraft(data) {
+  return createResourceDraft('FIELD_VALIDATION', data, 'CREATE', {
+    projectId: data && data.scope === 'GLOBAL' ? 0 : data && data.projectId,
+    changeSummary: '新建字段校验规则'
+  })
 }
 
-export function updateFieldValidation(data) {
-  return request({ url: '/rule/field-validation', method: 'put', data })
+export function updateFieldValidationDraft(data) {
+  return createResourceDraft('FIELD_VALIDATION', data, 'UPDATE', {
+    changeSummary: '修改字段校验规则'
+  })
 }
 
-export function deleteFieldValidation(id) {
-  return request({ url: `/rule/field-validation/${id}`, method: 'delete' })
+export function changeFieldValidationStatusDraft(data, status) {
+  return createResourceDraft(
+    'FIELD_VALIDATION',
+    data,
+    status === 1 ? 'ENABLE' : 'DISABLE',
+    {
+      changeSummary: status === 1
+        ? '启用字段校验规则'
+        : '停用字段校验规则'
+    }
+  )
+}
+
+export function deleteFieldValidationDraft(data) {
+  return createResourceDraft('FIELD_VALIDATION', null, 'DELETE', {
+    resourceId: data && data.id,
+    projectId: data && data.projectId,
+    changeSummary: '删除字段校验规则'
+  })
 }
 
 /** 从 Java 常量类批量导入（写入变量表，来源为 CONSTANT） */

@@ -166,9 +166,10 @@ vi.mock('@/api/variable', () => ({
   importJsonConstants: vi.fn(),
   listFieldValidations: vi.fn(),
   listAvailableFieldValidations: vi.fn(),
-  createFieldValidation: vi.fn(),
-  updateFieldValidation: vi.fn(),
-  deleteFieldValidation: vi.fn(),
+  createFieldValidationDraft: vi.fn(),
+  updateFieldValidationDraft: vi.fn(),
+  changeFieldValidationStatusDraft: vi.fn(),
+  deleteFieldValidationDraft: vi.fn(),
   __esModule: true
 }))
 vi.mock('@/api/dataObject', () => ({
@@ -279,9 +280,10 @@ vi.mock('@/api/database', () => ({
 }))
 vi.mock('@/api/billing', () => ({
   listBillingConfigs: vi.fn(),
-  createBillingConfig: vi.fn(),
-  updateBillingConfig: vi.fn(),
-  deleteBillingConfig: vi.fn(),
+  createBillingConfigDraft: vi.fn(),
+  updateBillingConfigDraft: vi.fn(),
+  changeBillingConfigStatusDraft: vi.fn(),
+  deleteBillingConfigDraft: vi.fn(),
   listBillingRecords: vi.fn(),
   listBillingSummaries: vi.fn(),
   refreshBillingSummary: vi.fn(),

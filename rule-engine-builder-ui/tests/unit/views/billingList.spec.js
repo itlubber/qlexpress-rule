@@ -9,14 +9,28 @@ function createContext(overrides = {}) {
   const ctx = {
     targetOptions: [],
     targetLoading: false,
+    configOriginalStatus: null,
+    configDialogVisible: false,
+    configSaving: false,
     configForm: {
+      id: null,
       scope: 'PROJECT',
       projectId: 7,
+      billingCode: 'Engine_Count',
+      billingName: '规则计费',
       billingTarget: 'ENGINE',
       targetRefId: 9,
+      chargeType: 'COUNT',
+      unitPrice: 0,
+      currency: 'CNY',
       effectiveTime: '',
-      expireTime: ''
+      expireTime: '',
+      status: 1
     },
+    $refs: { configForm: { validate: callback => callback(true) } },
+    $router: { push: vi.fn() },
+    $message: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
+    $confirm: vi.fn().mockResolvedValue(true),
     ...overrides
   }
   Object.keys(BillingList.methods).forEach(name => {
@@ -148,5 +162,42 @@ describe('BillingList target selector', () => {
     expect(ctx.activeTab).toBe('record')
     expect(ctx.loadRecords).toHaveBeenCalledTimes(1)
     expect(ctx.loadConfigs).not.toHaveBeenCalled()
+  })
+
+  test('creating billing config generates approval draft and opens it', async () => {
+    billingApi.createBillingConfigDraft.mockResolvedValue({
+      data: { id: 72 }
+    })
+    const ctx = createContext()
+
+    ctx.handleSaveConfig()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(billingApi.createBillingConfigDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ billingCode: 'Engine_Count' })
+    )
+    expect(ctx.$router.push).toHaveBeenCalledWith('/approval/72')
+  })
+
+  test('status change uses explicit disable lifecycle action', async () => {
+    billingApi.changeBillingConfigStatusDraft.mockResolvedValue({
+      data: { id: 73 }
+    })
+    const ctx = createContext({
+      configOriginalStatus: 1,
+      configForm: {
+        ...createContext().configForm,
+        id: 21,
+        status: 0
+      }
+    })
+
+    ctx.handleSaveConfig()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(billingApi.changeBillingConfigStatusDraft)
+      .toHaveBeenCalledWith(expect.objectContaining({ id: 21 }), 0)
+    expect(billingApi.updateBillingConfigDraft).not.toHaveBeenCalled()
+    expect(ctx.$router.push).toHaveBeenCalledWith('/approval/73')
   })
 })

@@ -65,4 +65,36 @@ describe('approval labels for list resources', () => {
     expect(wrapper.vm.resourceTitle)
       .toBe('Mobile blacklist \u00b7 4 \u6761\u5185\u5bb9\u53d8\u66f4')
   })
+
+  test('validation and billing approvals use business names', async () => {
+    const wrapper = shallowMount(ApprovalList)
+    await flushPromises()
+    const validation = {
+      resourceType: 'FIELD_VALIDATION',
+      resourceId: 11,
+      draftSnapshotJson: JSON.stringify({ validationName: '手机号校验' })
+    }
+    const billing = {
+      resourceType: 'BILLING_CONFIG',
+      resourceId: 21,
+      draftSnapshotJson: JSON.stringify({ billingName: '规则调用计费' })
+    }
+
+    expect(wrapper.vm.resourceTypeLabel('FIELD_VALIDATION')).toBe('字段校验')
+    expect(wrapper.vm.resourceTypeLabel('BILLING_CONFIG')).toBe('计费配置')
+    expect(wrapper.vm.resourceTitle(validation)).toBe('手机号校验')
+    expect(wrapper.vm.resourceTitle(billing)).toBe('规则调用计费')
+
+    const detail = shallowMount(ApprovalDetail, {
+      global: { directives: { permission: {} } }
+    })
+    await flushPromises()
+    detail.vm.detail = {
+      request: billing,
+      diff: { fields: [] }
+    }
+    await detail.vm.$nextTick()
+    expect(detail.vm.resourceTypeLabel('BILLING_CONFIG')).toBe('计费配置')
+    expect(detail.vm.resourceTitle).toBe('规则调用计费')
+  })
 })

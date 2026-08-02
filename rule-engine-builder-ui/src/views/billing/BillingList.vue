@@ -10,6 +10,13 @@
 
     <el-tabs v-model="activeTab" @tab-click="onTabChange">
       <el-tab-pane label="计费配置" name="config">
+        <el-alert
+          title="计费配置变更先审批、后生效；审批通过前，当前计费口径保持不变。计费明细查询和汇总刷新仍可即时使用。"
+          type="info"
+          :closable="false"
+          show-icon
+          style="margin-bottom: 12px"
+        />
         <div class="uiue-search-container">
           <el-form :inline="true" size="small" @keyup.enter="handleConfigQuery">
             <el-form-item label="项目编码">
@@ -39,7 +46,7 @@
                 <el-option label="项目" value="PROJECT" />
               </el-select>
             </el-form-item>
-            <el-form-item label="计费对象">
+            <el-form-item label="对象类型" prop="billingTarget">
               <el-select
                 v-model="configQuery.billingTarget"
                 clearable
@@ -611,7 +618,7 @@
     </el-tabs>
 
     <el-dialog
-      :title="configForm.id ? '编辑计费项' : '新建计费项'"
+      :title="configForm.id ? '编辑计费配置审批' : '新建计费配置审批'"
       v-model="configDialogVisible"
       width="680px"
       append-to-body
@@ -629,6 +636,7 @@
               <el-select
                 v-model="configForm.scope"
                 style="width: 100%"
+                :disabled="!!configForm.id"
                 @change="onConfigScopeChange"
               >
                 <el-option label="全局" value="GLOBAL" />
@@ -645,6 +653,7 @@
               <el-select
                 v-model="configForm.projectId"
                 filterable
+                :disabled="!!configForm.id"
                 placeholder="请选择项目"
                 style="width: 100%"
                 @change="onBillingProjectChange"
@@ -665,6 +674,7 @@
               <el-input
                 v-model="configForm.billingCode"
                 placeholder="如 ENGINE_COUNT"
+                :disabled="!!configForm.id"
               />
             </el-form-item>
           </el-col>
@@ -695,13 +705,13 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="对象ID">
+            <el-form-item label="指定对象">
               <el-select
                 v-model="configForm.targetRefId"
                 clearable
                 filterable
                 :loading="targetLoading"
-                placeholder="请选择计费对象"
+                placeholder="不选则作用于该类型全部对象"
                 style="width: 100%"
               >
                 <el-option
@@ -714,7 +724,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="计费方式">
+            <el-form-item label="计费方式" prop="chargeType">
               <el-select v-model="configForm.chargeType" style="width: 100%">
                 <el-option
                   v-for="item in chargeTypeOptions"
@@ -728,7 +738,7 @@
         </el-row>
         <el-row :gutter="12">
           <el-col :span="8">
-            <el-form-item label="单价">
+            <el-form-item label="单价" prop="unitPrice">
               <el-input-number
                 v-model="configForm.unitPrice"
                 :min="0"
@@ -739,12 +749,12 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="币种">
+            <el-form-item label="币种" prop="currency">
               <el-input v-model="configForm.currency" placeholder="CNY" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="状态">
+            <el-form-item v-if="configForm.id" label="状态">
               <el-switch
                 v-model="configForm.status"
                 :active-value="1"
@@ -792,8 +802,12 @@
           <el-button size="small" @click="configDialogVisible = false"
             >取消</el-button
           >
-          <el-button size="small" type="primary" @click="handleSaveConfig"
-            >保存</el-button
+          <el-button
+            size="small"
+            type="primary"
+            :loading="configSaving"
+            @click="handleSaveConfig"
+            >生成审批草稿</el-button
           >
         </div>
       </template>
@@ -808,13 +822,14 @@ import {
   Refresh as ElIconRefresh,
 } from '@element-plus/icons-vue'
 import {
-  createBillingConfig,
-  deleteBillingConfig,
+  createBillingConfigDraft,
+  deleteBillingConfigDraft,
   listBillingConfigs,
   listBillingRecords,
   listBillingSummaries,
   refreshBillingSummary,
-  updateBillingConfig,
+  updateBillingConfigDraft,
+  changeBillingConfigStatusDraft,
 } from '@/api/billing'
 import { listProjects } from '@/api/project'
 import { listDefinitions } from '@/api/definition'
@@ -833,6 +848,8 @@ export default {
       configTotal: 0,
       configLoading: false,
       configDialogVisible: false,
+      configOriginalStatus: null,
+      configSaving: false,
       configQuery: {
         pageNum: 1,
         pageSize: 10,
@@ -853,6 +870,18 @@ export default {
         ],
         projectId: [
           { required: true, message: '请选择所属项目', trigger: 'change' },
+        ],
+        billingTarget: [
+          { required: true, message: '请选择对象类型', trigger: 'change' },
+        ],
+        chargeType: [
+          { required: true, message: '请选择计费方式', trigger: 'change' },
+        ],
+        unitPrice: [
+          { required: true, type: 'number', min: 0, message: '单价不能小于0' },
+        ],
+        currency: [
+          { required: true, message: '请输入币种', trigger: 'blur' },
         ],
       },
       recordList: [],
@@ -1050,12 +1079,14 @@ export default {
     },
     handleCreateConfig() {
       this.configForm = this.emptyConfigForm()
+      this.configOriginalStatus = null
       this.targetOptions = []
       this.loadTargetOptions()
       this.configDialogVisible = true
     },
     handleEditConfig(row) {
       this.configForm = { ...this.emptyConfigForm(), ...row }
+      this.configOriginalStatus = row.status
       this.targetOptions = []
       this.loadTargetOptions()
       this.configDialogVisible = true
@@ -1064,25 +1095,50 @@ export default {
       this.$refs.configForm.validate(async (valid) => {
         if (!valid) return
         const data = this.normalizeConfig(this.configForm)
-        if (data.id) {
-          await updateBillingConfig(data)
-          this.$message.success('更新成功')
-        } else {
-          await createBillingConfig(data)
-          this.$message.success('创建成功')
+        if (
+          data.effectiveTime &&
+          data.expireTime &&
+          new Date(data.effectiveTime) > new Date(data.expireTime)
+        ) {
+          this.$message.warning('生效时间不能晚于失效时间')
+          return
         }
-        this.configDialogVisible = false
-        this.loadConfigs()
+        this.configSaving = true
+        try {
+          let response
+          if (!data.id) {
+            response = await createBillingConfigDraft(data)
+          } else if (data.status !== this.configOriginalStatus) {
+            response = await changeBillingConfigStatusDraft(data, data.status)
+          } else {
+            response = await updateBillingConfigDraft(data)
+          }
+          this.$message.success('审批草稿已生成，请检查后提交')
+          this.configDialogVisible = false
+          if (response.data && response.data.id) {
+            this.$router.push('/approval/' + response.data.id)
+          }
+        } catch (error) {
+          this.$message.error(
+            '生成审批草稿失败: ' + (error.message || error)
+          )
+        } finally {
+          this.configSaving = false
+        }
       })
     },
     handleDeleteConfig(row) {
-      this.$confirm('确定删除计费项「' + row.billingName + '」?', '确认', {
-        type: 'warning',
-      })
+      return this.$confirm(
+        `将为计费配置「${row.billingName}」生成删除审批。审批通过前，当前计费口径保持不变。`,
+        '发起删除审批',
+        { type: 'warning' }
+      )
         .then(async () => {
-          await deleteBillingConfig(row.id)
-          this.$message.success('删除成功')
-          this.loadConfigs()
+          const response = await deleteBillingConfigDraft(row)
+          this.$message.success('删除审批草稿已生成')
+          if (response.data && response.data.id) {
+            this.$router.push('/approval/' + response.data.id)
+          }
         })
         .catch(() => {})
     },

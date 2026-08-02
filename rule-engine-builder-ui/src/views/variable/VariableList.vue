@@ -822,7 +822,7 @@
 
       <el-tab-pane label="字段校验" name="validations">
         <el-alert
-          title="字段校验规则可在规则详情的输入字段中复用；同一字段可选择多个规则，调用开放接口时会逐项校验。"
+          title="字段校验规则可在规则输入字段中复用。新建、修改、启停和删除会先生成审批草稿，审批通过前线上规则不变。"
           type="info"
           :closable="false"
           show-icon
@@ -1015,7 +1015,7 @@
     </el-tabs>
 
     <el-dialog
-      :title="validationForm.id ? '编辑字段校验' : '新建字段校验'"
+      :title="validationForm.id ? '编辑字段校验审批' : '新建字段校验审批'"
       v-model="validationDialogVisible"
       width="600px"
       :close-on-click-modal="false"
@@ -1025,6 +1025,7 @@
           <el-select
             v-model="validationForm.scope"
             style="width: 100%"
+            :disabled="!!validationForm.id"
             @change="onFieldValidationScopeChange"
           >
             <el-option label="全局（所有项目可用）" value="GLOBAL" />
@@ -1039,6 +1040,7 @@
           <el-select
             v-model="validationForm.projectId"
             filterable
+            :disabled="!!validationForm.id"
             placeholder="请选择项目"
             style="width: 100%"
           >
@@ -1115,7 +1117,7 @@
             type="textarea"
             :rows="2"
         /></el-form-item>
-        <el-form-item label="状态"
+        <el-form-item v-if="validationForm.id" label="状态"
           ><el-switch
             v-model="validationForm.status"
             :active-value="1"
@@ -1133,7 +1135,7 @@
             type="primary"
             :loading="validationSaving"
             @click="saveFieldValidation"
-            >保存</el-button
+            >生成审批草稿</el-button
           >
         </div>
       </template>
@@ -2327,9 +2329,10 @@ import {
   importJavaConstants,
   importJsonConstants,
   listFieldValidations,
-  createFieldValidation,
-  updateFieldValidation,
-  deleteFieldValidation,
+  createFieldValidationDraft,
+  updateFieldValidationDraft,
+  changeFieldValidationStatusDraft,
+  deleteFieldValidationDraft,
 } from '@/api/variable'
 import { listProjects } from '@/api/project'
 import { getRuleTestSchema } from '@/api/definition'
@@ -2568,6 +2571,7 @@ export default {
         keyword: '',
       },
       validationDialogVisible: false,
+      validationOriginalStatus: null,
       validationSaving: false,
       validationForm: this.initFieldValidationForm(),
       fieldValidationRegexPresets: FIELD_VALIDATION_REGEX_PRESETS,
@@ -3721,6 +3725,7 @@ export default {
     handlePrimaryCreate() {
       if (this.activeTab === 'validations') {
         this.validationForm = this.initFieldValidationForm()
+        this.validationOriginalStatus = null
         this.validationDialogVisible = true
         return
       }
@@ -3783,6 +3788,7 @@ export default {
         return
       }
       this.validationForm = { ...this.initFieldValidationForm(), ...row }
+      this.validationOriginalStatus = row.status
       this.validationDialogVisible = true
     },
     onFieldValidationScopeChange(scope) {
@@ -3830,13 +3836,24 @@ export default {
       }
       this.validationSaving = true
       try {
-        if (payload.id) await updateFieldValidation(payload)
-        else await createFieldValidation(payload)
-        this.$message.success('保存成功')
+        let response
+        if (!payload.id) {
+          response = await createFieldValidationDraft(payload)
+        } else if (payload.status !== this.validationOriginalStatus) {
+          response = await changeFieldValidationStatusDraft(
+            payload,
+            payload.status
+          )
+        } else {
+          response = await updateFieldValidationDraft(payload)
+        }
+        this.$message.success('审批草稿已生成，请检查后提交')
         this.validationDialogVisible = false
-        await this.loadFieldValidations()
+        if (response.data && response.data.id) {
+          this.$router.push('/approval/' + response.data.id)
+        }
       } catch (e) {
-        this.$message.error('保存失败: ' + (e.message || e))
+        this.$message.error('生成审批草稿失败: ' + (e.message || e))
       } finally {
         this.validationSaving = false
       }
@@ -3846,13 +3863,17 @@ export default {
         this.$message.warning('系统内置校验规则不可删除')
         return
       }
-      this.$confirm(`确定删除字段校验「${row.validationName}」？`, '确认删除', {
-        type: 'warning',
-      })
+      this.$confirm(
+        `将为字段校验「${row.validationName}」生成删除审批。审批通过前，当前规则仍可正常使用。`,
+        '发起删除审批',
+        { type: 'warning' }
+      )
         .then(async () => {
-          await deleteFieldValidation(row.id)
-          this.$message.success('删除成功')
-          await this.loadFieldValidations()
+          const response = await deleteFieldValidationDraft(row)
+          this.$message.success('删除审批草稿已生成')
+          if (response.data && response.data.id) {
+            this.$router.push('/approval/' + response.data.id)
+          }
         })
         .catch(() => {})
     },

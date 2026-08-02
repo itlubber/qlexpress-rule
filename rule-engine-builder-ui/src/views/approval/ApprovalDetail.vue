@@ -336,6 +336,7 @@ export default {
       return value.ruleName || value.modelName || value.funcName ||
         value.datasourceName || value.projectName || value.varLabel ||
         value.objectLabel || value.experimentName || value.listName ||
+        value.validationName || value.billingName ||
         `${this.resourceTypeLabel(this.request.resourceType)} #${this.request.resourceId}`
     },
     preflightErrors() {
@@ -465,6 +466,8 @@ export default {
         RULE_PROJECT_BINDING: '项目规则关联',
         LIST_LIBRARY: '名单库',
         LIST_RECORD_BATCH: '名单内容批次',
+        FIELD_VALIDATION: '字段校验',
+        BILLING_CONFIG: '计费配置',
         EXPERIMENT: '分流',
         PROJECT: '项目'
       }[type] || type
