@@ -66,6 +66,7 @@ public class SchemaSyncService {
             ensureFieldValidationSchema();
             ensureVariableSourceConfigColumn();
             ensureListTables();
+            ensureListChangeBatchSchema();
             ensureExperimentTables();
             ensureExperimentRuleReferenceSchema();
             ensureRuntimeCallLogTable();
@@ -237,6 +238,62 @@ public class SchemaSyncService {
                     + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='名单变更日志表'");
         }
         ensureUtf8mb4Table("rule_list_record_log");
+    }
+
+    private void ensureListChangeBatchSchema() {
+        if (!tableExists("rule_list_change_batch")) {
+            jdbcTemplate.execute("CREATE TABLE `rule_list_change_batch` ("
+                    + "`id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',"
+                    + "`list_id` BIGINT NOT NULL COMMENT '名单库ID',"
+                    + "`source_type` VARCHAR(16) NOT NULL COMMENT '来源：SINGLE/IMPORT',"
+                    + "`status` VARCHAR(32) NOT NULL COMMENT '批次状态',"
+                    + "`total_count` INT NOT NULL DEFAULT 0 COMMENT '总行数',"
+                    + "`add_count` INT NOT NULL DEFAULT 0 COMMENT '新增数',"
+                    + "`update_count` INT NOT NULL DEFAULT 0 COMMENT '更新数',"
+                    + "`delete_count` INT NOT NULL DEFAULT 0 COMMENT '删除数',"
+                    + "`duplicate_count` INT NOT NULL DEFAULT 0 COMMENT '重复数',"
+                    + "`invalid_count` INT NOT NULL DEFAULT 0 COMMENT '无效数',"
+                    + "`content_digest` CHAR(64) NOT NULL COMMENT '规范化批次内容SHA-256',"
+                    + "`approval_request_id` BIGINT DEFAULT NULL COMMENT '审批申请ID',"
+                    + "`created_by` VARCHAR(64) NOT NULL COMMENT '创建人',"
+                    + "`applied_by` VARCHAR(64) DEFAULT NULL COMMENT '应用人',"
+                    + "`applied_time` DATETIME DEFAULT NULL COMMENT '应用时间',"
+                    + "`terminal_message` VARCHAR(512) DEFAULT NULL COMMENT '终止或失败说明',"
+                    + "`create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',"
+                    + "`update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',"
+                    + "PRIMARY KEY (`id`),"
+                    + "KEY `idx_list_change_batch_list_status` (`list_id`, `status`),"
+                    + "KEY `idx_list_change_batch_approval` (`approval_request_id`)"
+                    + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='名单变更暂存批次'"
+            );
+        }
+        ensureUtf8mb4Table("rule_list_change_batch");
+        if (!tableExists("rule_list_change_item")) {
+            jdbcTemplate.execute("CREATE TABLE `rule_list_change_item` ("
+                    + "`id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',"
+                    + "`batch_id` BIGINT NOT NULL COMMENT '变更批次ID',"
+                    + "`row_number` INT NOT NULL COMMENT '来源行号',"
+                    + "`operation` VARCHAR(16) DEFAULT NULL COMMENT '操作：ADD/UPDATE/DELETE',"
+                    + "`target_record_id` BIGINT DEFAULT NULL COMMENT '目标生效记录ID',"
+                    + "`item_type` VARCHAR(32) DEFAULT NULL COMMENT '名单内容类型',"
+                    + "`item_content` VARCHAR(512) DEFAULT NULL COMMENT '名单内容',"
+                    + "`effective_time` DATETIME DEFAULT NULL COMMENT '生效时间',"
+                    + "`expire_time` DATETIME DEFAULT NULL COMMENT '失效时间',"
+                    + "`reason` VARCHAR(512) DEFAULT NULL COMMENT '原因',"
+                    + "`remark` VARCHAR(512) DEFAULT NULL COMMENT '备注',"
+                    + "`target_status` TINYINT DEFAULT NULL COMMENT '目标状态',"
+                    + "`validation_status` VARCHAR(16) NOT NULL COMMENT 'VALID/DUPLICATE/INVALID',"
+                    + "`validation_message` VARCHAR(512) DEFAULT NULL COMMENT '校验信息',"
+                    + "`baseline_digest` CHAR(64) DEFAULT NULL COMMENT '目标记录基线SHA-256',"
+                    + "`create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',"
+                    + "PRIMARY KEY (`id`),"
+                    + "UNIQUE KEY `uk_list_change_item_row` (`batch_id`, `row_number`),"
+                    + "KEY `idx_list_change_item_batch_status` (`batch_id`, `validation_status`),"
+                    + "KEY `idx_list_change_item_target` (`target_record_id`)"
+                    + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='名单变更暂存明细'"
+            );
+        }
+        ensureUtf8mb4Table("rule_list_change_item");
     }
 
     private void ensureExperimentTables() {

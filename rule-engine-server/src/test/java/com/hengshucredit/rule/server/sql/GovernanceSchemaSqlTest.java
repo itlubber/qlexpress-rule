@@ -36,6 +36,23 @@ public class GovernanceSchemaSqlTest {
         Assert.assertTrue(sql.contains("`secret_payload_ciphertext` LONGTEXT"));
     }
 
+    @Test
+    public void schemaDefinesListChangeBatchStaging() throws Exception {
+        String sql = readSchema();
+
+        Assert.assertTrue(sql.contains(
+                "CREATE TABLE IF NOT EXISTS `rule_list_change_batch`"));
+        Assert.assertTrue(sql.contains(
+                "CREATE TABLE IF NOT EXISTS `rule_list_change_item`"));
+        Assert.assertTrue(Pattern.compile(
+                "`content_digest`\\s+CHAR\\(64\\)\\s+NOT NULL")
+                .matcher(sql).find());
+        Assert.assertTrue(sql.contains(
+                "UNIQUE KEY `uk_list_change_item_row` (`batch_id`, `row_number`)"));
+        Assert.assertTrue(sql.contains(
+                "KEY `idx_list_change_batch_approval` (`approval_request_id`)"));
+    }
+
     private static String readSchema() throws Exception {
         Path cwd = Paths.get("").toAbsolutePath().normalize();
         Path modulePath = cwd.resolve("src/main/resources/sql/schema.sql");

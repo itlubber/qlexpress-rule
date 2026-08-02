@@ -40,6 +40,30 @@ public class SchemaSyncServiceTest {
     }
 
     @Test
+    public void listChangeBatchSchemaCreatesBothStagingTablesWhenMissing()
+            throws Exception {
+        SchemaSyncService service = new SchemaSyncService();
+        FakeJdbcTemplate jdbcTemplate = new FakeJdbcTemplate();
+        jdbcTemplate.missingTables.addAll(Arrays.asList(
+                "rule_list_change_batch", "rule_list_change_item"));
+        setField(service, "jdbcTemplate", jdbcTemplate);
+
+        Method method = SchemaSyncService.class.getDeclaredMethod(
+                "ensureListChangeBatchSchema");
+        method.setAccessible(true);
+        method.invoke(service);
+
+        assertTrue(containsSql(jdbcTemplate.sqlList,
+                "CREATE TABLE `rule_list_change_batch`"));
+        assertTrue(containsSql(jdbcTemplate.sqlList,
+                "CREATE TABLE `rule_list_change_item`"));
+        assertTrue(containsSql(jdbcTemplate.sqlList,
+                "KEY `idx_list_change_batch_approval` (`approval_request_id`)"));
+        assertTrue(containsSql(jdbcTemplate.sqlList,
+                "UNIQUE KEY `uk_list_change_item_row` (`batch_id`, `row_number`)"));
+    }
+
+    @Test
     public void externalApiScriptAndAsyncColumnsAreAddedWhenMissing() throws Exception {
         SchemaSyncService service = new SchemaSyncService();
         FakeJdbcTemplate jdbcTemplate = new FakeJdbcTemplate("request_script", "response_script",
