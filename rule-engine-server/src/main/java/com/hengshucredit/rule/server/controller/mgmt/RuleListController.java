@@ -55,31 +55,6 @@ public class RuleListController {
         return R.ok(listService.getById(id));
     }
 
-    @PostMapping("/library")
-    public R<RuleListLibrary> createLibrary(@RequestBody RuleListLibrary library) {
-        try {
-            return R.ok(listService.saveLibrary(library));
-        } catch (IllegalArgumentException e) {
-            return R.fail(e.getMessage());
-        }
-    }
-
-    @PutMapping("/library")
-    public R<Void> updateLibrary(@RequestBody RuleListLibrary library) {
-        try {
-            listService.updateLibrary(library);
-            return R.ok();
-        } catch (IllegalArgumentException e) {
-            return R.fail(e.getMessage());
-        }
-    }
-
-    @DeleteMapping("/library/{id:\\d+}")
-    public R<Void> deleteLibrary(@PathVariable Long id) {
-        listService.removeById(id);
-        return R.ok();
-    }
-
     @GetMapping("/{listId:\\d+}/record")
     public R<IPage<RuleListRecord>> listRecords(
             @PathVariable Long listId,

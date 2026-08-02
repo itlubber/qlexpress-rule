@@ -57,6 +57,25 @@ public class GovernanceImpactServiceTest {
                 issues.get(0).referencePath());
     }
 
+    @Test
+    public void listLibraryDisableChecksListVariableAndRuleImpact() {
+        GovernanceImpactService service = new GovernanceImpactService(
+                lineage(List.of(
+                        node("LIST", 6L, "手机号黑名单"),
+                        node("VARIABLE", 7L, "黑名单命中"),
+                        node("RULE", 9L, "准入规则"))));
+
+        List<GovernanceIssue> issues = service.analyze(
+                "LIST_LIBRARY", 6L, "DISABLE",
+                ResourceSnapshot.ofJson("{\"id\":6}"));
+
+        Assert.assertEquals(1, issues.size());
+        Assert.assertTrue(issues.get(0).message()
+                .contains("黑名单命中"));
+        Assert.assertTrue(issues.get(0).message()
+                .contains("准入规则"));
+    }
+
     private RuleLineageService lineage(
             List<Map<String, Object>> nodes) {
         return new RuleLineageService() {

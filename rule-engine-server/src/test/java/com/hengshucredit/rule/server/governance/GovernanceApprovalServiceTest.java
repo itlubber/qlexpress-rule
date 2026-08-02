@@ -218,6 +218,23 @@ public class GovernanceApprovalServiceTest {
                 second.getActiveResourceKey());
     }
 
+    @Test
+    public void listLibraryCreateDraftUsesScopedCodeIdentity() {
+        TestService service = new TestService();
+        GovernanceApprovalRequest first = service.createDraft(
+                createListLibraryDraft("Mobile_Black", "原名称", 7L),
+                "owner");
+        String firstKey = first.getActiveResourceKey();
+
+        GovernanceApprovalRequest reused = service.createDraft(
+                createListLibraryDraft("Mobile_Black", "修改名称", 7L),
+                "owner");
+
+        Assert.assertEquals(first.getId(), reused.getId());
+        Assert.assertEquals(firstKey, reused.getActiveResourceKey());
+        Assert.assertEquals(1, service.insertRequestCalls);
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void projectRuleBindingCreateRequiresPositiveIdReferences() {
         TestService service = new TestService();
@@ -509,6 +526,20 @@ public class GovernanceApprovalServiceTest {
         draft.setAction("CREATE");
         draft.setSnapshotJson("{\"definitionId\":" + definitionId
                 + ",\"projectId\":" + projectId + "}");
+        return draft;
+    }
+
+    private static GovernanceDraftRequest createListLibraryDraft(
+            String listCode, String listName, Long projectId) {
+        GovernanceDraftRequest draft = new GovernanceDraftRequest();
+        draft.setResourceType("LIST_LIBRARY");
+        draft.setProjectId(projectId);
+        draft.setAction("CREATE");
+        draft.setSnapshotJson("{\"scope\":\"PROJECT\","
+                + "\"projectId\":" + projectId + ","
+                + "\"listCode\":\"" + listCode + "\","
+                + "\"listName\":\"" + listName + "\","
+                + "\"listType\":\"BLACK\"}");
         return draft;
     }
 

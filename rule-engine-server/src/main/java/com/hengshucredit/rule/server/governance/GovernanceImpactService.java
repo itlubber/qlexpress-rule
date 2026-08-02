@@ -128,6 +128,7 @@ public class GovernanceImpactService {
             case GovernanceResourceTypes.EXTERNAL_API -> "API";
             case GovernanceResourceTypes.DATABASE -> "DB";
             case GovernanceResourceTypes.RULE -> "RULE";
+            case GovernanceResourceTypes.LIST_LIBRARY -> "LIST";
             default -> null;
         };
     }

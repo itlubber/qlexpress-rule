@@ -15,6 +15,8 @@ public final class GovernanceResourceTypes {
     public static final String RULE = "RULE";
     public static final String RULE_PROJECT_BINDING =
             "RULE_PROJECT_BINDING";
+    public static final String LIST_LIBRARY = "LIST_LIBRARY";
+    public static final String LIST_RECORD_BATCH = "LIST_RECORD_BATCH";
     public static final String EXPERIMENT = "EXPERIMENT";
     public static final String PROJECT = "PROJECT";
 
@@ -26,6 +28,7 @@ public final class GovernanceResourceTypes {
             "DATABASE", List.of(DATABASE),
             "FUNCTION", List.of(FUNCTION),
             "RULE", List.of(RULE, RULE_PROJECT_BINDING),
+            "LIST", List.of(LIST_LIBRARY, LIST_RECORD_BATCH),
             "EXPERIMENT", List.of(EXPERIMENT),
             "PROJECT", List.of(PROJECT));
 

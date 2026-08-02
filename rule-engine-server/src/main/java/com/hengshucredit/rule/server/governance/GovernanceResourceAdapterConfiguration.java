@@ -28,6 +28,7 @@ import com.hengshucredit.rule.server.mapper.RuleFunctionMapper;
 import com.hengshucredit.rule.server.mapper.RuleModelInputFieldMapper;
 import com.hengshucredit.rule.server.mapper.RuleModelMapper;
 import com.hengshucredit.rule.server.mapper.RuleModelOutputFieldMapper;
+import com.hengshucredit.rule.server.mapper.RuleListLibraryMapper;
 import com.hengshucredit.rule.server.mapper.RuleProjectMapper;
 import com.hengshucredit.rule.server.mapper.RuleVariableMapper;
 import com.hengshucredit.rule.server.mapper.RuleVariableOptionMapper;
@@ -155,6 +156,14 @@ public class GovernanceResourceAdapterConfiguration {
             RuleProjectMapper projectMapper) {
         return new RuleProjectBindingGovernedResourceAdapter(
                 refMapper, definitionMapper, projectMapper);
+    }
+
+    @Bean
+    public GovernedResourceAdapter listLibraryGovernanceAdapter(
+            RuleListLibraryMapper mapper,
+            RuleProjectMapper projectMapper) {
+        return new RuleListLibraryGovernedResourceAdapter(
+                mapper, projectMapper);
     }
 
     @Bean

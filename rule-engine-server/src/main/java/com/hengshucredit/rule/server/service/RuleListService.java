@@ -97,6 +97,7 @@ public class RuleListService extends ServiceImpl<RuleListLibraryMapper, RuleList
             return new Page<>(pageNum, pageSize);
         }
         LambdaQueryWrapper<RuleListLibrary> wrapper = new LambdaQueryWrapper<>();
+        wrapper.ne(RuleListLibrary::getStatus, -1);
         if (hasText(scope)) {
             wrapper.eq(RuleListLibrary::getScope, scope);
         }
