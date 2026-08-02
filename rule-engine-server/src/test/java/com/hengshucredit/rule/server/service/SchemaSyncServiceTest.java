@@ -60,7 +60,23 @@ public class SchemaSyncServiceTest {
         assertTrue(containsSql(jdbcTemplate.sqlList,
                 "KEY `idx_list_change_batch_approval` (`approval_request_id`)"));
         assertTrue(containsSql(jdbcTemplate.sqlList,
-                "UNIQUE KEY `uk_list_change_item_row` (`batch_id`, `row_number`)"));
+                "UNIQUE KEY `uk_list_change_item_row` (`batch_id`, `source_row`)"));
+    }
+
+    @Test
+    public void listChangeItemSchemaRenamesReservedRowNumberColumn()
+            throws Exception {
+        SchemaSyncService service = new SchemaSyncService();
+        FakeJdbcTemplate jdbcTemplate = new FakeJdbcTemplate("source_row");
+        setField(service, "jdbcTemplate", jdbcTemplate);
+
+        Method method = SchemaSyncService.class.getDeclaredMethod(
+                "ensureListChangeBatchSchema");
+        method.setAccessible(true);
+        method.invoke(service);
+
+        assertTrue(containsSql(jdbcTemplate.sqlList,
+                "CHANGE COLUMN `row_number` `source_row` INT NOT NULL"));
     }
 
     @Test

@@ -15,6 +15,7 @@ public class RuleListChangeItem {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long batchId;
+    @TableField("source_row")
     private Integer rowNumber;
     private String operation;
     private Long targetRecordId;

@@ -48,7 +48,8 @@ public class GovernanceSchemaSqlTest {
                 "`content_digest`\\s+CHAR\\(64\\)\\s+NOT NULL")
                 .matcher(sql).find());
         Assert.assertTrue(sql.contains(
-                "UNIQUE KEY `uk_list_change_item_row` (`batch_id`, `row_number`)"));
+                "UNIQUE KEY `uk_list_change_item_row` (`batch_id`, `source_row`)"));
+        Assert.assertFalse(sql.contains("`row_number`"));
         Assert.assertTrue(sql.contains(
                 "KEY `idx_list_change_batch_approval` (`approval_request_id`)"));
     }

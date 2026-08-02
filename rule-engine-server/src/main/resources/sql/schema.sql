@@ -929,7 +929,7 @@ CREATE TABLE IF NOT EXISTS `rule_list_change_batch` (
 CREATE TABLE IF NOT EXISTS `rule_list_change_item` (
   `id`                BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `batch_id`          BIGINT       NOT NULL                COMMENT '变更批次ID',
-  `row_number`        INT          NOT NULL                COMMENT '来源行号',
+  `source_row`        INT          NOT NULL                COMMENT '来源行号',
   `operation`         VARCHAR(16)  DEFAULT NULL            COMMENT '操作：ADD/UPDATE/DELETE',
   `target_record_id`  BIGINT       DEFAULT NULL            COMMENT '目标生效记录ID',
   `item_type`         VARCHAR(32)  DEFAULT NULL            COMMENT '名单内容类型',
@@ -944,7 +944,7 @@ CREATE TABLE IF NOT EXISTS `rule_list_change_item` (
   `baseline_digest`   CHAR(64)     DEFAULT NULL            COMMENT '目标记录基线SHA-256',
   `create_time`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_list_change_item_row` (`batch_id`, `row_number`),
+  UNIQUE KEY `uk_list_change_item_row` (`batch_id`, `source_row`),
   KEY `idx_list_change_item_batch_status` (`batch_id`, `validation_status`),
   KEY `idx_list_change_item_target` (`target_record_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='名单变更暂存明细';
