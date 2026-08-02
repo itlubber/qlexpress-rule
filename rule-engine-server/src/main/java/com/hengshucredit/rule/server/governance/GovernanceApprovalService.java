@@ -1072,6 +1072,9 @@ public class GovernanceApprovalService {
             case GovernanceResourceTypes.LIST_LIBRARY ->
                     addScopedIdentity(identity, value, projectId,
                             "listCode");
+            case GovernanceResourceTypes.FIELD_VALIDATION ->
+                    addScopedIdentity(identity, value, projectId,
+                            "validationCode");
             case GovernanceResourceTypes.EXTERNAL_API -> {
                 addIdentity(identity, "datasourceId",
                         value.get("datasourceId"));

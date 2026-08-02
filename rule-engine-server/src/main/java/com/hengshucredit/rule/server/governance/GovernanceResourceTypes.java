@@ -17,11 +17,12 @@ public final class GovernanceResourceTypes {
             "RULE_PROJECT_BINDING";
     public static final String LIST_LIBRARY = "LIST_LIBRARY";
     public static final String LIST_RECORD_BATCH = "LIST_RECORD_BATCH";
+    public static final String FIELD_VALIDATION = "FIELD_VALIDATION";
     public static final String EXPERIMENT = "EXPERIMENT";
     public static final String PROJECT = "PROJECT";
 
     private static final Map<String, List<String>> TAB_TYPES = Map.of(
-            "FIELD", List.of(VARIABLE, DATA_OBJECT),
+            "FIELD", List.of(VARIABLE, DATA_OBJECT, FIELD_VALIDATION),
             "MODEL", List.of(MODEL),
             "DATASOURCE", List.of(
                     EXTERNAL_DATASOURCE, EXTERNAL_API),

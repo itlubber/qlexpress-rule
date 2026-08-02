@@ -3,6 +3,7 @@ package com.hengshucredit.rule.server.controller.mgmt;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.hengshucredit.rule.model.entity.RuleFieldValidation;
 import com.hengshucredit.rule.server.common.R;
+import com.hengshucredit.rule.server.governance.GovernedProjectionMutation;
 import com.hengshucredit.rule.server.service.RuleFieldValidationService;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -41,17 +42,20 @@ public class RuleFieldValidationController {
     }
 
     @PostMapping
+    @GovernedProjectionMutation
     public R<RuleFieldValidation> create(@RequestBody RuleFieldValidation rule) {
         return R.ok(service.createRule(rule));
     }
 
     @PutMapping
+    @GovernedProjectionMutation
     public R<Void> update(@RequestBody RuleFieldValidation rule) {
         service.updateRule(rule);
         return R.ok();
     }
 
     @DeleteMapping("/{id}")
+    @GovernedProjectionMutation
     public R<Void> delete(@PathVariable Long id) {
         service.deleteRule(id);
         return R.ok();

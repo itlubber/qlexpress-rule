@@ -9,7 +9,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-final class BuiltinFieldValidationCatalog {
+public final class BuiltinFieldValidationCatalog {
 
     private static final Set<String> RESERVED_CODES = Collections.unmodifiableSet(
             new LinkedHashSet<>(Arrays.asList(
@@ -62,11 +62,11 @@ final class BuiltinFieldValidationCatalog {
         return definitions;
     }
 
-    static boolean isReservedCode(String code) {
+    public static boolean isReservedCode(String code) {
         return code != null && RESERVED_CODES.contains(code);
     }
 
-    static boolean isBuiltin(RuleFieldValidation rule) {
+    public static boolean isBuiltin(RuleFieldValidation rule) {
         return rule != null
                 && RuleFieldValidationService.SCOPE_GLOBAL.equals(rule.getScope())
                 && Long.valueOf(0L).equals(rule.getProjectId())

@@ -39,6 +39,15 @@ public class GovernedResourceAdapterRegistryTest {
                 GovernanceResourceTypes.forTab("RULE"));
     }
 
+    @Test
+    public void fieldValidationBelongsToTheFieldApprovalTab() {
+        Assert.assertEquals(
+                List.of(GovernanceResourceTypes.VARIABLE,
+                        GovernanceResourceTypes.DATA_OBJECT,
+                        GovernanceResourceTypes.FIELD_VALIDATION),
+                GovernanceResourceTypes.forTab("FIELD"));
+    }
+
     private static GovernedResourceAdapter adapter(String resourceType) {
         return new GovernedResourceAdapter() {
             @Override

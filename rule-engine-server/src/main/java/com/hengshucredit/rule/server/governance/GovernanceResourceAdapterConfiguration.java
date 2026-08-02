@@ -24,6 +24,7 @@ import com.hengshucredit.rule.server.mapper.RuleExperimentMapper;
 import com.hengshucredit.rule.server.mapper.RuleExperimentGroupMapper;
 import com.hengshucredit.rule.server.mapper.RuleExternalApiConfigMapper;
 import com.hengshucredit.rule.server.mapper.RuleExternalDatasourceMapper;
+import com.hengshucredit.rule.server.mapper.RuleFieldValidationMapper;
 import com.hengshucredit.rule.server.mapper.RuleFunctionMapper;
 import com.hengshucredit.rule.server.mapper.RuleModelInputFieldMapper;
 import com.hengshucredit.rule.server.mapper.RuleModelMapper;
@@ -172,6 +173,15 @@ public class GovernanceResourceAdapterConfiguration {
             RuleListChangeBatchService batchService) {
         return new RuleListRecordBatchGovernedResourceAdapter(
                 batchService);
+    }
+
+    @Bean
+    public GovernedResourceAdapter fieldValidationGovernanceAdapter(
+            RuleFieldValidationMapper mapper,
+            RuleProjectMapper projectMapper,
+            RuleDefinitionInputFieldMapper inputFieldMapper) {
+        return new FieldValidationGovernedResourceAdapter(
+                mapper, projectMapper, inputFieldMapper);
     }
 
     @Bean

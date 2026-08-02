@@ -272,6 +272,24 @@ public class GovernanceApprovalServiceTest {
         Assert.assertEquals(1, service.insertRequestCalls);
     }
 
+    @Test
+    public void fieldValidationCreateDraftUsesScopedCodeIdentity() {
+        TestService service = new TestService();
+        GovernanceApprovalRequest first = service.createDraft(
+                createFieldValidationDraft(
+                        "Mobile_Check", "初始名称", 7L), "owner");
+        String firstKey = first.getActiveResourceKey();
+
+        GovernanceApprovalRequest reused = service.createDraft(
+                createFieldValidationDraft(
+                        "Mobile_Check", "修改名称", 7L), "owner");
+
+        Assert.assertTrue(firstKey.startsWith(
+                "FIELD_VALIDATION:CREATE:"));
+        Assert.assertEquals(firstKey, reused.getActiveResourceKey());
+        Assert.assertEquals(1, service.insertRequestCalls);
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void projectRuleBindingCreateRequiresPositiveIdReferences() {
         TestService service = new TestService();
@@ -577,6 +595,21 @@ public class GovernanceApprovalServiceTest {
                 + "\"listCode\":\"" + listCode + "\","
                 + "\"listName\":\"" + listName + "\","
                 + "\"listType\":\"BLACK\"}");
+        return draft;
+    }
+
+    private static GovernanceDraftRequest createFieldValidationDraft(
+            String code, String name, Long projectId) {
+        GovernanceDraftRequest draft = new GovernanceDraftRequest();
+        draft.setResourceType("FIELD_VALIDATION");
+        draft.setProjectId(projectId);
+        draft.setAction("CREATE");
+        draft.setSnapshotJson("{\"projectId\":" + projectId
+                + ",\"scope\":\"PROJECT\","
+                + "\"validationCode\":\"" + code + "\","
+                + "\"validationName\":\"" + name + "\","
+                + "\"validationType\":\"REQUIRED\","
+                + "\"errorMessage\":\"必填\"}");
         return draft;
     }
 

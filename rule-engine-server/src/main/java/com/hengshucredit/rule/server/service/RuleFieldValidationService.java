@@ -46,7 +46,9 @@ public class RuleFieldValidationService extends ServiceImpl<RuleFieldValidationM
 
     public IPage<RuleFieldValidation> pageList(int pageNum, int pageSize, Long projectId,
                                                String scope, String validationType, String keyword) {
-        LambdaQueryWrapper<RuleFieldValidation> query = new LambdaQueryWrapper<>();
+        LambdaQueryWrapper<RuleFieldValidation> query =
+                new LambdaQueryWrapper<RuleFieldValidation>()
+                        .ne(RuleFieldValidation::getStatus, -1);
         if (hasText(scope)) query.eq(RuleFieldValidation::getScope, scope.trim().toUpperCase(Locale.ROOT));
         if (projectId != null && projectId > 0) {
             query.eq(RuleFieldValidation::getProjectId, projectId);
@@ -204,7 +206,9 @@ public class RuleFieldValidationService extends ServiceImpl<RuleFieldValidationM
         LambdaQueryWrapper<RuleFieldValidation> query = new LambdaQueryWrapper<RuleFieldValidation>()
                 .eq(RuleFieldValidation::getScope, rule.getScope())
                 .eq(RuleFieldValidation::getProjectId, rule.getProjectId())
-                .eq(RuleFieldValidation::getValidationCode, rule.getValidationCode());
+                .eq(RuleFieldValidation::getValidationCode,
+                        rule.getValidationCode())
+                .ne(RuleFieldValidation::getStatus, -1);
         if (rule.getId() != null) query.ne(RuleFieldValidation::getId, rule.getId());
         if (count(query) > 0) throw new IllegalArgumentException("同一作用范围内校验编码已存在");
     }
