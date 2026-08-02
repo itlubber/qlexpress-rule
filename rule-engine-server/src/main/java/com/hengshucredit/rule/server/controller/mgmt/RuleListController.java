@@ -1,20 +1,23 @@
 package com.hengshucredit.rule.server.controller.mgmt;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.hengshucredit.rule.model.dto.RuleListChangeBatchResult;
+import com.hengshucredit.rule.model.dto.RuleListRecordChangeRequest;
 import com.hengshucredit.rule.model.entity.RuleListLibrary;
 import com.hengshucredit.rule.model.entity.RuleListRecord;
 import com.hengshucredit.rule.model.entity.RuleListRecordLog;
 import com.hengshucredit.rule.server.common.R;
+import com.hengshucredit.rule.server.security.RequirePermission;
+import com.hengshucredit.rule.server.service.ConsoleOperatorResolver;
+import com.hengshucredit.rule.server.service.RuleListChangeBatchService;
 import com.hengshucredit.rule.server.service.RuleListService;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -26,7 +29,6 @@ import jakarta.annotation.Resource;
 import java.io.ByteArrayOutputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/rule/list")
@@ -34,6 +36,12 @@ public class RuleListController {
 
     @Resource
     private RuleListService listService;
+
+    @Resource
+    private RuleListChangeBatchService changeBatchService;
+
+    @Resource
+    private ConsoleOperatorResolver operatorResolver;
 
     @GetMapping("/library")
     public R<IPage<RuleListLibrary>> listLibraries(
@@ -67,29 +75,13 @@ public class RuleListController {
         return R.ok(listService.pageRecords(listId, pageNum, pageSize, itemType, status, keyword, effectiveOnly));
     }
 
-    @PostMapping("/{listId:\\d+}/record")
-    public R<RuleListRecord> createRecord(@PathVariable Long listId, @RequestBody RuleListRecord record) {
+    @PostMapping("/{listId:\\d+}/change-batch")
+    @RequirePermission("approval:submit")
+    public R<RuleListChangeBatchResult> stageRecordChange(
+            @PathVariable Long listId,
+            @RequestBody RuleListRecordChangeRequest request) {
         try {
-            return R.ok(listService.saveRecord(listId, record));
-        } catch (IllegalArgumentException e) {
-            return R.fail(e.getMessage());
-        }
-    }
-
-    @PutMapping("/{listId:\\d+}/record")
-    public R<RuleListRecord> updateRecord(@PathVariable Long listId, @RequestBody RuleListRecord record) {
-        try {
-            return R.ok(listService.updateRecord(listId, record));
-        } catch (IllegalArgumentException e) {
-            return R.fail(e.getMessage());
-        }
-    }
-
-    @DeleteMapping("/{listId:\\d+}/record/{recordId:\\d+}")
-    public R<Void> deleteRecord(@PathVariable Long listId, @PathVariable Long recordId) {
-        try {
-            listService.deleteRecord(listId, recordId);
-            return R.ok();
+            return R.ok(changeBatchService.stageSingle(listId, request, operatorResolver.resolve()));
         } catch (IllegalArgumentException e) {
             return R.fail(e.getMessage());
         }
@@ -119,9 +111,12 @@ public class RuleListController {
     }
 
     @PostMapping("/{listId:\\d+}/import")
-    public R<Map<String, Object>> importRecords(@PathVariable Long listId, @RequestPart("file") MultipartFile file) {
+    @RequirePermission("approval:submit")
+    public R<RuleListChangeBatchResult> importRecords(
+            @PathVariable Long listId,
+            @RequestPart("file") MultipartFile file) {
         try {
-            return R.ok(listService.importRecords(listId, file));
+            return R.ok(changeBatchService.stageImport(listId, file, operatorResolver.resolve()));
         } catch (Exception e) {
             return R.fail(e.getMessage());
         }
