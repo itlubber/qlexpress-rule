@@ -233,9 +233,14 @@ export default {
           : `#${value.projectId}`
         return `将规则${rule}${action}项目${project}`
       }
+      if (row.resourceType === 'LIST_RECORD_BATCH' && value.batchId) {
+        const count = (value.addCount || 0) +
+          (value.updateCount || 0) + (value.deleteCount || 0)
+        return `${value.listName || '名单'} · ${count} 条内容变更`
+      }
       return value.ruleName || value.modelName || value.funcName ||
         value.datasourceName || value.projectName || value.varLabel ||
-        value.objectLabel || value.experimentName ||
+        value.objectLabel || value.experimentName || value.listName ||
         `${this.resourceTypeLabel(row.resourceType)} #${row.resourceId}`
     },
     moduleInitial(type) {
@@ -252,6 +257,8 @@ export default {
         FUNCTION: '函数',
         RULE: '规则',
         RULE_PROJECT_BINDING: '项目规则关联',
+        LIST_LIBRARY: '名单库',
+        LIST_RECORD_BATCH: '名单内容批次',
         EXPERIMENT: '分流',
         PROJECT: '项目'
       }[type] || type || '资源'

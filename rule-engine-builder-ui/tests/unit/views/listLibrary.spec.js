@@ -5,17 +5,34 @@ import * as ruleListApi from '@/api/ruleList'
 import ProjectFilterSelect from '@/components/ProjectFilterSelect.vue'
 import ListLibrary from '@/views/ruleList/ListLibrary.vue'
 
-
-
 const FormStub = {
   template: '<form><slot /></form>',
   methods: { validate: vi.fn(cb => cb(true)) }
 }
 
+async function flush() {
+  await nextTick()
+  await new Promise(resolve => setTimeout(resolve, 0))
+}
+
 async function mountPage() {
-  projectApi.listProjects.mockResolvedValue({ data: { records: [{ id: 1, projectName: '项目A' }] } })
+  projectApi.listProjects.mockResolvedValue({
+    data: { records: [{ id: 1, projectName: 'Project A' }] }
+  })
   ruleListApi.listLibraries.mockResolvedValue({
-    data: { records: [{ id: 9, listCode: 'mobile_black', listName: '手机号黑名单', listType: 'BLACK', status: 1, recordCount: 2 }], total: 1 }
+    data: {
+      records: [{
+        id: 9,
+        projectId: 1,
+        scope: 'PROJECT',
+        listCode: 'mobile_black',
+        listName: 'Mobile blacklist',
+        listType: 'BLACK',
+        status: 1,
+        recordCount: 2
+      }],
+      total: 1
+    }
   })
   const wrapper = mount(ListLibrary, {
     mocks: {
@@ -40,51 +57,69 @@ async function mountPage() {
       'el-switch': true
     }
   })
-  await nextTick()
-  await new Promise(resolve => setTimeout(resolve, 0))
+  await flush()
   return wrapper
 }
 
-describe('ListLibrary — 名单库管理', () => {
+describe('ListLibrary governed changes', () => {
   let wrapper
 
   beforeEach(async () => { wrapper = await mountPage() })
-  afterEach(() => { if (wrapper) wrapper.unmount(); vi.clearAllMocks() })
-
-  test('uses unified fuzzy filters for project code and name', () => {
-    expect(ListLibrary.components.ProjectFilterSelect).toBe(ProjectFilterSelect)
-    expect(wrapper.vm.query).toEqual(expect.objectContaining({ projectCode: '', projectName: '' }))
+  afterEach(() => {
+    if (wrapper) wrapper.unmount()
+    vi.clearAllMocks()
   })
 
-  test('初始化加载项目和名单库', () => {
+  test('uses unified fuzzy filters and loads effective libraries', () => {
+    expect(ListLibrary.components.ProjectFilterSelect).toBe(ProjectFilterSelect)
     expect(projectApi.listProjects).toHaveBeenCalled()
     expect(ruleListApi.listLibraries).toHaveBeenCalled()
     expect(wrapper.vm.tableData[0].listCode).toBe('mobile_black')
     expect(wrapper.vm.activeTab).toBe('list')
   })
 
-  test('保存新名单库时校验项目并调用创建接口', async () => {
-    ruleListApi.createLibrary.mockResolvedValue({ data: { id: 10 } })
+  test('new library creates an approval draft and opens it', async () => {
+    ruleListApi.createLibraryDraft.mockResolvedValue({ data: { id: 81 } })
     wrapper.vm.handleCreate()
     wrapper.vm.form.projectId = 1
     wrapper.vm.form.listCode = 'id_black'
-    wrapper.vm.form.listName = '身份证黑名单'
-    wrapper.vm.submit()
-    await nextTick()
-    await new Promise(resolve => setTimeout(resolve, 0))
+    wrapper.vm.form.listName = 'ID blacklist'
 
-    expect(ruleListApi.createLibrary).toHaveBeenCalledWith(expect.objectContaining({
-      projectId: 1,
-      listCode: 'id_black',
-      listName: '身份证黑名单'
-    }))
+    wrapper.vm.submit()
+    await flush()
+
+    expect(ruleListApi.createLibraryDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: 1,
+        listCode: 'id_black',
+        listName: 'ID blacklist'
+      })
+    )
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith('/approval/81')
   })
 
-  test('切换状态会调用更新接口', async () => {
-    ruleListApi.updateLibrary.mockResolvedValue({ data: true })
+  test('status change creates approval and restores effective switch state', async () => {
+    ruleListApi.changeLibraryStatusDraft.mockResolvedValue({ data: { id: 82 } })
     const row = { ...wrapper.vm.tableData[0], status: 0 }
-    await wrapper.vm.toggleStatus(row)
 
-    expect(ruleListApi.updateLibrary).toHaveBeenCalledWith(expect.objectContaining({ id: 9, status: 0 }))
+    await wrapper.vm.toggleStatus(row, 0)
+
+    expect(ruleListApi.changeLibraryStatusDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 9 }), 0
+    )
+    expect(row.status).toBe(1)
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith('/approval/82')
+  })
+
+  test('delete creates approval instead of removing effective library', async () => {
+    ruleListApi.deleteLibraryDraft.mockResolvedValue({ data: { id: 83 } })
+
+    wrapper.vm.handleDelete(wrapper.vm.tableData[0])
+    await flush()
+
+    expect(ruleListApi.deleteLibraryDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 9 })
+    )
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith('/approval/83')
   })
 })

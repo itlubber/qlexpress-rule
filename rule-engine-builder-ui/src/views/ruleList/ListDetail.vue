@@ -16,7 +16,7 @@
           size="small"
           :icon="ElIconUpload2"
           @click="$refs.fileInput.click()"
-          >导入</el-button
+          >导入并审批</el-button
         >
         <el-button
           size="small"
@@ -33,6 +33,36 @@
           @change="handleFileChange"
         />
       </div>
+    </div>
+
+    <div class="workflow-guide" role="note">
+      <div class="workflow-guide-title">名单内容变更流程</div>
+      <div class="workflow-steps" aria-label="名单内容变更流程">
+        <span class="workflow-step is-current">1 填写或导入</span>
+        <span class="workflow-arrow">→</span>
+        <span class="workflow-step">2 提交审批</span>
+        <span class="workflow-arrow">→</span>
+        <span class="workflow-step">3 审批通过后生效</span>
+      </div>
+      <div class="workflow-guide-text">
+        审批通过前，当前有效记录和变更日志都不会改变；重复数据会自动跳过，错误行会明确提示。
+      </div>
+    </div>
+
+    <div
+      v-if="batchFeedback && !dialogVisible"
+      class="batch-feedback"
+      :class="{ 'is-error': !batchFeedback.submittable }"
+      role="alert"
+    >
+      <div class="batch-feedback-title">{{ batchFeedback.title }}</div>
+      <div class="batch-feedback-summary">{{ batchFeedback.summary }}</div>
+      <ul v-if="batchFeedback.errors.length" class="batch-feedback-errors">
+        <li v-for="(error, index) in batchFeedback.errors" :key="index">
+          {{ error }}
+        </li>
+      </ul>
+      <el-button link type="primary" @click="batchFeedback = null">关闭提示</el-button>
     </div>
 
     <el-tabs v-model="activeTab">
@@ -91,7 +121,7 @@
               size="small"
               :icon="ElIconPlus"
               @click="handleCreate"
-              >新增记录</el-button
+              >新增变更</el-button
             >
           </div>
         </div>
@@ -261,11 +291,24 @@
     </el-tabs>
 
     <el-dialog
-      :title="form.id ? '修改名单记录' : '新增名单记录'"
+      :title="form.id ? '修改名单记录并审批' : '新增名单记录并审批'"
       v-model="dialogVisible"
       width="640px"
       append-to-body
     >
+      <div
+        v-if="batchFeedback"
+        class="batch-feedback is-error"
+        role="alert"
+      >
+        <div class="batch-feedback-title">{{ batchFeedback.title }}</div>
+        <div class="batch-feedback-summary">{{ batchFeedback.summary }}</div>
+        <ul v-if="batchFeedback.errors.length" class="batch-feedback-errors">
+          <li v-for="(error, index) in batchFeedback.errors" :key="index">
+            {{ error }}
+          </li>
+        </ul>
+      </div>
       <el-form
         ref="form"
         :model="form"
@@ -318,7 +361,7 @@
       <template v-slot:footer>
         <div>
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submit">保存</el-button>
+          <el-button type="primary" @click="submit">生成审批草稿</el-button>
         </div>
       </template>
     </el-dialog>
@@ -335,9 +378,7 @@ import {
 import {
   getLibrary,
   listRecords,
-  createRecord,
-  updateRecord,
-  deleteRecord,
+  stageRecordChange,
   listRecordLogs,
   importRecords,
   listTemplateUrl,
@@ -354,6 +395,7 @@ export default {
       logLoading: false,
       records: [],
       logs: [],
+      batchFeedback: null,
       traceRecord: null,
       total: 0,
       logTotal: 0,
@@ -408,6 +450,7 @@ export default {
       this.records = []
       this.logs = []
       this.traceRecord = null
+      this.batchFeedback = null
       this.logTotal = 0
       this.logQuery = { pageNum: 1, pageSize: this.logQuery.pageSize }
       this.activeTab = 'records'
@@ -484,11 +527,13 @@ export default {
       this.loadRecords()
     },
     handleCreate() {
+      this.batchFeedback = null
       this.form = this.emptyForm()
       this.validRange = []
       this.dialogVisible = true
     },
     handleEdit(row) {
+      this.batchFeedback = null
       this.form = { ...this.emptyForm(), ...row, lastOperation: 'UPDATE' }
       this.validRange =
         row.effectiveTime || row.expireTime
@@ -532,24 +577,30 @@ export default {
           this.validRange && this.validRange[1]
             ? this.normalizeDateTime(this.validRange[1])
             : null
-        payload.lastOperation = payload.id ? 'UPDATE' : 'ADD'
-        if (payload.id) await updateRecord(this.listId, payload)
-        else await createRecord(this.listId, payload)
-        this.$message.success('保存成功')
-        this.dialogVisible = false
-        this.loadRecords()
-        this.loadLogs()
+        const operation = payload.id ? 'UPDATE' : 'ADD'
+        const response = await stageRecordChange(
+          this.listId,
+          operation,
+          payload
+        )
+        if (this.handleBatchResult(response.data || {}, '名单记录变更')) {
+          this.dialogVisible = false
+        }
       })
     },
     handleDelete(row) {
-      this.$confirm(`确定删除名单内容「${row.itemContent}」？`, '确认删除', {
-        type: 'warning',
-      })
+      this.$confirm(
+        `将为名单内容「${row.itemContent}」生成删除审批。审批通过前，该记录仍保持当前状态。`,
+        '发起删除审批',
+        { type: 'warning' }
+      )
         .then(async () => {
-          await deleteRecord(this.listId, row.id)
-          this.$message.success('删除成功')
-          this.loadRecords()
-          this.loadLogs()
+          const response = await stageRecordChange(
+            this.listId,
+            'DELETE',
+            row
+          )
+          this.handleBatchResult(response.data || {}, '删除变更')
         })
         .catch(() => {})
     },
@@ -559,17 +610,29 @@ export default {
       if (!file) return
       const res = await importRecords(this.listId, file)
       const data = res.data || {}
-      if (data.errorCount > 0) {
-        this.$message.warning(
-          `导入完成：成功 ${data.successCount || 0} 条，失败 ${
-            data.errorCount
-          } 条`
+      this.handleBatchResult(data, 'Excel 导入')
+    },
+    handleBatchResult(data, sourceLabel) {
+      const validCount = (data.addCount || 0) +
+        (data.updateCount || 0) + (data.deleteCount || 0)
+      const summary = `共 ${data.totalCount || 0} 条，待变更 ${validCount} 条，` +
+        `重复 ${data.duplicateCount || 0} 条，错误 ${data.invalidCount || 0} 条`
+      if (data.submittable && data.approvalRequestId) {
+        this.batchFeedback = null
+        this.$message.success(
+          `${sourceLabel}已生成审批草稿；${summary}`
         )
-      } else {
-        this.$message.success(`导入成功 ${data.successCount || 0} 条`)
+        this.$router.push('/approval/' + data.approvalRequestId)
+        return true
       }
-      this.loadRecords()
-      this.loadLogs()
+      this.batchFeedback = {
+        submittable: false,
+        title: `${sourceLabel}未提交审批`,
+        summary,
+        errors: (data.errors || []).slice(0, 20),
+      }
+      this.$message.warning('请按页面提示修正错误后重新提交')
+      return false
     },
     downloadTemplate() {
       window.open(listTemplateUrl, '_blank')
@@ -610,6 +673,7 @@ export default {
 <style scoped>
 .detail-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -632,11 +696,79 @@ export default {
 }
 .detail-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
 .hidden-file {
   display: none;
+}
+.workflow-guide {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  background: #eff6ff;
+}
+.workflow-guide-title {
+  color: #1e3a8a;
+  font-size: 13px;
+  font-weight: 600;
+}
+.workflow-steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.workflow-step {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #fff;
+  color: #475569;
+  font-size: 12px;
+}
+.workflow-step.is-current {
+  background: #2563eb;
+  color: #fff;
+}
+.workflow-arrow {
+  color: #64748b;
+}
+.workflow-guide-text {
+  margin-top: 8px;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.batch-feedback {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid #86efac;
+  border-radius: 6px;
+  background: #f0fdf4;
+}
+.batch-feedback.is-error {
+  border-color: #fdba74;
+  background: #fff7ed;
+}
+.batch-feedback-title {
+  color: #9a3412;
+  font-size: 13px;
+  font-weight: 600;
+}
+.batch-feedback-summary {
+  margin-top: 4px;
+  color: #475569;
+  font-size: 12px;
+}
+.batch-feedback-errors {
+  margin: 8px 0 4px;
+  padding-left: 20px;
+  color: #9a3412;
+  font-size: 12px;
+  line-height: 1.7;
 }
 .log-toolbar {
   justify-content: flex-start;

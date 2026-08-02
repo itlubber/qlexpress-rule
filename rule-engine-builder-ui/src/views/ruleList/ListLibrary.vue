@@ -7,6 +7,13 @@
       </div>
     </div>
 
+    <div class="approval-guide" role="note">
+      <div class="approval-guide-title">变更先审批，再生效</div>
+      <div class="approval-guide-text">
+        新建、修改、启停和删除名单库都会先生成审批草稿。审批通过前，线上名单库保持不变。
+      </div>
+    </div>
+
     <el-tabs v-model="activeTab" type="border-card" class="page-tabs">
       <el-tab-pane label="名单管理" name="list">
         <div class="uiue-search-container">
@@ -153,7 +160,7 @@
                 v-model="row.status"
                 :active-value="1"
                 :inactive-value="0"
-                @change="toggleStatus(row)"
+                @change="toggleStatus(row, $event)"
               />
             </template>
           </el-table-column>
@@ -211,7 +218,7 @@
     </el-tabs>
 
     <el-dialog
-      :title="form.id ? '编辑名单库' : '新建名单库'"
+      :title="form.id ? '修改名单库审批' : '新建名单库审批'"
       v-model="dialogVisible"
       width="640px"
       append-to-body
@@ -296,7 +303,7 @@
       <template v-slot:footer>
         <div>
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submit">保存</el-button>
+          <el-button type="primary" @click="submit">生成审批草稿</el-button>
         </div>
       </template>
     </el-dialog>
@@ -309,9 +316,10 @@ import { Plus as ElIconPlus } from '@element-plus/icons-vue'
 import { listProjects } from '@/api/project'
 import {
   listLibraries,
-  createLibrary,
-  updateLibrary,
-  deleteLibrary,
+  createLibraryDraft,
+  updateLibraryDraft,
+  changeLibraryStatusDraft,
+  deleteLibraryDraft,
 } from '@/api/ruleList'
 import ModuleCallLog from '@/components/common/ModuleCallLog.vue'
 import RemoteFilterSelect from '@/components/RemoteFilterSelect.vue'
@@ -447,25 +455,46 @@ export default {
           this.$message.warning('请选择所属项目')
           return
         }
-        if (payload.id) await updateLibrary(payload)
-        else await createLibrary(payload)
-        this.$message.success('保存成功')
+        const response = payload.id
+          ? await updateLibraryDraft(payload)
+          : await createLibraryDraft(payload)
+        this.$message.success('审批草稿已生成，请检查后提交')
         this.dialogVisible = false
-        this.loadData()
+        if (response.data && response.data.id) {
+          this.$router.push('/approval/' + response.data.id)
+        }
       })
     },
-    async toggleStatus(row) {
-      await updateLibrary({ ...row })
-      this.$message.success(row.status === 1 ? '已启用' : '已停用')
+    async toggleStatus(row, requestedStatus) {
+      const targetStatus = requestedStatus == null
+        ? row.status
+        : requestedStatus
+      const effectiveStatus = targetStatus === 1 ? 0 : 1
+      row.status = effectiveStatus
+      try {
+        const response = await changeLibraryStatusDraft(row, targetStatus)
+        this.$message.success(
+          `${targetStatus === 1 ? '启用' : '停用'}审批草稿已生成`
+        )
+        if (response.data && response.data.id) {
+          this.$router.push('/approval/' + response.data.id)
+        }
+      } finally {
+        row.status = effectiveStatus
+      }
     },
     handleDelete(row) {
-      this.$confirm(`确定删除名单库「${row.listName}」？`, '确认删除', {
-        type: 'warning',
-      })
+      this.$confirm(
+        `将为名单库「${row.listName}」生成删除审批。审批通过前，名单库和记录仍可正常使用。`,
+        '发起删除审批',
+        { type: 'warning' }
+      )
         .then(async () => {
-          await deleteLibrary(row.id)
-          this.$message.success('删除成功')
-          this.loadData()
+          const response = await deleteLibraryDraft(row)
+          this.$message.success('删除审批草稿已生成')
+          if (response.data && response.data.id) {
+            this.$router.push('/approval/' + response.data.id)
+          }
         })
         .catch(() => {})
     },
@@ -502,6 +531,24 @@ export default {
   margin-bottom: 4px;
 }
 .hint-text {
+  font-size: 12px;
+  line-height: 1.6;
+}
+.approval-guide {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  background: #eff6ff;
+}
+.approval-guide-title {
+  color: #1e3a8a;
+  font-size: 13px;
+  font-weight: 600;
+}
+.approval-guide-text {
+  margin-top: 3px;
+  color: #475569;
   font-size: 12px;
   line-height: 1.6;
 }
