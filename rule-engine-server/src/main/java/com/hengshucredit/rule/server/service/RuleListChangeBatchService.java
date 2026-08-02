@@ -9,13 +9,17 @@ import com.hengshucredit.rule.model.entity.RuleListChangeBatch;
 import com.hengshucredit.rule.model.entity.RuleListChangeItem;
 import com.hengshucredit.rule.model.entity.RuleListLibrary;
 import com.hengshucredit.rule.model.entity.RuleListRecord;
+import com.hengshucredit.rule.model.entity.RuleListRecordLog;
 import com.hengshucredit.rule.server.artifact.CanonicalJson;
 import com.hengshucredit.rule.server.artifact.Sha256Digests;
 import com.hengshucredit.rule.server.governance.GovernanceApprovalService;
+import com.hengshucredit.rule.server.governance.GovernanceIssue;
 import com.hengshucredit.rule.server.governance.GovernanceResourceTypes;
+import com.hengshucredit.rule.server.governance.ResourceSnapshot;
 import com.hengshucredit.rule.server.mapper.RuleListChangeBatchMapper;
 import com.hengshucredit.rule.server.mapper.RuleListChangeItemMapper;
 import com.hengshucredit.rule.server.mapper.RuleListLibraryMapper;
+import com.hengshucredit.rule.server.mapper.RuleListRecordLogMapper;
 import com.hengshucredit.rule.server.mapper.RuleListRecordMapper;
 import jakarta.annotation.Resource;
 import org.apache.poi.ss.usermodel.Cell;
@@ -26,6 +30,8 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -43,6 +49,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -74,6 +81,9 @@ public class RuleListChangeBatchService {
     @Resource
     private RuleListRecordMapper recordMapper;
     @Resource
+    private RuleListRecordLogMapper logMapper;
+    @Resource
+    @Lazy
     private GovernanceApprovalService approvalService;
 
     @Transactional
@@ -98,6 +108,189 @@ public class RuleListChangeBatchService {
             throw new IllegalArgumentException("请上传 Excel 文件");
         }
         return stage(listId, "IMPORT", parseWorkbook(file), actor);
+    }
+
+    public ResourceSnapshot loadBatchSnapshot(Long batchId) {
+        RuleListChangeBatch batch = requireBatch(loadBatch(batchId), batchId);
+        RuleListLibrary library = loadLibrary(batch.getListId());
+        if (library == null) {
+            throw new IllegalArgumentException(
+                    "名单变更批次所属名单库不存在");
+        }
+        List<RuleListChangeItem> items = loadBatchItems(batchId);
+        return new ResourceSnapshot(CanonicalJson.write(
+                batchSnapshot(batch, library, items)),
+                "ACTIVE", null, null);
+    }
+
+    public List<GovernanceIssue> validateBatch(
+            Long batchId, String expectedDigest) {
+        RuleListChangeBatch batch = loadBatch(batchId);
+        if (batch == null) {
+            return List.of(issue("LIST_BATCH_NOT_FOUND",
+                    "名单变更批次不存在", batchId, "$"));
+        }
+        return validateBatchState(batch, loadBatchItems(batchId),
+                expectedDigest, false);
+    }
+
+    @Transactional
+    public Long applyBatch(Long batchId, String expectedDigest,
+                           String actor) {
+        String operator = requireActor(actor);
+        RuleListChangeBatch batch = requireBatch(
+                loadBatchForUpdate(batchId), batchId);
+        List<RuleListChangeItem> items = loadBatchItems(batchId);
+        List<GovernanceIssue> issues = validateBatchState(
+                batch, items, expectedDigest, true);
+        if (!issues.isEmpty()) {
+            throw new IllegalStateException(
+                    "list batch baseline validation failed: "
+                            + issues.get(0).message());
+        }
+        try {
+            for (RuleListChangeItem item : items) {
+                if (VALID.equals(item.getValidationStatus())) {
+                    applyItem(batch.getListId(), item, operator);
+                }
+            }
+        } catch (DuplicateKeyException collision) {
+            throw new IllegalStateException(
+                    "名单记录已被并发修改，本批次未生效，请重新发起审批",
+                    collision);
+        }
+        batch.setStatus("APPLIED");
+        batch.setAppliedBy(operator);
+        batch.setAppliedTime(LocalDateTime.now());
+        batch.setTerminalMessage(null);
+        updateBatch(batch);
+        return batch.getId();
+    }
+
+    @Transactional
+    public void terminateBatch(Long batchId, String terminalStatus,
+                               String message) {
+        RuleListChangeBatch batch = requireBatch(
+                loadBatchForUpdate(batchId), batchId);
+        if (!STAGED.equals(batch.getStatus())) {
+            return;
+        }
+        batch.setStatus(required(terminalStatus,
+                "批次终态不能为空").toUpperCase(Locale.ROOT));
+        batch.setTerminalMessage(trimToNull(message));
+        updateBatch(batch);
+    }
+
+    private List<GovernanceIssue> validateBatchState(
+            RuleListChangeBatch batch,
+            List<RuleListChangeItem> items,
+            String expectedDigest,
+            boolean lockRecords) {
+        List<GovernanceIssue> issues = new ArrayList<>();
+        Long batchId = batch.getId();
+        if (!STAGED.equals(batch.getStatus())) {
+            issues.add(issue("LIST_BATCH_NOT_STAGED",
+                    "名单变更批次已结束，不能重复处理", batchId, "$"));
+            return issues;
+        }
+        String actualDigest = digest(items);
+        if (!Objects.equals(batch.getContentDigest(), expectedDigest)
+                || !Objects.equals(batch.getContentDigest(), actualDigest)) {
+            issues.add(issue("LIST_BATCH_CONTENT_CHANGED",
+                    "名单变更内容已变化，请重新发起审批", batchId,
+                    "$.contentDigest"));
+        }
+        BatchCounts actualCounts = counts(items);
+        if (!sameCounts(batch, actualCounts)) {
+            issues.add(issue("LIST_BATCH_COUNTS_CHANGED",
+                    "名单变更统计与明细不一致，请重新发起审批", batchId,
+                    "$.totalCount"));
+        }
+        try {
+            requireLibrary(batch.getListId());
+        } catch (IllegalArgumentException missingLibrary) {
+            issues.add(issue("LIST_LIBRARY_NOT_FOUND",
+                    missingLibrary.getMessage(), batchId, "$.listId"));
+        }
+        for (int index = 0; index < items.size(); index++) {
+            RuleListChangeItem item = items.get(index);
+            if (!VALID.equals(item.getValidationStatus())) continue;
+            String path = "$.items[" + index + "]";
+            RuleListRecord target = item.getTargetRecordId() == null
+                    ? null : loadRecord(item.getTargetRecordId(), lockRecords);
+            if ("ADD".equals(item.getOperation())) {
+                RuleListRecord existing = findRecord(batch.getListId(),
+                        item.getItemType(), item.getItemContent(), lockRecords);
+                if (existing != null) {
+                    issues.add(issue("LIST_BATCH_TARGET_EXISTS",
+                            "待新增的名单内容已存在", batchId, path));
+                }
+                continue;
+            }
+            if (target == null
+                    || !batch.getListId().equals(target.getListId())) {
+                issues.add(issue("LIST_BATCH_TARGET_MISSING",
+                        "待变更的名单记录已不存在", batchId, path));
+                continue;
+            }
+            if (!Objects.equals(item.getBaselineDigest(),
+                    recordDigest(target))) {
+                issues.add(issue("LIST_BATCH_BASELINE_CHANGED",
+                        "名单记录基线已变化，请重新发起审批",
+                        batchId, path));
+                continue;
+            }
+            if ("UPDATE".equals(item.getOperation())) {
+                RuleListRecord duplicate = findRecord(batch.getListId(),
+                        item.getItemType(), item.getItemContent(), lockRecords);
+                if (duplicate != null
+                        && !duplicate.getId().equals(target.getId())) {
+                    issues.add(issue("LIST_BATCH_TARGET_EXISTS",
+                            "修改后的名单内容已存在", batchId, path));
+                }
+            }
+        }
+        return issues;
+    }
+
+    private void applyItem(Long listId, RuleListChangeItem item,
+                           String actor) {
+        RuleListRecord record;
+        if ("ADD".equals(item.getOperation())) {
+            record = new RuleListRecord();
+            record.setListId(listId);
+        } else {
+            record = loadRecordForUpdate(item.getTargetRecordId());
+            if (record == null) {
+                throw new IllegalStateException(
+                        "list record disappeared during batch apply");
+            }
+        }
+        if ("DELETE".equals(item.getOperation())) {
+            record.setStatus(0);
+        } else {
+            record.setItemType(item.getItemType());
+            record.setItemContent(item.getItemContent());
+            record.setEffectiveTime(item.getEffectiveTime());
+            record.setExpireTime(item.getExpireTime());
+            record.setReason(item.getReason());
+            record.setRemark(item.getRemark());
+            record.setStatus(item.getTargetStatus());
+        }
+        record.setLastOperation(item.getOperation());
+        persistRecord(record);
+        RuleListRecordLog log = new RuleListRecordLog();
+        log.setListId(record.getListId());
+        log.setRecordId(record.getId());
+        log.setItemType(record.getItemType());
+        log.setItemContent(record.getItemContent());
+        log.setEffectiveTime(record.getEffectiveTime());
+        log.setExpireTime(record.getExpireTime());
+        log.setReason(record.getReason());
+        log.setRemark(record.getRemark());
+        log.setOperation(item.getOperation());
+        log.setOperator(actor);
+        persistLog(log);
     }
 
     private RuleListChangeBatchResult stage(
@@ -222,6 +415,13 @@ public class RuleListChangeBatchService {
             throw new IllegalArgumentException("执行操作只能是新增、修改或删除");
         }
         item.setOperation(operation);
+        if ("DELETE".equals(operation)
+                && item.getTargetRecordId() != null
+                && (!hasText(item.getItemType())
+                || !hasText(item.getItemContent()))) {
+            item.setTargetStatus(0);
+            return;
+        }
         item.setItemContent(required(item.getItemContent(),
                 "名单内容不能为空"));
         item.setItemType(normalizeItemType(item.getItemType()));
@@ -261,20 +461,8 @@ public class RuleListChangeBatchService {
     private GovernanceDraftRequest approvalDraft(
             RuleListChangeBatch batch, RuleListLibrary library,
             List<RuleListChangeItem> items) {
-        Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("batchId", batch.getId());
-        snapshot.put("listId", library.getId());
-        snapshot.put("listCode", library.getListCode());
-        snapshot.put("listName", library.getListName());
-        snapshot.put("sourceType", batch.getSourceType());
-        snapshot.put("totalCount", batch.getTotalCount());
-        snapshot.put("addCount", batch.getAddCount());
-        snapshot.put("updateCount", batch.getUpdateCount());
-        snapshot.put("deleteCount", batch.getDeleteCount());
-        snapshot.put("duplicateCount", batch.getDuplicateCount());
-        snapshot.put("invalidCount", batch.getInvalidCount());
-        snapshot.put("contentDigest", batch.getContentDigest());
-        snapshot.put("samples", samples(items));
+        Map<String, Object> snapshot = batchSnapshot(
+                batch, library, items);
         GovernanceDraftRequest draft = new GovernanceDraftRequest();
         draft.setResourceType(GovernanceResourceTypes.LIST_RECORD_BATCH);
         draft.setProjectId("GLOBAL".equals(library.getScope())
@@ -301,6 +489,26 @@ public class RuleListChangeBatchService {
             if (result.size() == SAMPLE_LIMIT) break;
         }
         return result;
+    }
+
+    private Map<String, Object> batchSnapshot(
+            RuleListChangeBatch batch, RuleListLibrary library,
+            List<RuleListChangeItem> items) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("batchId", batch.getId());
+        snapshot.put("listId", library.getId());
+        snapshot.put("listCode", library.getListCode());
+        snapshot.put("listName", library.getListName());
+        snapshot.put("sourceType", batch.getSourceType());
+        snapshot.put("totalCount", batch.getTotalCount());
+        snapshot.put("addCount", batch.getAddCount());
+        snapshot.put("updateCount", batch.getUpdateCount());
+        snapshot.put("deleteCount", batch.getDeleteCount());
+        snapshot.put("duplicateCount", batch.getDuplicateCount());
+        snapshot.put("invalidCount", batch.getInvalidCount());
+        snapshot.put("contentDigest", batch.getContentDigest());
+        snapshot.put("samples", samples(items));
+        return snapshot;
     }
 
     private RuleListChangeBatchResult result(
@@ -419,12 +627,38 @@ public class RuleListChangeBatchService {
         return result;
     }
 
+    protected RuleListChangeBatch loadBatch(Long batchId) {
+        return batchId == null ? null : batchMapper.selectById(batchId);
+    }
+
+    protected RuleListChangeBatch loadBatchForUpdate(Long batchId) {
+        return batchId == null ? null : batchMapper.selectOne(
+                new LambdaQueryWrapper<RuleListChangeBatch>()
+                        .eq(RuleListChangeBatch::getId, batchId)
+                        .last("FOR UPDATE"));
+    }
+
+    protected List<RuleListChangeItem> loadBatchItems(Long batchId) {
+        return itemMapper.selectList(
+                new LambdaQueryWrapper<RuleListChangeItem>()
+                        .eq(RuleListChangeItem::getBatchId, batchId)
+                        .orderByAsc(RuleListChangeItem::getRowNumber)
+                        .orderByAsc(RuleListChangeItem::getId));
+    }
+
     protected RuleListLibrary loadLibrary(Long listId) {
         return libraryMapper.selectById(listId);
     }
 
     protected RuleListRecord loadRecord(Long recordId) {
         return recordMapper.selectById(recordId);
+    }
+
+    protected RuleListRecord loadRecordForUpdate(Long recordId) {
+        return recordMapper.selectOne(
+                new LambdaQueryWrapper<RuleListRecord>()
+                        .eq(RuleListRecord::getId, recordId)
+                        .last("FOR UPDATE"));
     }
 
     protected RuleListRecord findRecord(
@@ -435,6 +669,33 @@ public class RuleListChangeBatchService {
                         .eq(RuleListRecord::getItemType, itemType)
                         .eq(RuleListRecord::getItemContent, itemContent)
                         .last("LIMIT 1"));
+    }
+
+    protected RuleListRecord findRecordForUpdate(
+            Long listId, String itemType, String itemContent) {
+        return recordMapper.selectOne(
+                new LambdaQueryWrapper<RuleListRecord>()
+                        .eq(RuleListRecord::getListId, listId)
+                        .eq(RuleListRecord::getItemType, itemType)
+                        .eq(RuleListRecord::getItemContent, itemContent)
+                        .last("LIMIT 1 FOR UPDATE"));
+    }
+
+    protected void persistRecord(RuleListRecord record) {
+        int affected = record.getId() == null
+                ? recordMapper.insert(record)
+                : recordMapper.updateById(record);
+        if (affected != 1 || record.getId() == null) {
+            throw new IllegalStateException(
+                    "名单记录生效失败");
+        }
+    }
+
+    protected void persistLog(RuleListRecordLog log) {
+        if (logMapper.insert(log) != 1) {
+            throw new IllegalStateException(
+                    "名单变更日志写入失败");
+        }
     }
 
     protected RuleListChangeBatch insertBatch(
@@ -461,6 +722,50 @@ public class RuleListChangeBatchService {
     protected GovernanceApprovalRequest createApproval(
             GovernanceDraftRequest request, String actor) {
         return approvalService.createDraft(request, actor);
+    }
+
+    private RuleListRecord loadRecord(Long recordId,
+                                      boolean forUpdate) {
+        return forUpdate ? loadRecordForUpdate(recordId)
+                : loadRecord(recordId);
+    }
+
+    private RuleListRecord findRecord(
+            Long listId, String itemType, String itemContent,
+            boolean forUpdate) {
+        return forUpdate
+                ? findRecordForUpdate(listId, itemType, itemContent)
+                : findRecord(listId, itemType, itemContent);
+    }
+
+    private RuleListChangeBatch requireBatch(
+            RuleListChangeBatch batch, Long batchId) {
+        if (batch == null) {
+            throw new IllegalArgumentException(
+                    "名单变更批次不存在: " + batchId);
+        }
+        return batch;
+    }
+
+    private boolean sameCounts(RuleListChangeBatch batch,
+                               BatchCounts counts) {
+        return Objects.equals(batch.getTotalCount(), counts.totalCount)
+                && Objects.equals(batch.getAddCount(), counts.addCount)
+                && Objects.equals(batch.getUpdateCount(),
+                counts.updateCount)
+                && Objects.equals(batch.getDeleteCount(),
+                counts.deleteCount)
+                && Objects.equals(batch.getDuplicateCount(),
+                counts.duplicateCount)
+                && Objects.equals(batch.getInvalidCount(),
+                counts.invalidCount);
+    }
+
+    private GovernanceIssue issue(String code, String message,
+                                  Long batchId, String path) {
+        return GovernanceIssue.error(code, message,
+                GovernanceResourceTypes.LIST_RECORD_BATCH,
+                batchId, path);
     }
 
     private RuleListLibrary requireLibrary(Long listId) {

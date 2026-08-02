@@ -60,6 +60,26 @@ public class GovernanceApprovalServiceTest {
     }
 
     @Test
+    public void rejectedCreateTerminatesAdapterStagingFromRequestSnapshot() {
+        TestService service = new TestService();
+        service.request.setId(13L);
+        service.request.setResourceType("LIST_RECORD_BATCH");
+        service.request.setResourceId(0L);
+        service.request.setAction("CREATE");
+        service.request.setStatus("PENDING");
+        service.request.setApplicant("owner");
+        service.request.setSubmittedSnapshotJson("{\"batchId\":101}");
+
+        service.reject(13L, new GovernanceReviewRequest(), "owner");
+
+        Assert.assertEquals("REJECTED", service.terminatedStatus);
+        Assert.assertNull(service.terminatedResourceId);
+        Assert.assertNotNull(service.terminatedCreateSnapshot);
+        Assert.assertEquals("{\"batchId\":101}",
+                service.terminatedCreateSnapshot.snapshotJson());
+    }
+
+    @Test
     public void rejectedRequestIsImmutable() {
         TestService service = new TestService();
         service.request.setId(12L);
@@ -579,6 +599,7 @@ public class GovernanceApprovalServiceTest {
         private String terminatedStatus;
         private Long terminatedResourceId;
         private ResourceSnapshot terminatedEffectiveSnapshot;
+        private ResourceSnapshot terminatedCreateSnapshot;
         private int insertRequestCalls;
         private boolean applyCollision;
 
@@ -764,6 +785,16 @@ public class GovernanceApprovalServiceTest {
                         String terminalStatus) {
                     terminatedResourceId = resourceId;
                     terminatedEffectiveSnapshot = effectiveSnapshot;
+                    terminatedStatus = terminalStatus;
+                }
+
+                @Override
+                public void onCreateApprovalTerminated(
+                        ResourceSnapshot requestSnapshot,
+                        String actor,
+                        String comment,
+                        String terminalStatus) {
+                    terminatedCreateSnapshot = requestSnapshot;
                     terminatedStatus = terminalStatus;
                 }
             };

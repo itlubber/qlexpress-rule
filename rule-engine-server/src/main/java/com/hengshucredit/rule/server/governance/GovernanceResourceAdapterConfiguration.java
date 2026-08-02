@@ -34,6 +34,7 @@ import com.hengshucredit.rule.server.mapper.RuleVariableMapper;
 import com.hengshucredit.rule.server.mapper.RuleVariableOptionMapper;
 import com.hengshucredit.rule.server.service.RuleLifecycleService;
 import com.hengshucredit.rule.server.service.RuleDraftService;
+import com.hengshucredit.rule.server.service.RuleListChangeBatchService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -164,6 +165,13 @@ public class GovernanceResourceAdapterConfiguration {
             RuleProjectMapper projectMapper) {
         return new RuleListLibraryGovernedResourceAdapter(
                 mapper, projectMapper);
+    }
+
+    @Bean
+    public GovernedResourceAdapter listRecordBatchGovernanceAdapter(
+            RuleListChangeBatchService batchService) {
+        return new RuleListRecordBatchGovernedResourceAdapter(
+                batchService);
     }
 
     @Bean

@@ -28,4 +28,15 @@ public interface GovernedResourceAdapter {
                                       String comment,
                                       String terminalStatus) {
     }
+
+    /**
+     * Called for create approvals that own server-side staging data.
+     * The request snapshot was normalized before it was persisted.
+     */
+    default void onCreateApprovalTerminated(
+            ResourceSnapshot requestSnapshot,
+            String actor,
+            String comment,
+            String terminalStatus) {
+    }
 }

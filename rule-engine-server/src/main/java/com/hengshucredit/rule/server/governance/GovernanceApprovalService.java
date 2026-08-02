@@ -825,7 +825,22 @@ public class GovernanceApprovalService {
             String actor,
             String comment,
             String terminalStatus) {
-        if (request == null || isCreateRequest(request)) {
+        if (request == null) {
+            return;
+        }
+        if (isCreateRequest(request)) {
+            String snapshotJson = firstNotBlank(
+                    request.getSubmittedSnapshotJson(),
+                    request.getDraftSnapshotJson());
+            if (snapshotJson == null) return;
+            requireAdapter(request.getResourceType())
+                    .onCreateApprovalTerminated(
+                            new ResourceSnapshot(snapshotJson,
+                                    requestedEffectiveStatus(request),
+                                    request.getSecretPayloadCiphertext(),
+                                    request.getSecretDigest()),
+                            requireActor(actor), comment,
+                            terminalStatus);
             return;
         }
         GovernedResource current = findResource(
