@@ -5,7 +5,12 @@ import router from '@/router'
 const REQUEST_ERROR_DEDUPE_MS = 1500
 const recentRequestErrors = new Map()
 
-function showRequestError(message) {
+export function isRequestErrorNotified(error) {
+  return Boolean(error && error.requestErrorNotified)
+}
+
+function showRequestError(message, error) {
+  if (error) error.requestErrorNotified = true
   const text = message || '请求失败'
   const now = Date.now()
   for (const [recentText, shownAt] of recentRequestErrors) {
@@ -45,18 +50,21 @@ service.interceptors.response.use(
     const reqUrl = (response.config && response.config.url) || ''
     if (res.code === 401) {
       if (reqUrl.includes('/auth/console/login')) {
-        showRequestError(res.message || '登录失败')
-        return Promise.reject(new Error(res.message || '登录失败'))
+        const error = new Error(res.message || '登录失败')
+        showRequestError(error.message, error)
+        return Promise.reject(error)
       }
       if (router.currentRoute.value.path !== '/login') {
         router.replace({ path: '/login', query: { redirect: router.currentRoute.value.fullPath } })
       }
-      showRequestError(res.message || '未登录')
-      return Promise.reject(new Error(res.message || '未登录'))
+      const error = new Error(res.message || '未登录')
+      showRequestError(error.message, error)
+      return Promise.reject(error)
     }
     if (res.code !== 200) {
-      showRequestError(res.message || '请求失败')
-      return Promise.reject(new Error(res.message))
+      const error = new Error(res.message || '请求失败')
+      showRequestError(error.message, error)
+      return Promise.reject(error)
     }
     return res
   },
@@ -70,7 +78,7 @@ service.interceptors.response.use(
         router.replace({ path: '/login', query: { redirect: router.currentRoute.value.fullPath } })
       }
     }
-    showRequestError(msg)
+    showRequestError(msg, error)
     return Promise.reject(error)
   }
 )

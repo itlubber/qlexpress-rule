@@ -76,7 +76,12 @@ mockRequestFn.interceptors = {
   request: { use: vi.fn(), handlers: [] },
   response: { use: vi.fn(), handlers: [] }
 }
-vi.mock('@/api/request', () => ({ default: mockRequestFn }))
+vi.mock('@/api/request', () => ({
+  default: mockRequestFn,
+  isRequestErrorNotified: error => Boolean(
+    error && error.requestErrorNotified
+  )
+}))
 
 // 5. mock 各 API 模块
 vi.mock('@/api/definition', () => ({

@@ -55,7 +55,10 @@ public abstract class AggregateEntityGovernedResourceAdapter<T>
     @Override
     public List<ResourceDependencyRef> collectDependencies(
             ResourceSnapshot draft) {
-        return rootAdapter.collectDependencies(draft);
+        return rootAdapter.collectDependencies(draft).stream()
+                .filter(dependency ->
+                        !isOwnershipReference(dependency))
+                .toList();
     }
 
     @Override
@@ -81,6 +84,20 @@ public abstract class AggregateEntityGovernedResourceAdapter<T>
 
     protected void validateAggregate(Map<String, Object> snapshot,
                                      List<GovernanceIssue> issues) {
+    }
+
+    protected boolean isOwnershipReference(
+            ResourceDependencyRef dependency) {
+        return false;
+    }
+
+    protected final boolean isCollectionOwnershipReference(
+            ResourceDependencyRef dependency,
+            String collection, String field) {
+        String path = dependency.referencePath();
+        return path != null
+                && path.startsWith("$." + collection + "[")
+                && path.endsWith("]." + field);
     }
 
     protected AppliedResource afterAggregateApplied(

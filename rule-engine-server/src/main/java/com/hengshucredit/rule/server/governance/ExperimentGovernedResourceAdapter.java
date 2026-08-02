@@ -48,6 +48,13 @@ public class ExperimentGovernedResourceAdapter
     }
 
     @Override
+    protected boolean isOwnershipReference(
+            ResourceDependencyRef dependency) {
+        return isCollectionOwnershipReference(
+                dependency, "groups", "experimentId");
+    }
+
+    @Override
     protected void applyAggregate(Long resourceId,
                                   Map<String, Object> snapshot) {
         groupMapper.delete(new LambdaQueryWrapper<RuleExperimentGroup>()

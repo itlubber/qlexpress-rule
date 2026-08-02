@@ -22,7 +22,7 @@ vi.mock('axios', () => ({
 }))
 vi.unmock('@/api/request')
 
-await import('@/api/request')
+const { isRequestErrorNotified } = await import('@/api/request')
 
 describe('request 错误提示', () => {
   beforeEach(() => {
@@ -54,5 +54,17 @@ describe('request 错误提示', () => {
     vi.advanceTimersByTime(1501)
     await expect(rejectResponse(networkError)).rejects.toBe(networkError)
     expect(ElMessage.error).toHaveBeenCalledTimes(3)
+  })
+
+  test('请求层展示错误后会标记拒绝原因，供页面避免重复提示', async () => {
+    const [resolveResponse] = axiosHarness.responseUse.mock.calls[0]
+    const rejection = resolveResponse({
+      config: { url: '/rule/definition/36/revisions/12/submit' },
+      data: { code: 400, message: '无法序列化规范 JSON' },
+    })
+    const error = await rejection.catch(reason => reason)
+
+    expect(error).toMatchObject({ message: '无法序列化规范 JSON' })
+    expect(isRequestErrorNotified(error)).toBe(true)
   })
 })

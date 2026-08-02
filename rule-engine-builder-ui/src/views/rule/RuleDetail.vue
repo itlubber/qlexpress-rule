@@ -1314,6 +1314,7 @@ import {
   Sort as ElIconSort,
 } from '@element-plus/icons-vue'
 import * as api from '@/api/definition'
+import { isRequestErrorNotified } from '@/api/request'
 import {
   listVariablesByProject,
   listVariables,
@@ -1942,7 +1943,9 @@ export default {
           await this.loadLifecycle(this.rule.id)
         }
       } catch (error) {
-        this.$message.error(error.message || '生命周期操作失败')
+        if (!isRequestErrorNotified(error)) {
+          this.$message.error(error.message || '生命周期操作失败')
+        }
       }
     },
     designerRouteName(modelType) {

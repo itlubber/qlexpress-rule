@@ -47,6 +47,13 @@ public class VariableGovernedResourceAdapter
     }
 
     @Override
+    protected boolean isOwnershipReference(
+            ResourceDependencyRef dependency) {
+        return isCollectionOwnershipReference(
+                dependency, "options", "variableId");
+    }
+
+    @Override
     protected void applyAggregate(Long resourceId,
                                   Map<String, Object> snapshot) {
         optionMapper.delete(new LambdaQueryWrapper<RuleVariableOption>()

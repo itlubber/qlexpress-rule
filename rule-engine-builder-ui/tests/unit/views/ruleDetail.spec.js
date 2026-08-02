@@ -304,6 +304,21 @@ describe('RuleDetail 生命周期治理', () => {
     wrapper.unmount()
   })
 
+  test('请求层已提示生命周期错误时详情页不再重复提示', async () => {
+    const wrapper = await mountAndWait(undefined, [draftRevision()])
+    const error = Object.assign(
+      new Error('无法序列化规范 JSON'),
+      { requestErrorNotified: true }
+    )
+    definitionApi.submitRuleRevision.mockRejectedValueOnce(error)
+    wrapper.vm.$message.error.mockClear()
+
+    await wrapper.vm.handleLifecycleAction({ action: 'submit' })
+
+    expect(wrapper.vm.$message.error).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   test('加载 DRAFT 后以修订内容替换兼容内容', async () => {
     const draft = draftRevision()
     const wrapper = await mountAndWait(

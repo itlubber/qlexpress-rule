@@ -56,6 +56,15 @@ public class ModelGovernedResourceAdapter
     }
 
     @Override
+    protected boolean isOwnershipReference(
+            ResourceDependencyRef dependency) {
+        return isCollectionOwnershipReference(
+                dependency, "inputFields", "modelId")
+                || isCollectionOwnershipReference(
+                dependency, "outputFields", "modelId");
+    }
+
+    @Override
     protected void applyAggregate(Long resourceId,
                                   Map<String, Object> snapshot) {
         inputMapper.delete(new LambdaQueryWrapper<RuleModelInputField>()

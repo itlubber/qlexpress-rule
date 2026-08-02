@@ -61,6 +61,11 @@ public class AggregateGovernedResourceAdapterTest {
         Assert.assertEquals(1, ((List<?>) CanonicalJson
                 .readMap(snapshot.snapshotJson())
                 .get("options")).size());
+        Assert.assertFalse(adapter.collectDependencies(snapshot).stream()
+                .anyMatch(ref -> "VARIABLE".equals(
+                        ref.targetResourceType())
+                        && Long.valueOf(7L).equals(
+                        ref.targetResourceId())));
         adapter.apply(new ApprovalApplyContext(
                 1L, 7L, 2, "UPDATE",
                 snapshot, "user", null));
@@ -99,13 +104,19 @@ public class AggregateGovernedResourceAdapterTest {
                         store(object, RuleDataObject::setId),
                         fieldMapper, optionMapper, codec());
 
+        ResourceSnapshot version = adapter.loadEffective(4L);
         Map<String, Object> snapshot = CanonicalJson.readMap(
-                adapter.loadEffective(4L).snapshotJson());
+                version.snapshotJson());
         List<?> fields = (List<?>) snapshot.get("fields");
 
         Assert.assertEquals(1, fields.size());
         Assert.assertTrue(((Map<?, ?>) fields.get(0))
                 .containsKey("options"));
+        Assert.assertFalse(adapter.collectDependencies(version).stream()
+                .anyMatch(ref -> "DATA_OBJECT".equals(
+                        ref.targetResourceType())
+                        && Long.valueOf(4L).equals(
+                        ref.targetResourceId())));
     }
 
     @Test
@@ -146,6 +157,11 @@ public class AggregateGovernedResourceAdapterTest {
         Assert.assertNotNull(snapshot.secretPayloadCiphertext());
         Assert.assertEquals(1,
                 ((List<?>) publicValue.get("inputFields")).size());
+        Assert.assertFalse(adapter.collectDependencies(snapshot).stream()
+                .anyMatch(ref -> "MODEL".equals(
+                        ref.targetResourceType())
+                        && Long.valueOf(5L).equals(
+                        ref.targetResourceId())));
     }
 
     @Test
@@ -177,6 +193,11 @@ public class AggregateGovernedResourceAdapterTest {
                 .anyMatch(ref -> "RULE".equals(
                         ref.targetResourceType())
                         && Long.valueOf(77L).equals(
+                        ref.targetResourceId())));
+        Assert.assertFalse(adapter.collectDependencies(snapshot).stream()
+                .anyMatch(ref -> "EXPERIMENT".equals(
+                        ref.targetResourceType())
+                        && Long.valueOf(6L).equals(
                         ref.targetResourceId())));
         Assert.assertTrue(adapter.validate(snapshot).isEmpty());
     }
@@ -216,13 +237,85 @@ public class AggregateGovernedResourceAdapterTest {
                         null,
                         contentMapper, inputMapper, outputMapper);
 
+        ResourceSnapshot version = adapter.loadEffective(9L);
         Map<String, Object> snapshot = CanonicalJson.readMap(
-                adapter.loadEffective(9L).snapshotJson());
+                version.snapshotJson());
 
         Assert.assertTrue(CanonicalJson.write(snapshot.get("content"))
                 .contains("rows"));
         Assert.assertEquals(1,
                 ((List<?>) snapshot.get("inputFieldsJson")).size());
+        Assert.assertFalse(adapter.collectDependencies(version).stream()
+                .anyMatch(ref -> "RULE".equals(
+                        ref.targetResourceType())
+                        && Long.valueOf(9L).equals(
+                        ref.targetResourceId())));
+        Assert.assertTrue(adapter.collectDependencies(version).stream()
+                .anyMatch(ref -> "VARIABLE".equals(
+                        ref.targetResourceType())
+                        && Long.valueOf(3L).equals(
+                        ref.targetResourceId())));
+    }
+
+    @Test
+    public void ruleRejectionKeepsOfflineEffectiveStatus() {
+        RuleDefinition definition = new RuleDefinition();
+        definition.setId(9L);
+        definition.setRuleCode("R001");
+        definition.setRuleName("准入规则");
+        definition.setModelType("SCRIPT");
+        definition.setStatus(2);
+        RuleDefinitionContent content = new RuleDefinitionContent();
+        content.setDefinitionId(9L);
+        content.setModelJson("{\"script\":\"effective = 1\"}");
+        RuleDefinitionContentMapper contentMapper =
+                mapper(RuleDefinitionContentMapper.class,
+                        Map.of("selectOne", content),
+                        new ArrayList<>());
+        RuleDefinitionInputFieldMapper inputMapper =
+                mapper(RuleDefinitionInputFieldMapper.class,
+                        Map.of("selectList", List.of()),
+                        new ArrayList<>());
+        RuleDefinitionOutputFieldMapper outputMapper =
+                mapper(RuleDefinitionOutputFieldMapper.class,
+                        Map.of("selectList", List.of()),
+                        new ArrayList<>());
+        RuleRevision review = new RuleRevision();
+        review.setId(8L);
+        review.setDefinitionId(9L);
+        review.setState("REVIEW");
+        boolean[] rejected = {false};
+        RuleLifecycleService lifecycle =
+                new RuleLifecycleService() {
+                    @Override
+                    public List<RuleRevision> listRevisions(
+                            Long definitionId) {
+                        return List.of(review);
+                    }
+
+                    @Override
+                    public RuleRevision returnToDraft(
+                            Long revisionId,
+                            RuleLifecycleActionRequest request) {
+                        rejected[0] = true;
+                        review.setState("REJECTED");
+                        return review;
+                    }
+                };
+        RuleGovernedResourceAdapter adapter =
+                new RuleGovernedResourceAdapter(
+                        store(definition, RuleDefinition::setId),
+                        codec(), lifecycle, null,
+                        contentMapper, inputMapper, outputMapper);
+        ResourceSnapshot effective = adapter.loadEffective(9L);
+
+        adapter.onApprovalTerminated(
+                9L, effective, "alice", "需要修改", "REJECTED");
+
+        Assert.assertTrue(rejected[0]);
+        Assert.assertEquals(2, ((Number) CanonicalJson.readMap(
+                adapter.loadEffective(9L).snapshotJson())
+                .get("status")).intValue());
     }
 
     @Test

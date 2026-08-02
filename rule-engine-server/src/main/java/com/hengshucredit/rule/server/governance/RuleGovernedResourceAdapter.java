@@ -82,6 +82,17 @@ public class RuleGovernedResourceAdapter
     }
 
     @Override
+    protected boolean isOwnershipReference(
+            ResourceDependencyRef dependency) {
+        String path = dependency.referencePath();
+        return "$.content.definitionId".equals(path)
+                || isCollectionOwnershipReference(
+                dependency, "inputFieldsJson", "definitionId")
+                || isCollectionOwnershipReference(
+                dependency, "outputFieldsJson", "definitionId");
+    }
+
+    @Override
     protected void applyAggregate(Long resourceId,
                                   Map<String, Object> snapshot) {
         RuleDefinitionContent content = JSON.parseObject(
@@ -173,6 +184,7 @@ public class RuleGovernedResourceAdapter
                     ? "统一审批已终止：" + terminalStatus
                     : comment);
             lifecycleService.returnToDraft(review.getId(), action);
+            return;
         }
         restoreProjection(resourceId, effectiveSnapshot);
     }

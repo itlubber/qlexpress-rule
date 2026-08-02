@@ -70,6 +70,13 @@ public class DataObjectGovernedResourceAdapter
     }
 
     @Override
+    protected boolean isOwnershipReference(
+            ResourceDependencyRef dependency) {
+        return isCollectionOwnershipReference(
+                dependency, "fields", "objectId");
+    }
+
+    @Override
     protected void applyAggregate(Long resourceId,
                                   Map<String, Object> snapshot) {
         List<RuleDataObjectField> existing = fieldMapper.selectList(

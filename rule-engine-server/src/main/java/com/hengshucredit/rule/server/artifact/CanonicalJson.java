@@ -5,14 +5,17 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import java.io.IOException;
 import java.util.Map;
 
 public final class CanonicalJson {
     private static final JsonMapper MAPPER = JsonMapper.builder()
+            .addModule(new JavaTimeModule())
             .configure(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY, true)
             .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
+            .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
             .build();
 
     private CanonicalJson() {
