@@ -681,7 +681,7 @@ public class GovernanceApprovalService {
         GovernedResourceAdapter adapter =
                 requireAdapter(request.getResourceType());
         List<GovernanceIssue> issues = new ArrayList<>(
-                adapter.validate(snapshot));
+                adapter.validate(snapshot, request.getAction()));
         if (impactService != null) {
             issues.addAll(impactService.analyze(
                     request.getResourceType(),

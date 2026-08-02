@@ -11,6 +11,16 @@ public interface GovernedResourceAdapter {
 
     List<GovernanceIssue> validate(ResourceSnapshot draft);
 
+    /**
+     * Validates a draft with its requested lifecycle action. Adapters that
+     * only validate snapshot content keep the original implementation;
+     * action-sensitive resources can additionally protect disable/delete.
+     */
+    default List<GovernanceIssue> validate(ResourceSnapshot draft,
+                                           String action) {
+        return validate(draft);
+    }
+
     List<ResourceDependencyRef> collectDependencies(ResourceSnapshot draft);
 
     ResourceDiff diff(ResourceSnapshot left, ResourceSnapshot right);

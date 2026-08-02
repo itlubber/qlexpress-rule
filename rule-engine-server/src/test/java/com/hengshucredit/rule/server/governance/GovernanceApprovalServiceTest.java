@@ -20,6 +20,23 @@ import java.util.List;
 public class GovernanceApprovalServiceTest {
 
     @Test
+    public void preflightPassesLifecycleActionToAdapterValidation() {
+        ActionAwareService service = new ActionAwareService();
+        GovernanceApprovalRequest request = new GovernanceApprovalRequest();
+        request.setResourceType("FIELD_VALIDATION");
+        request.setResourceId(17L);
+        request.setAction("DELETE");
+
+        GovernancePreflightReport report = service.evaluateRequest(
+                request, ResourceSnapshot.ofJson("{\"id\":17}"));
+
+        Assert.assertEquals("DELETE", service.validationAction);
+        Assert.assertFalse(report.valid());
+        Assert.assertEquals("ACTION_BLOCKED",
+                report.errors().get(0).code());
+    }
+
+    @Test
     public void rejectLeavesEffectiveVersionAndTerminatesDraft() {
         TestService service = new TestService();
         service.resource.setId(7L);
@@ -577,6 +594,77 @@ public class GovernanceApprovalServiceTest {
         private GovernanceApprovalRequest insert(
                 GovernanceApprovalRequest request) {
             return super.insertRequest(request);
+        }
+    }
+
+    private static class ActionAwareService
+            extends GovernanceApprovalService {
+        private String validationAction;
+
+        private ActionAwareService() {
+            ReflectionTestUtils.setField(this, "dependencyService",
+                    new GovernanceDependencyService());
+        }
+
+        private GovernancePreflightReport evaluateRequest(
+                GovernanceApprovalRequest request,
+                ResourceSnapshot snapshot) {
+            return super.evaluate(request, snapshot);
+        }
+
+        @Override
+        protected GovernedResourceAdapter requireAdapter(
+                String resourceType) {
+            return new GovernedResourceAdapter() {
+                @Override
+                public String resourceType() {
+                    return resourceType;
+                }
+
+                @Override
+                public ResourceSnapshot loadEffective(Long resourceId) {
+                    return null;
+                }
+
+                @Override
+                public ResourceSnapshot normalizeDraft(
+                        ResourceSnapshot draft) {
+                    return draft;
+                }
+
+                @Override
+                public List<GovernanceIssue> validate(
+                        ResourceSnapshot draft) {
+                    return List.of();
+                }
+
+                @Override
+                public List<GovernanceIssue> validate(
+                        ResourceSnapshot draft, String action) {
+                    validationAction = action;
+                    return List.of(GovernanceIssue.error(
+                            "ACTION_BLOCKED", "当前动作不允许",
+                            resourceType, 17L, "$"));
+                }
+
+                @Override
+                public List<ResourceDependencyRef> collectDependencies(
+                        ResourceSnapshot draft) {
+                    return List.of();
+                }
+
+                @Override
+                public ResourceDiff diff(ResourceSnapshot left,
+                                         ResourceSnapshot right) {
+                    return JsonResourceDiff.compare(left, right);
+                }
+
+                @Override
+                public AppliedResource apply(
+                        ApprovalApplyContext context) {
+                    return null;
+                }
+            };
         }
     }
 
