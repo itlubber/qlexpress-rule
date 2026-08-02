@@ -40,4 +40,8 @@ public class RuleDefinition {
     /** 输出字段列表（从 rule_definition_output_field 表读取） */
     @TableField(exist = false)
     private List<RuleDefinitionOutputField> outputFieldsJson;
+
+    /** 当前项目与全局规则的关联记录 ID；项目自有规则为空。 */
+    @TableField(exist = false)
+    private Long projectBindingId;
 }

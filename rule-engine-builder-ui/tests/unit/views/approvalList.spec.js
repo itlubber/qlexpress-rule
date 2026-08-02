@@ -39,4 +39,23 @@ describe('统一审批列表', () => {
 
     expect(router.push).toHaveBeenCalledWith('/approval/12')
   })
+
+  test('项目规则关联归入规则页签并显示业务动作标题', async() => {
+    const wrapper = shallowMount(ApprovalList)
+    await flushPromises()
+    const request = {
+      resourceType: 'RULE_PROJECT_BINDING',
+      resourceId: 0,
+      action: 'CREATE',
+      draftSnapshotJson: '{"definitionId":30,"projectId":9,' +
+        '"ruleName":"共享评分规则","projectName":"风控项目"}'
+    }
+
+    expect(wrapper.vm.resourceTypeLabel(request.resourceType)).toBe(
+      '项目规则关联'
+    )
+    expect(wrapper.vm.resourceTitle(request)).toBe(
+      '将规则“共享评分规则”加入项目“风控项目”'
+    )
+  })
 })

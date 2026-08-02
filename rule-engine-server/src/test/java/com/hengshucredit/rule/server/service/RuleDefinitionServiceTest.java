@@ -5,6 +5,7 @@ import com.hengshucredit.rule.model.entity.RuleDefinition;
 import com.hengshucredit.rule.model.entity.RuleDefinitionContent;
 import com.hengshucredit.rule.model.entity.RuleDefinitionInputField;
 import com.hengshucredit.rule.model.entity.RuleDefinitionOutputField;
+import com.hengshucredit.rule.model.entity.RuleDefinitionRef;
 import com.hengshucredit.rule.model.entity.RuleDefinitionVersion;
 import com.hengshucredit.rule.model.entity.RuleRevision;
 import com.hengshucredit.rule.model.dto.RuleQueryDTO;
@@ -143,6 +144,68 @@ public class RuleDefinitionServiceTest {
         assertEquals(1, page.getRecords().get(0).getOutputFieldsJson().size());
         assertEquals("monthly_success_repayment_amount",
                 page.getRecords().get(0).getOutputFieldsJson().get(0).getScriptName());
+    }
+
+    @Test
+    public void projectListMarksOnlyLinkedGlobalRulesWithBindingIds() {
+        RuleDefinitionService service = new RuleDefinitionService();
+        RuleDefinition projectRule = new RuleDefinition();
+        projectRule.setId(11L);
+        projectRule.setProjectId(9L);
+        projectRule.setScope("PROJECT");
+        RuleDefinition globalRule = new RuleDefinition();
+        globalRule.setId(30L);
+        globalRule.setProjectId(0L);
+        globalRule.setScope("GLOBAL");
+        RuleDefinitionRef binding = new RuleDefinitionRef();
+        binding.setId(15L);
+        binding.setDefinitionId(30L);
+        binding.setProjectId(9L);
+        final int[] bindingQueries = {0};
+
+        ReflectionTestUtils.setField(service, "baseMapper",
+                mapper(RuleDefinitionMapper.class,
+                        (proxy, method, args) -> {
+                            if ("selectPage".equals(method.getName())) {
+                                Page<RuleDefinition> page =
+                                        (Page<RuleDefinition>) args[0];
+                                page.setRecords(Arrays.asList(
+                                        projectRule, globalRule));
+                                page.setTotal(2);
+                                return page;
+                            }
+                            return defaultValue(method.getReturnType());
+                        }));
+        ReflectionTestUtils.setField(service, "inputFieldMapper",
+                mapper(RuleDefinitionInputFieldMapper.class,
+                        (proxy, method, args) -> "selectList".equals(
+                                method.getName())
+                                ? Collections.emptyList()
+                                : defaultValue(method.getReturnType())));
+        ReflectionTestUtils.setField(service, "outputFieldMapper",
+                mapper(RuleDefinitionOutputFieldMapper.class,
+                        (proxy, method, args) -> "selectList".equals(
+                                method.getName())
+                                ? Collections.emptyList()
+                                : defaultValue(method.getReturnType())));
+        ReflectionTestUtils.setField(service, "refMapper",
+                mapper(RuleDefinitionRefMapper.class,
+                        (proxy, method, args) -> {
+                            if ("selectList".equals(method.getName())) {
+                                bindingQueries[0]++;
+                                return Collections.singletonList(binding);
+                            }
+                            return defaultValue(method.getReturnType());
+                        }));
+
+        IPage<RuleDefinition> page = service.pageListForProject(
+                1, 20, 9L, null, null, null, null,
+                null, null, null, null, null, null);
+
+        assertNull(page.getRecords().get(0).getProjectBindingId());
+        assertEquals(Long.valueOf(15L),
+                page.getRecords().get(1).getProjectBindingId());
+        assertEquals(1, bindingQueries[0]);
     }
 
     @Test

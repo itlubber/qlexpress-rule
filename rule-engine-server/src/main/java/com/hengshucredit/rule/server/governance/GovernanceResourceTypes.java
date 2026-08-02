@@ -13,6 +13,8 @@ public final class GovernanceResourceTypes {
     public static final String DATABASE = "DATABASE";
     public static final String FUNCTION = "FUNCTION";
     public static final String RULE = "RULE";
+    public static final String RULE_PROJECT_BINDING =
+            "RULE_PROJECT_BINDING";
     public static final String EXPERIMENT = "EXPERIMENT";
     public static final String PROJECT = "PROJECT";
 
@@ -23,7 +25,7 @@ public final class GovernanceResourceTypes {
                     EXTERNAL_DATASOURCE, EXTERNAL_API),
             "DATABASE", List.of(DATABASE),
             "FUNCTION", List.of(FUNCTION),
-            "RULE", List.of(RULE),
+            "RULE", List.of(RULE, RULE_PROJECT_BINDING),
             "EXPERIMENT", List.of(EXPERIMENT),
             "PROJECT", List.of(PROJECT));
 

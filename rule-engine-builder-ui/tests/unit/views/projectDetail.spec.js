@@ -1,6 +1,7 @@
 import { shallowMount } from '@test-utils'
 
 import request from '@/api/request'
+import * as definitionApi from '@/api/definition'
 import * as projectApi from '@/api/project'
 import ProjectDetail from '@/views/project/ProjectDetail.vue'
 
@@ -64,6 +65,91 @@ describe('ProjectDetail 规则生命周期入口', () => {
       params: { id: 30 },
       query: { focus: 'lifecycle', action: 'offline' },
     })
+    wrapper.unmount()
+  })
+
+  test('添加全局规则只生成关联审批草稿并进入审批详情', async () => {
+    definitionApi.createProjectBinding.mockResolvedValueOnce({
+      data: { id: 81, resourceType: 'RULE_PROJECT_BINDING' },
+    })
+    const { wrapper, router } = await mountPage()
+
+    await wrapper.vm.addGlobalToProject({ id: 30, scope: 'GLOBAL' })
+
+    expect(definitionApi.createProjectBinding).toHaveBeenCalledWith(30, 9)
+    expect(wrapper.vm.$message.success).toHaveBeenCalledWith(
+      '已生成加入项目审批草稿'
+    )
+    expect(router.push).toHaveBeenCalledWith('/approval/81')
+    expect(request).not.toHaveBeenCalledWith(
+      expect.objectContaining({ url: '/rule/definition/add-global-to-project' })
+    )
+    wrapper.unmount()
+  })
+
+  test('移出全局规则只删除关联且确认不会删除共享规则', async () => {
+    definitionApi.deleteProjectBinding.mockResolvedValueOnce({
+      data: { id: 82, resourceType: 'RULE_PROJECT_BINDING' },
+    })
+    const { wrapper, router } = await mountPage()
+
+    await wrapper.vm.del({
+      id: 30,
+      scope: 'GLOBAL',
+      projectBindingId: 15,
+      ruleName: '共享评分规则',
+    })
+
+    expect(wrapper.vm.$confirm).toHaveBeenCalledWith(
+      '确定将全局规则“共享评分规则”移出当前项目吗？共享规则本身不会被删除。'
+    )
+    expect(definitionApi.deleteProjectBinding).toHaveBeenCalledWith(15, 9)
+    expect(definitionApi.deleteDefinition).not.toHaveBeenCalled()
+    expect(wrapper.vm.$message.success).toHaveBeenCalledWith(
+      '已生成移出项目审批草稿'
+    )
+    expect(router.push).toHaveBeenCalledWith('/approval/82')
+    wrapper.unmount()
+  })
+
+  test('缺少关联 ID 时禁止猜测关联并提示刷新', async () => {
+    const { wrapper } = await mountPage()
+
+    await wrapper.vm.del({
+      id: 30,
+      scope: 'GLOBAL',
+      projectBindingId: null,
+      ruleName: '共享评分规则',
+    })
+
+    expect(wrapper.vm.$confirm).not.toHaveBeenCalled()
+    expect(definitionApi.deleteProjectBinding).not.toHaveBeenCalled()
+    expect(wrapper.vm.$message.warning).toHaveBeenCalledWith(
+      '未找到项目关联记录，请刷新页面后重试'
+    )
+    wrapper.unmount()
+  })
+
+  test('项目自有规则删除只生成规则审批草稿且不宣称已删除', async () => {
+    definitionApi.deleteDefinition.mockResolvedValueOnce({
+      data: { id: 83, resourceType: 'RULE' },
+    })
+    const { wrapper, router } = await mountPage()
+
+    await wrapper.vm.del({
+      id: 31,
+      scope: 'PROJECT',
+      ruleName: '项目专属规则',
+    })
+
+    expect(wrapper.vm.$confirm).toHaveBeenCalledWith(
+      '确定为项目规则“项目专属规则”发起删除审批吗？审批通过后规则才会删除。'
+    )
+    expect(definitionApi.deleteDefinition).toHaveBeenCalledWith(31)
+    expect(wrapper.vm.$message.success).toHaveBeenCalledWith(
+      '已生成规则删除审批草稿'
+    )
+    expect(router.push).toHaveBeenCalledWith('/approval/83')
     wrapper.unmount()
   })
 })

@@ -6,6 +6,8 @@ import {
   approveRuleRevision,
   createDraftRevision,
   createDraftFromSource,
+  createProjectBinding,
+  deleteProjectBinding,
   ensureDraftRevision,
   getVersionById,
   getRuleRevisionRepairPreview,
@@ -124,6 +126,34 @@ describe('definition API', () => {
       method: 'post',
       data: migration
     })
+  })
+
+  test('项目规则关联通过独立治理资源按 ID 创建和删除', async () => {
+    await createProjectBinding(30, 9)
+    await deleteProjectBinding(15, 9)
+
+    expect(request).toHaveBeenNthCalledWith(1,
+      '/rule/governance/drafts',
+      {
+        resourceType: 'RULE_PROJECT_BINDING',
+        resourceId: null,
+        projectId: 9,
+        action: 'CREATE',
+        snapshotJson: '{"definitionId":30,"projectId":9}',
+        changeSummary: '将全局规则加入项目',
+      }
+    )
+    expect(request).toHaveBeenNthCalledWith(2,
+      '/rule/governance/drafts',
+      {
+        resourceType: 'RULE_PROJECT_BINDING',
+        resourceId: 15,
+        projectId: 9,
+        action: 'DELETE',
+        snapshotJson: null,
+        changeSummary: '将全局规则移出项目',
+      }
+    )
   })
 })
 

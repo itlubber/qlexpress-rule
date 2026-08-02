@@ -17,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.annotation.Lazy;
 
 import jakarta.annotation.Resource;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -26,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class RuleDefinitionService extends ServiceImpl<RuleDefinitionMapper, RuleDefinition> {
@@ -349,48 +349,6 @@ public class RuleDefinitionService extends ServiceImpl<RuleDefinitionMapper, Rul
         return request;
     }
 
-    /**
-     * 更新编辑模式（visual/script）
-     */
-    /**
-     * 将全局规则添加到项目中
-     * 在关联表记录关联关系（用于前端筛选）
-     * @param definitionId 全局规则ID
-     * @param projectId 项目ID
-     * @return 关联记录
-     */
-    @Transactional
-    public RuleDefinitionRef addGlobalRuleToProject(Long definitionId, Long projectId) {
-        RuleDefinition globalRule = getById(definitionId);
-        if (globalRule == null) {
-            throw new IllegalArgumentException("规则不存在，id=" + definitionId);
-        }
-        if (!"GLOBAL".equals(globalRule.getScope())) {
-            throw new IllegalArgumentException("只能添加全局规则到项目");
-        }
-        RuleProject project = projectService.getById(projectId);
-        if (project == null) {
-            throw new IllegalArgumentException("项目不存在，id=" + projectId);
-        }
-
-        // 检查是否已添加过
-        Long existCount = refMapper.selectCount(new LambdaQueryWrapper<RuleDefinitionRef>()
-                .eq(RuleDefinitionRef::getDefinitionId, definitionId)
-                .eq(RuleDefinitionRef::getProjectId, projectId));
-        if (existCount > 0) {
-            throw new IllegalArgumentException("该全局规则已添加到当前项目");
-        }
-
-        // 创建关联记录
-        RuleDefinitionRef ref = new RuleDefinitionRef();
-        ref.setDefinitionId(definitionId);
-        ref.setProjectId(projectId);
-        ref.setCreateTime(LocalDateTime.now());
-        refMapper.insert(ref);
-
-        return ref;
-    }
-
     public boolean isDefinitionAvailableInProject(Long definitionId, Long projectId) {
         if (definitionId == null || projectId == null) return false;
         RuleDefinition definition = getById(definitionId);
@@ -459,7 +417,38 @@ public class RuleDefinitionService extends ServiceImpl<RuleDefinitionMapper, Rul
                 .orderByDesc(RuleDefinition::getId);
         IPage<RuleDefinition> result = page(new Page<>(pageNum, pageSize), wrapper);
         attachFieldMetadata(result.getRecords());
+        attachProjectBindings(result.getRecords(), projectId);
         return result;
+    }
+
+    private void attachProjectBindings(List<RuleDefinition> definitions,
+                                       Long projectId) {
+        if (definitions == null || definitions.isEmpty()
+                || projectId == null || projectId <= 0) {
+            return;
+        }
+        List<Long> definitionIds = definitions.stream()
+                .filter(definition -> definition != null
+                        && "GLOBAL".equals(definition.getScope())
+                        && definition.getId() != null)
+                .map(RuleDefinition::getId)
+                .toList();
+        if (definitionIds.isEmpty()) {
+            return;
+        }
+        Map<Long, Long> bindingIds = refMapper.selectList(
+                        new LambdaQueryWrapper<RuleDefinitionRef>()
+                                .eq(RuleDefinitionRef::getProjectId,
+                                        projectId)
+                                .in(RuleDefinitionRef::getDefinitionId,
+                                        definitionIds))
+                .stream()
+                .collect(Collectors.toMap(
+                        RuleDefinitionRef::getDefinitionId,
+                        RuleDefinitionRef::getId,
+                        (left, right) -> left));
+        definitions.forEach(definition -> definition.setProjectBindingId(
+                bindingIds.get(definition.getId())));
     }
 
     private void attachFieldMetadata(List<RuleDefinition> definitions) {

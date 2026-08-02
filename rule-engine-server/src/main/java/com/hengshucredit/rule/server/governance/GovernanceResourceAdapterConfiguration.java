@@ -19,6 +19,7 @@ import com.hengshucredit.rule.server.mapper.RuleDefinitionContentMapper;
 import com.hengshucredit.rule.server.mapper.RuleDefinitionInputFieldMapper;
 import com.hengshucredit.rule.server.mapper.RuleDefinitionMapper;
 import com.hengshucredit.rule.server.mapper.RuleDefinitionOutputFieldMapper;
+import com.hengshucredit.rule.server.mapper.RuleDefinitionRefMapper;
 import com.hengshucredit.rule.server.mapper.RuleExperimentMapper;
 import com.hengshucredit.rule.server.mapper.RuleExperimentGroupMapper;
 import com.hengshucredit.rule.server.mapper.RuleExternalApiConfigMapper;
@@ -145,6 +146,15 @@ public class GovernanceResourceAdapterConfiguration {
                 store(mapper), secretCodec, lifecycleService,
                 draftService,
                 contentMapper, inputMapper, outputMapper);
+    }
+
+    @Bean
+    public GovernedResourceAdapter ruleProjectBindingGovernanceAdapter(
+            RuleDefinitionRefMapper refMapper,
+            RuleDefinitionMapper definitionMapper,
+            RuleProjectMapper projectMapper) {
+        return new RuleProjectBindingGovernedResourceAdapter(
+                refMapper, definitionMapper, projectMapper);
     }
 
     @Bean

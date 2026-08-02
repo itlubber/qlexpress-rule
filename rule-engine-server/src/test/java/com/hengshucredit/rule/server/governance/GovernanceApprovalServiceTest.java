@@ -183,6 +183,49 @@ public class GovernanceApprovalServiceTest {
     }
 
     @Test
+    public void equivalentProjectRuleBindingsReuseTheSameActiveDraft() {
+        TestService service = new TestService();
+        GovernanceApprovalRequest first = service.createDraft(
+                createBindingDraft(30L, 9L), "owner");
+        Long firstId = first.getId();
+        String firstKey = first.getActiveResourceKey();
+
+        GovernanceApprovalRequest reused = service.createDraft(
+                createBindingDraft(30L, 9L), "owner");
+
+        Assert.assertEquals(firstId, reused.getId());
+        Assert.assertEquals(
+                "RULE_PROJECT_BINDING:CREATE:30:9", firstKey);
+        Assert.assertEquals(firstKey, reused.getActiveResourceKey());
+        Assert.assertEquals(1, service.insertRequestCalls);
+    }
+
+    @Test
+    public void differentProjectRuleBindingsUseDifferentActiveKeys() {
+        TestService service = new TestService();
+        GovernanceApprovalRequest first = service.createDraft(
+                createBindingDraft(30L, 9L), "owner");
+        String firstKey = first.getActiveResourceKey();
+        service.request.setId(null);
+        service.request.setActiveResourceKey(null);
+
+        GovernanceApprovalRequest second = service.createDraft(
+                createBindingDraft(30L, 10L), "owner");
+
+        Assert.assertNotEquals(firstKey, second.getActiveResourceKey());
+        Assert.assertEquals(
+                "RULE_PROJECT_BINDING:CREATE:30:10",
+                second.getActiveResourceKey());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void projectRuleBindingCreateRequiresPositiveIdReferences() {
+        TestService service = new TestService();
+
+        service.createDraft(createBindingDraft(0L, 9L), "owner");
+    }
+
+    @Test
     public void concurrentCreateCollisionReturnsStableBusinessConflict() {
         InsertService service = new InsertService();
         GovernanceApprovalRequestMapper mapper =
@@ -454,6 +497,18 @@ public class GovernanceApprovalServiceTest {
         draft.setSnapshotJson("{\"ruleCode\":\"" + ruleCode
                 + "\",\"ruleName\":\"" + ruleName
                 + "\",\"modelType\":\"SCRIPT\"}");
+        return draft;
+    }
+
+    private static GovernanceDraftRequest createBindingDraft(
+            Long definitionId, Long projectId) {
+        GovernanceDraftRequest draft = new GovernanceDraftRequest();
+        draft.setResourceType(
+                GovernanceResourceTypes.RULE_PROJECT_BINDING);
+        draft.setProjectId(projectId);
+        draft.setAction("CREATE");
+        draft.setSnapshotJson("{\"definitionId\":" + definitionId
+                + ",\"projectId\":" + projectId + "}");
         return draft;
     }
 

@@ -204,7 +204,7 @@
             type="danger"
             class="btn-delete"
             @click="del(row)"
-            >删除</el-button
+            >{{ row.scope === 'GLOBAL' ? '移出项目' : '申请删除规则' }}</el-button
           >
         </template>
       </el-table-column>
@@ -409,7 +409,12 @@ import {
   Plus as ElIconPlus,
   DocumentAdd as ElIconDocumentAdd,
 } from '@element-plus/icons-vue'
-import { createDefinition, deleteDefinition } from '@/api/definition'
+import {
+  createDefinition,
+  createProjectBinding,
+  deleteDefinition,
+  deleteProjectBinding,
+} from '@/api/definition'
 import { getProject } from '@/api/project'
 import request from '@/api/request'
 import { restorePageState, savePageState } from '@/utils/pageStateCache'
@@ -590,10 +595,32 @@ export default {
       })
     },
     async del(r) {
-      await this.$confirm('确定删除?')
-      await deleteDefinition(r.id)
-      this.$message.success('删除成功')
-      this.load()
+      if (r.scope === 'GLOBAL') {
+        if (!r.projectBindingId) {
+          this.$message.warning('未找到项目关联记录，请刷新页面后重试')
+          return
+        }
+        await this.$confirm(
+          `确定将全局规则“${r.ruleName}”移出当前项目吗？共享规则本身不会被删除。`
+        )
+        const response = await deleteProjectBinding(
+          r.projectBindingId,
+          this.pid
+        )
+        this.$message.success('已生成移出项目审批草稿')
+        if (response.data && response.data.id) {
+          this.$router.push('/approval/' + response.data.id)
+        }
+        return
+      }
+      await this.$confirm(
+        `确定为项目规则“${r.ruleName}”发起删除审批吗？审批通过后规则才会删除。`
+      )
+      const response = await deleteDefinition(r.id)
+      this.$message.success('已生成规则删除审批草稿')
+      if (response.data && response.data.id) {
+        this.$router.push('/approval/' + response.data.id)
+      }
     },
     submit() {
       this.$refs.f.validate(async (v) => {
@@ -646,16 +673,11 @@ export default {
     // 将全局规则添加到项目
     async addGlobalToProject(rule) {
       try {
-        await request({
-          url: '/rule/definition/add-global-to-project',
-          method: 'post',
-          data: {
-            definitionId: rule.id,
-            projectId: this.pid,
-          },
-        })
-        this.$message.success('添加成功')
-        this.load()
+        const response = await createProjectBinding(rule.id, this.pid)
+        this.$message.success('已生成加入项目审批草稿')
+        if (response.data && response.data.id) {
+          this.$router.push('/approval/' + response.data.id)
+        }
       } catch (e) {
         this.$message.error(e.message || '添加失败')
       }

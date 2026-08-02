@@ -142,26 +142,6 @@ public class RuleDefinitionController {
     }
 
     /**
-     * 将全局规则添加到项目
-     */
-    @PostMapping("/add-global-to-project")
-    public R<RuleDefinitionRef> addGlobalToProject(@RequestBody Map<String, String> body) {
-        String pidStr = body.get("projectId");
-        String didStr = body.get("definitionId");
-        Long projectId = pidStr != null && !pidStr.isEmpty() ? Long.valueOf(pidStr) : null;
-        Long definitionId = didStr != null && !didStr.isEmpty() ? Long.valueOf(didStr) : null;
-        if (definitionId == null || projectId == null) {
-            return R.fail("definitionId 和 projectId 不能为空");
-        }
-        try {
-            RuleDefinitionRef ref = definitionService.addGlobalRuleToProject(definitionId, projectId);
-            return R.ok(ref);
-        } catch (IllegalArgumentException e) {
-            return R.fail(e.getMessage());
-        }
-    }
-
-    /**
      * 获取项目规则列表（包含项目级规则和已关联的全局规则）
      */
     @GetMapping("/project-list/{projectId}")

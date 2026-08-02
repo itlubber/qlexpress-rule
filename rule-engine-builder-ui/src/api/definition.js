@@ -32,6 +32,26 @@ export function deleteDefinition(id) {
   })
 }
 
+export function createProjectBinding(definitionId, projectId) {
+  return createResourceDraft(
+    'RULE_PROJECT_BINDING',
+    { definitionId, projectId },
+    'CREATE',
+    {
+      projectId,
+      changeSummary: '将全局规则加入项目'
+    }
+  )
+}
+
+export function deleteProjectBinding(bindingId, projectId) {
+  return createResourceDraft('RULE_PROJECT_BINDING', null, 'DELETE', {
+    resourceId: bindingId,
+    projectId,
+    changeSummary: '将全局规则移出项目'
+  })
+}
+
 export function saveContent(data) {
   return request({ url: '/rule/definition/save', method: 'post', data })
 }

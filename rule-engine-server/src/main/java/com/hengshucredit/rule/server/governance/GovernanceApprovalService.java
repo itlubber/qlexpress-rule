@@ -1030,6 +1030,15 @@ public class GovernanceApprovalService {
             ResourceSnapshot snapshot) {
         Map<String, Object> value =
                 CanonicalJson.readMap(snapshot.snapshotJson());
+        if (GovernanceResourceTypes.RULE_PROJECT_BINDING.equals(
+                resourceType)) {
+            Long definitionId = requirePositiveId(
+                    value.get("definitionId"), "全局规则 ID");
+            Long bindingProjectId = requirePositiveId(
+                    value.get("projectId"), "项目 ID");
+            return resourceType + ":CREATE:"
+                    + definitionId + ":" + bindingProjectId;
+        }
         Map<String, Object> identity = new LinkedHashMap<>();
         switch (resourceType) {
             case GovernanceResourceTypes.VARIABLE ->
@@ -1088,6 +1097,20 @@ public class GovernanceApprovalService {
                              Object value) {
         identity.put(key, stringValue(value).trim()
                 .toLowerCase(Locale.ROOT));
+    }
+
+    private Long requirePositiveId(Object value, String label) {
+        try {
+            Long id = value instanceof Number number
+                    ? number.longValue()
+                    : Long.valueOf(String.valueOf(value));
+            if (id > 0) {
+                return id;
+            }
+        } catch (RuntimeException invalid) {
+            // Fall through to the stable validation error below.
+        }
+        throw new IllegalArgumentException(label + "必须是大于零的数值 ID");
     }
 
     private String stringValue(Object value) {

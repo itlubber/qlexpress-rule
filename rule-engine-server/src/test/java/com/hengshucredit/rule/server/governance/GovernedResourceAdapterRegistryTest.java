@@ -31,6 +31,14 @@ public class GovernedResourceAdapterRegistryTest {
                 registry.resourceTypes());
     }
 
+    @Test
+    public void projectRuleBindingsBelongToTheRuleApprovalTab() {
+        Assert.assertEquals(
+                List.of(GovernanceResourceTypes.RULE,
+                        GovernanceResourceTypes.RULE_PROJECT_BINDING),
+                GovernanceResourceTypes.forTab("RULE"));
+    }
+
     private static GovernedResourceAdapter adapter(String resourceType) {
         return new GovernedResourceAdapter() {
             @Override

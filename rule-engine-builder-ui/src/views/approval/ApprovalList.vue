@@ -219,6 +219,20 @@ export default {
     },
     resourceTitle(row) {
       const value = this.snapshot(row)
+      if (
+        row.resourceType === 'RULE_PROJECT_BINDING' &&
+        value.definitionId &&
+        value.projectId
+      ) {
+        const action = row.action === 'DELETE' ? '移出' : '加入'
+        const rule = value.ruleName
+          ? `“${value.ruleName}”`
+          : `#${value.definitionId}`
+        const project = value.projectName
+          ? `“${value.projectName}”`
+          : `#${value.projectId}`
+        return `将规则${rule}${action}项目${project}`
+      }
       return value.ruleName || value.modelName || value.funcName ||
         value.datasourceName || value.projectName || value.varLabel ||
         value.objectLabel || value.experimentName ||
@@ -237,6 +251,7 @@ export default {
         DATABASE: '数据库',
         FUNCTION: '函数',
         RULE: '规则',
+        RULE_PROJECT_BINDING: '项目规则关联',
         EXPERIMENT: '分流',
         PROJECT: '项目'
       }[type] || type || '资源'

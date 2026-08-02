@@ -113,4 +113,32 @@ describe('统一审批详情', () => {
     expect(buttonLabels).not.toContain('提交审批')
     expect(buttonLabels).not.toContain('取消申请')
   })
+
+  test('关联删除审批以移出项目描述且不显示资源 0', async() => {
+    const wrapper = shallowMount(ApprovalDetail, {
+      global: { directives: { permission: {} } }
+    })
+    await flushPromises()
+    wrapper.vm.detail = {
+      request: {
+        id: 18,
+        resourceType: 'RULE_PROJECT_BINDING',
+        resourceId: 15,
+        action: 'DELETE',
+        status: 'EDITING',
+        draftSnapshotJson: '{"id":15,"definitionId":30,"projectId":9,' +
+          '"ruleName":"共享评分规则","projectName":"风控项目"}'
+      },
+      diff: { fields: [] }
+    }
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.resourceTypeLabel('RULE_PROJECT_BINDING')).toBe(
+      '项目规则关联'
+    )
+    expect(wrapper.vm.resourceTitle).toBe(
+      '将规则“共享评分规则”移出项目“风控项目”'
+    )
+    expect(wrapper.text()).not.toContain('项目规则关联 #0')
+  })
 })

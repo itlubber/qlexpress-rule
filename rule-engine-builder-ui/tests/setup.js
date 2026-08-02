@@ -92,6 +92,8 @@ vi.mock('@/api/definition', () => ({
   createDefinition: vi.fn(),
   updateDefinition: vi.fn(),
   deleteDefinition: vi.fn(),
+  createProjectBinding: vi.fn(),
+  deleteProjectBinding: vi.fn(),
   saveContent: vi.fn(),
   refreshFields: vi.fn(),
   getDetail: vi.fn(),

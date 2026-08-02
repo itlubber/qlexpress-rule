@@ -161,7 +161,7 @@ Expected: 因适配器和资源类型尚不存在而失败。
 
 适配器直接依赖 `RuleDefinitionRefMapper`、`RuleDefinitionMapper`、`RuleProjectMapper`：
 
-- 快照只保留 `id`、`definitionId`、`projectId`，使用 `CanonicalJson` 规范化。
+- 快照只保留 `id`、`definitionId`、`projectId`，并按 ID 从服务端补充只用于展示的 `ruleName`、`projectName` 摘要；不接受客户端名称作为关联依据，使用 `CanonicalJson` 规范化。
 - 创建时清空客户端传入的 `id`，由数据库生成。
 - 删除时以 `ApprovalApplyContext.resourceId()` 为唯一目标。
 - 通过数据库唯一键处理并发重复，审批服务把 `DuplicateKeyException` 转为冲突。
@@ -245,7 +245,7 @@ Expected: 全部通过。
 ### Step 2: 确认测试失败
 
 ```powershell
-mvn -pl rule-engine-server -Dtest=RuleDefinitionServiceTest,RuleDefinitionControllerTest test
+mvn -pl rule-engine-server -am "-Dtest=RuleDefinitionServiceTest,RuleDefinitionControllerTest" "-Dsurefire.failIfNoSpecifiedTests=false" test
 ```
 
 ### Step 3: 实现非持久化字段与批量映射
@@ -264,7 +264,7 @@ private Long projectBindingId;
 ### Step 4: 运行服务与控制器测试
 
 ```powershell
-mvn -pl rule-engine-server -Dtest=RuleDefinitionServiceTest,RuleDefinitionControllerTest test
+mvn -pl rule-engine-server -am "-Dtest=RuleDefinitionServiceTest,RuleDefinitionControllerTest" "-Dsurefire.failIfNoSpecifiedTests=false" test
 ```
 
 Expected: 全部通过。
