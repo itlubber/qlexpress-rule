@@ -2,6 +2,7 @@ package com.hengshucredit.rule.server.governance;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.hengshucredit.rule.model.entity.RuleDataObject;
+import com.hengshucredit.rule.server.mapper.RuleBillingConfigMapper;
 import com.hengshucredit.rule.model.entity.RuleDbDatasource;
 import com.hengshucredit.rule.model.entity.RuleDefinition;
 import com.hengshucredit.rule.model.entity.RuleExperiment;
@@ -182,6 +183,21 @@ public class GovernanceResourceAdapterConfiguration {
             RuleDefinitionInputFieldMapper inputFieldMapper) {
         return new FieldValidationGovernedResourceAdapter(
                 mapper, projectMapper, inputFieldMapper);
+    }
+
+    @Bean
+    public GovernedResourceAdapter billingConfigGovernanceAdapter(
+            RuleBillingConfigMapper mapper,
+            RuleProjectMapper projectMapper,
+            RuleDefinitionMapper definitionMapper,
+            RuleDefinitionRefMapper definitionRefMapper,
+            RuleExternalApiConfigMapper apiMapper,
+            RuleExternalDatasourceMapper externalDatasourceMapper,
+            RuleDbDatasourceMapper dbMapper) {
+        return new BillingConfigGovernedResourceAdapter(
+                mapper, projectMapper, definitionMapper,
+                definitionRefMapper, apiMapper,
+                externalDatasourceMapper, dbMapper);
     }
 
     @Bean

@@ -290,6 +290,24 @@ public class GovernanceApprovalServiceTest {
         Assert.assertEquals(1, service.insertRequestCalls);
     }
 
+    @Test
+    public void billingConfigCreateDraftUsesScopedCodeIdentity() {
+        TestService service = new TestService();
+        GovernanceApprovalRequest first = service.createDraft(
+                createBillingConfigDraft(
+                        "Engine_Count", "初始名称", 7L), "owner");
+        String firstKey = first.getActiveResourceKey();
+
+        GovernanceApprovalRequest reused = service.createDraft(
+                createBillingConfigDraft(
+                        "Engine_Count", "修改名称", 7L), "owner");
+
+        Assert.assertTrue(firstKey.startsWith(
+                "BILLING_CONFIG:CREATE:"));
+        Assert.assertEquals(firstKey, reused.getActiveResourceKey());
+        Assert.assertEquals(1, service.insertRequestCalls);
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void projectRuleBindingCreateRequiresPositiveIdReferences() {
         TestService service = new TestService();
@@ -610,6 +628,22 @@ public class GovernanceApprovalServiceTest {
                 + "\"validationName\":\"" + name + "\","
                 + "\"validationType\":\"REQUIRED\","
                 + "\"errorMessage\":\"必填\"}");
+        return draft;
+    }
+
+    private static GovernanceDraftRequest createBillingConfigDraft(
+            String code, String name, Long projectId) {
+        GovernanceDraftRequest draft = new GovernanceDraftRequest();
+        draft.setResourceType("BILLING_CONFIG");
+        draft.setProjectId(projectId);
+        draft.setAction("CREATE");
+        draft.setSnapshotJson("{\"projectId\":" + projectId
+                + ",\"scope\":\"PROJECT\","
+                + "\"billingCode\":\"" + code + "\","
+                + "\"billingName\":\"" + name + "\","
+                + "\"billingTarget\":\"ENGINE\","
+                + "\"chargeType\":\"COUNT\","
+                + "\"unitPrice\":0,\"currency\":\"CNY\"}");
         return draft;
     }
 

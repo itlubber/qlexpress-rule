@@ -58,7 +58,9 @@ public class RuleBillingService extends ServiceImpl<RuleBillingConfigMapper, Rul
         if (projectMatches.isActive() && projectMatches.isEmpty()) {
             return new Page<>(pageNum, pageSize);
         }
-        LambdaQueryWrapper<RuleBillingConfig> wrapper = new LambdaQueryWrapper<>();
+        LambdaQueryWrapper<RuleBillingConfig> wrapper =
+                new LambdaQueryWrapper<RuleBillingConfig>()
+                        .ne(RuleBillingConfig::getStatus, -1);
         if (hasText(scope)) {
             wrapper.eq(RuleBillingConfig::getScope, scope);
         }

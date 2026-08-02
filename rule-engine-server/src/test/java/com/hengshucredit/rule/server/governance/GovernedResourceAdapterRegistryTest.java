@@ -48,6 +48,14 @@ public class GovernedResourceAdapterRegistryTest {
                 GovernanceResourceTypes.forTab("FIELD"));
     }
 
+    @Test
+    public void billingConfigurationBelongsToTheProjectApprovalTab() {
+        Assert.assertEquals(
+                List.of(GovernanceResourceTypes.PROJECT,
+                        GovernanceResourceTypes.BILLING_CONFIG),
+                GovernanceResourceTypes.forTab("PROJECT"));
+    }
+
     private static GovernedResourceAdapter adapter(String resourceType) {
         return new GovernedResourceAdapter() {
             @Override

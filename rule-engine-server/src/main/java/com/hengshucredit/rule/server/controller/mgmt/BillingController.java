@@ -5,6 +5,7 @@ import com.hengshucredit.rule.model.entity.RuleBillingConfig;
 import com.hengshucredit.rule.model.entity.RuleBillingRecord;
 import com.hengshucredit.rule.model.entity.RuleBillingSummary;
 import com.hengshucredit.rule.server.common.R;
+import com.hengshucredit.rule.server.governance.GovernedProjectionMutation;
 import com.hengshucredit.rule.server.service.RuleBillingService;
 import org.springframework.web.bind.annotation.*;
 
@@ -36,18 +37,21 @@ public class BillingController {
     }
 
     @PostMapping("/config")
+    @GovernedProjectionMutation
     public R<Void> createConfig(@RequestBody RuleBillingConfig config) {
         billingService.saveConfigWithDefaults(config);
         return R.ok();
     }
 
     @PutMapping("/config")
+    @GovernedProjectionMutation
     public R<Void> updateConfig(@RequestBody RuleBillingConfig config) {
         billingService.updateConfigWithDefaults(config);
         return R.ok();
     }
 
     @DeleteMapping("/config/{id:\\d+}")
+    @GovernedProjectionMutation
     public R<Void> deleteConfig(@PathVariable Long id) {
         billingService.removeById(id);
         return R.ok();

@@ -18,6 +18,7 @@ public final class GovernanceResourceTypes {
     public static final String LIST_LIBRARY = "LIST_LIBRARY";
     public static final String LIST_RECORD_BATCH = "LIST_RECORD_BATCH";
     public static final String FIELD_VALIDATION = "FIELD_VALIDATION";
+    public static final String BILLING_CONFIG = "BILLING_CONFIG";
     public static final String EXPERIMENT = "EXPERIMENT";
     public static final String PROJECT = "PROJECT";
 
@@ -31,7 +32,7 @@ public final class GovernanceResourceTypes {
             "RULE", List.of(RULE, RULE_PROJECT_BINDING),
             "LIST", List.of(LIST_LIBRARY, LIST_RECORD_BATCH),
             "EXPERIMENT", List.of(EXPERIMENT),
-            "PROJECT", List.of(PROJECT));
+            "PROJECT", List.of(PROJECT, BILLING_CONFIG));
 
     private GovernanceResourceTypes() {
     }
