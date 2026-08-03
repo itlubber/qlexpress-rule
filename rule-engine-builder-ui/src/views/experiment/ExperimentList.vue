@@ -1373,14 +1373,48 @@ export default {
     updateComplexTestField(field, value) {
       try {
         const parsed = JSON.parse(value)
-        const shouldBeArray = ['ARRAY', 'LIST', 'VECTOR'].includes(this.testFieldType(field))
-        if (shouldBeArray && !Array.isArray(parsed)) throw new Error('请输入 JSON 数组')
-        if (!shouldBeArray && (!parsed || Array.isArray(parsed) || typeof parsed !== 'object')) throw new Error('请输入 JSON 对象')
+        const error = this.testFieldValidationError(field, parsed)
+        if (error) throw new Error(error)
         this.testParams[field.fieldName] = parsed
         this.jsonError = ''
       } catch (e) {
         this.jsonError = 'JSON 格式错误: ' + this.testErrorMessage(e, '请输入合法 JSON')
       }
+    },
+    testFieldValidationError(field, value) {
+      if (!this.isComplexTestField(field) || value === undefined) return ''
+      const type = this.testFieldType(field)
+      if (['ARRAY', 'LIST', 'VECTOR'].includes(type) && !Array.isArray(value))
+        return '字段 ' + field.fieldName + ' 请输入 JSON 数组'
+      if (
+        ['OBJECT', 'MAP'].includes(type) &&
+        (!value || Array.isArray(value) || typeof value !== 'object')
+      )
+        return '字段 ' + field.fieldName + ' 请输入 JSON 对象'
+      return ''
+    },
+    validateExecutionParams(params) {
+      const invalidField = this.testFields.find((field) => {
+        const path = field.scriptName || field.fieldName
+        return this.testFieldValidationError(field, readParamPath(params, path))
+      })
+      if (!invalidField) {
+        this.jsonError = ''
+        return true
+      }
+      const path = invalidField.scriptName || invalidField.fieldName
+      this.jsonError = this.testFieldValidationError(
+        invalidField,
+        readParamPath(params, path)
+      )
+      return false
+    },
+    buildManualTestParams() {
+      const fields = this.testFields.filter((field) => {
+        const path = field.scriptName || field.fieldName
+        return Object.prototype.hasOwnProperty.call(this.testParams, path)
+      })
+      return buildNestedSchemaParams(fields, this.testParams)
     },
     switchToJsonMode() {
       if (this.testMode === 'json') return
@@ -1389,8 +1423,7 @@ export default {
     },
     switchToManualMode() {
       if (this.testMode === 'manual') return
-      this.testMode = 'manual'
-      this.syncJsonToParams()
+      if (this.syncJsonToParams()) this.testMode = 'manual'
     },
     syncParamsToJson() {
       this.testJson = JSON.stringify(
@@ -1403,14 +1436,19 @@ export default {
     syncJsonToParams() {
       try {
         const params = JSON.parse(this.testJson || '{}')
+        if (!this.validateExecutionParams(params)) return false
+        const nextParams = {}
         this.testFields.forEach((field) => {
           const path = field.scriptName || field.fieldName
           const value = readParamPath(params, path)
-          if (value !== undefined) this.testParams[path] = value
+          if (value !== undefined) nextParams[path] = value
         })
+        this.testParams = nextParams
         this.jsonError = ''
+        return true
       } catch (e) {
         this.jsonError = 'JSON 格式错误: ' + this.testErrorMessage(e, '未知错误')
+        return false
       }
     },
     onJsonInput() {
@@ -1439,7 +1477,7 @@ export default {
           this.$message.error(this.jsonError)
           return
         }
-        params = buildNestedSchemaParams(this.testFields, this.testParams)
+        params = this.buildManualTestParams()
       } else {
         try {
           params = JSON.parse(this.testJson || '{}')
@@ -1450,6 +1488,10 @@ export default {
           this.$message.error(this.jsonError)
           return
         }
+      }
+      if (!this.validateExecutionParams(params)) {
+        this.$message.error(this.jsonError)
+        return
       }
       const setupRequestId = this.testSetupRequestId
       const executionRequestId = ++this.testExecutionRequestId
@@ -1591,17 +1633,12 @@ export default {
     background: #fff;
   }
 
-  .result-panel pre {
-    margin: 0;
-    padding: 12px;
-    max-height: 360px;
-    overflow: auto;
-    background: #f8fafc;
-    border: 1px solid #e5e7eb;
-    border-radius: 4px;
-    font-size: 12px;
-    line-height: 1.5;
-  }
+}
+</style>
+
+<style lang="scss">
+.experiment-execution-dialog {
+  max-width: calc(100vw - 24px);
 
   .execution-identity {
     display: flex;
@@ -1750,7 +1787,7 @@ export default {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0 16px;
 
-    :deep(.el-form-item) {
+    .el-form-item {
       margin-bottom: 0;
     }
   }
@@ -1842,7 +1879,7 @@ export default {
     }
   }
 
-  .execution-result :deep(.el-alert) {
+  .execution-result .el-alert {
     margin-bottom: 12px;
   }
 
@@ -1929,7 +1966,7 @@ export default {
     gap: 8px;
   }
 
-  :deep(.experiment-execution-dialog .el-dialog__body) {
+  .el-dialog__body {
     max-height: calc(100vh - 150px);
     overflow-y: auto;
   }

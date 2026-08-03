@@ -89,6 +89,8 @@ describe('ExperimentList', () => {
     expect(experimentListTemplate).toContain('JSON 高级模式')
     expect(experimentListTemplate).toContain('分流上下文')
     expect(experimentListTemplate).toContain('原始执行结果')
+    expect(experimentListTemplate).toContain('<style lang="scss">\n.experiment-execution-dialog')
+    expect(experimentListTemplate).toContain('max-width: calc(100vw - 24px)')
   })
 
   test('项目上下文限定实验列表并传递给新建页面', async () => {
@@ -415,6 +417,51 @@ describe('ExperimentList', () => {
 
     expect(ctx.jsonError).toContain('JSON 格式错误')
     expect(executeExperiment).not.toHaveBeenCalled()
+  })
+
+  test('JSON advanced mode rejects mismatched complex values and stays in JSON mode', async () => {
+    const ctx = createContext({
+      testVisible: true,
+      testReady: true,
+      testMode: 'json',
+      testFields: [{ fieldName: 'profile.tags', fieldType: 'ARRAY' }],
+      testParams: { 'profile.tags': [] },
+      testJson: '{"profile":{"tags":{"not":"an array"}}}',
+      testExperiment: { experimentCode: 'EXP_TYPE' }
+    })
+
+    ctx.switchToManualMode()
+    await ctx.doExecute()
+
+    expect(ctx.testMode).toBe('json')
+    expect(ctx.jsonError).toContain('JSON 数组')
+    expect(executeExperiment).not.toHaveBeenCalled()
+  })
+
+  test('removing a Schema field in JSON mode omits its stale value from field-form execution', async () => {
+    executeExperiment.mockResolvedValueOnce({ data: { success: true } })
+    const ctx = createContext({
+      testVisible: true,
+      testReady: true,
+      testMode: 'json',
+      testFields: [
+        { fieldName: 'profile.age', fieldType: 'INTEGER' },
+        { fieldName: 'profile.note', fieldType: 'STRING' }
+      ],
+      testParams: { 'profile.age': 36, 'profile.note': 'stale' },
+      testJson: '{"profile":{"age":37}}',
+      testExperiment: { experimentCode: 'EXP_REMOVED_FIELD' }
+    })
+
+    ctx.switchToManualMode()
+    await ctx.doExecute()
+
+    expect(ctx.testParams).toEqual({ 'profile.age': 37 })
+    expect(executeExperiment).toHaveBeenCalledWith('EXP_REMOVED_FIELD', {
+      params: { profile: { age: 37 } },
+      requestKey: '',
+      requestTime: null
+    })
   })
 
   test('field-form execution submits nested params and request context without concurrent duplicate submission', async () => {
