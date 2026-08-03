@@ -18,7 +18,18 @@ function createContext(overrides = {}) {
     total: 0,
     loading: false,
     rulesForProject: [],
+    testVisible: false,
+    testReady: false,
+    testLoadStatus: 'IDLE',
+    testLoadWarnings: [],
+    testParamSource: 'DEFAULTS',
+    testSetupRequestId: 0,
+    testExecutionRequestId: 0,
+    testMode: 'manual',
+    testFields: [],
+    testParams: {},
     testJson: '{}',
+    jsonError: '',
     testRequest: { requestKey: '', requestTime: '' },
     testExperiment: { experimentCode: 'EXP_A' },
     testResult: null,
@@ -45,6 +56,12 @@ function createContext(overrides = {}) {
     get() { return ExperimentList.computed.testRatioTotal.call(ctx) }
   })
   return ctx
+}
+
+function deferred() {
+  let resolve
+  const promise = new Promise((done) => { resolve = done })
+  return { promise, resolve }
 }
 
 describe('ExperimentList', () => {
@@ -248,23 +265,191 @@ describe('ExperimentList', () => {
     expect(ctx.testResult.tags).toEqual(['champion'])
   })
 
-  test('handleTest fills executable demo params for browser testing', async () => {
+  test('handleTest enters LOADING first, then creates nested Schema form fields and SCHEMA_SAMPLE params', async () => {
     const ctx = createContext()
-    const row = { id: 9, experimentCode: 'EXP_DEMO' }
-    const sampleParams = JSON.parse(ctx.defaultTestJson(row))
-    sampleParams.score_f1_fields = { HYBASE_X115: 0 }
-    getRuleTestSchema.mockResolvedValueOnce({ data: { inputs: [], sampleParams } })
+    const schema = deferred()
+    getRuleTestSchema.mockReturnValueOnce(schema.promise)
 
-    await ctx.handleTest(row)
+    const opening = ctx.handleTest({ id: 9, experimentCode: 'EXP_SCHEMA' })
 
-    const params = JSON.parse(ctx.testJson)
-    expect(getRuleTestSchema).toHaveBeenCalledWith({ targetType: 'EXPERIMENT', targetId: 9 })
-    expect(params.score_f1_fields.HYBASE_X115).toBe(0)
-    expect(params.requestId).toBe('EXP_DEMO_REQ_001')
-    expect(params.taxpayerType).toBe('一般纳税人')
-    expect(params.goodsCategory).toBe('货物')
-    expect(params.invoiceDeviationRate).toBe(0.05)
-    expect(params.billingAmount).toBe(100000)
-    expect(params.vasServiceRatio).toBe(0.4)
+    expect(ctx.testVisible).toBe(true)
+    expect(ctx.testLoadStatus).toBe('LOADING')
+
+    schema.resolve({ data: {
+      inputs: [
+        { refId: 1, refType: 'VARIABLE', scriptName: 'profile.age', valueType: 'INTEGER' },
+        { refId: 2, refType: 'VARIABLE', scriptName: 'profile.active', valueType: 'BOOLEAN' }
+      ],
+      sampleParams: { profile: { age: 36, active: true } }
+    } })
+    await opening
+
+    expect(ctx.testLoadStatus).toBe('READY')
+    expect(ctx.testReady).toBe(true)
+    expect(ctx.testParamSource).toBe('SCHEMA_SAMPLE')
+    expect(ctx.testFields.map(field => field.fieldName)).toEqual(['profile.age', 'profile.active'])
+    expect(ctx.testParams).toEqual({ 'profile.age': 36, 'profile.active': true })
+    expect(JSON.parse(ctx.testJson)).toEqual({ profile: { age: 36, active: true } })
+  })
+
+  test('handleTest uses typed field defaults and FIELD_DEFAULTS when Schema has no sample', async () => {
+    getRuleTestSchema.mockResolvedValueOnce({ data: {
+      inputs: [
+        { refId: 1, scriptName: 'credit.score', valueType: 'NUMBER' },
+        { refId: 2, scriptName: 'credit.approved', valueType: 'BOOLEAN' },
+        { refId: 3, scriptName: 'credit.tags', valueType: 'ARRAY' },
+        { refId: 4, scriptName: 'credit.meta', valueType: 'OBJECT' },
+        { refId: 5, scriptName: 'credit.note', valueType: 'STRING' }
+      ],
+      sampleParams: {}
+    } })
+    const ctx = createContext()
+
+    await ctx.handleTest({ id: 9, experimentCode: 'EXP_DEFAULTS' })
+
+    expect(ctx.testLoadStatus).toBe('READY')
+    expect(ctx.testParamSource).toBe('FIELD_DEFAULTS')
+    expect(ctx.testParams).toEqual({
+      'credit.score': 0,
+      'credit.approved': false,
+      'credit.tags': [],
+      'credit.meta': {},
+      'credit.note': ''
+    })
+    expect(JSON.parse(ctx.testJson)).toEqual({
+      credit: { score: 0, approved: false, tags: [], meta: {}, note: '' }
+    })
+  })
+
+  test('handleTest degrades to a readable warning and empty JSON-only entry when Schema loading fails', async () => {
+    getRuleTestSchema.mockRejectedValueOnce(new Error('Schema 服务暂不可用'))
+    const ctx = createContext()
+
+    await ctx.handleTest({ id: 9, experimentCode: 'EXP_DEGRADED' })
+
+    expect(ctx.testLoadStatus).toBe('DEGRADED')
+    expect(ctx.testReady).toBe(true)
+    expect(ctx.testMode).toBe('json')
+    expect(ctx.testFields).toEqual([])
+    expect(ctx.testParams).toEqual({})
+    expect(ctx.testJson).toBe('{}')
+    expect(ctx.testLoadWarnings).toEqual([
+      expect.stringContaining('Schema 服务暂不可用')
+    ])
+  })
+
+  test('form and JSON modes preserve nested Schema fields, while invalid JSON retains an error and blocks execution', async () => {
+    const ctx = createContext({
+      testVisible: true,
+      testMode: 'manual',
+      testFields: [
+        { fieldName: 'profile.age', fieldType: 'INTEGER' },
+        { fieldName: 'profile.active', fieldType: 'BOOLEAN' }
+      ],
+      testParams: { 'profile.age': 36, 'profile.active': true }
+    })
+
+    expect(ctx.switchToJsonMode).toBeTypeOf('function')
+    ctx.switchToJsonMode()
+    expect(JSON.parse(ctx.testJson)).toEqual({ profile: { age: 36, active: true } })
+
+    ctx.testJson = '{"profile":{"age":37,"active":false}}'
+    ctx.switchToManualMode()
+    expect(ctx.testParams).toEqual({ 'profile.age': 37, 'profile.active': false })
+
+    ctx.switchToJsonMode()
+    ctx.testJson = '{invalid json'
+    ctx.onJsonInput()
+    await ctx.doExecute()
+
+    expect(ctx.jsonError).toContain('JSON 格式错误')
+    expect(executeExperiment).not.toHaveBeenCalled()
+  })
+
+  test('field-form execution submits nested params and request context without concurrent duplicate submission', async () => {
+    const request = deferred()
+    executeExperiment.mockReturnValueOnce(request.promise)
+    const ctx = createContext({
+      testVisible: true,
+      testMode: 'manual',
+      testFields: [{ fieldName: 'profile.age', fieldType: 'INTEGER' }],
+      testParams: { 'profile.age': 36 },
+      testRequest: { requestKey: 'REQ-36', requestTime: '2026-08-04T09:30:00' },
+      testExperiment: { experimentCode: 'EXP_SUBMIT' }
+    })
+
+    const first = ctx.doExecute()
+    const repeated = ctx.doExecute()
+
+    expect(executeExperiment).toHaveBeenCalledTimes(1)
+    expect(executeExperiment).toHaveBeenCalledWith('EXP_SUBMIT', {
+      params: { profile: { age: 36 } },
+      requestKey: 'REQ-36',
+      requestTime: '2026-08-04T09:30:00'
+    })
+
+    request.resolve({ data: { success: true, tags: ['champion'] } })
+    await Promise.all([first, repeated])
+    expect(ctx.testResult.tags).toEqual(['champion'])
+  })
+
+  test('closing the dialog invalidates an in-flight execution so its late response cannot write state', async () => {
+    const request = deferred()
+    executeExperiment.mockReturnValueOnce(request.promise)
+    const ctx = createContext({
+      testVisible: true,
+      testMode: 'manual',
+      testFields: [{ fieldName: 'amount', fieldType: 'NUMBER' }],
+      testParams: { amount: 100 },
+      testExperiment: { experimentCode: 'EXP_CLOSE' }
+    })
+
+    const executing = ctx.doExecute()
+    expect(ctx.closeTestDialog).toBeTypeOf('function')
+    ctx.closeTestDialog()
+    request.resolve({ data: { success: true, tags: ['late-result'] } })
+    await executing
+
+    expect(ctx.testVisible).toBe(false)
+    expect(ctx.testResult).toBeNull()
+    expect(ctx.testing).toBe(false)
+  })
+
+  test('an expired execution request cannot overwrite the current dialog state', async () => {
+    const request = deferred()
+    executeExperiment.mockReturnValueOnce(request.promise)
+    const ctx = createContext({
+      testVisible: true,
+      testMode: 'manual',
+      testFields: [{ fieldName: 'amount', fieldType: 'NUMBER' }],
+      testParams: { amount: 100 },
+      testExperiment: { experimentCode: 'EXP_EXPIRED' }
+    })
+
+    const executing = ctx.doExecute()
+    ctx.testExecutionRequestId++
+    request.resolve({ data: { success: true, tags: ['expired-result'] } })
+    await executing
+
+    expect(ctx.testResult).toBeNull()
+  })
+
+  test('buildExecutionResultSummary distinguishes production, matched, skipped, and failed groups', () => {
+    const ctx = createContext()
+
+    expect(ctx.buildExecutionResultSummary).toBeTypeOf('function')
+    expect(ctx.buildExecutionResultSummary({
+      productionGroup: { groupCode: 'champion', success: true },
+      testGroups: [
+        { groupCode: 'test_hit', matched: true, skipped: false, success: true },
+        { groupCode: 'test_skipped', matched: false, skipped: true, success: true },
+        { groupCode: 'test_failed', matched: true, skipped: false, success: false, errorMessage: 'rule failed' }
+      ]
+    })).toEqual([
+      { groupCode: 'champion', stage: 'PRODUCTION', status: 'SUCCESS' },
+      { groupCode: 'test_hit', stage: 'TEST', status: 'MATCHED' },
+      { groupCode: 'test_skipped', stage: 'TEST', status: 'SKIPPED' },
+      { groupCode: 'test_failed', stage: 'TEST', status: 'FAILED', errorMessage: 'rule failed' }
+    ])
   })
 })
