@@ -170,14 +170,26 @@ public class SimpleEntityGovernedResourceAdapter<T>
             Map<String, Object> map = (Map<String, Object>) rawMap;
             for (Map.Entry<String, Object> entry : map.entrySet()) {
                 Long id = longValue(entry.getValue());
-                String targetType = id == null
-                        ? null : dependencyType(
+                String targetType = dependencyType(
                         entry.getKey(), map);
-                if (targetType != null && id > 0) {
+                if (targetType != null && id != null && id > 0) {
                     dependencies.add(new ResourceDependencyRef(
                             targetType, id, targetType,
                             path + "." + entry.getKey(),
                             "REFERENCES", true));
+                }
+                if (targetType != null
+                        && entry.getValue() instanceof List<?> ids) {
+                    for (int index = 0; index < ids.size(); index++) {
+                        Long itemId = longValue(ids.get(index));
+                        if (itemId != null && itemId > 0) {
+                            dependencies.add(new ResourceDependencyRef(
+                                    targetType, itemId, targetType,
+                                    path + "." + entry.getKey()
+                                            + "[" + index + "]",
+                                    "REFERENCES", true));
+                        }
+                    }
                 }
                 collect(entry.getValue(),
                         path + "." + entry.getKey(), dependencies);
@@ -211,13 +223,15 @@ public class SimpleEntityGovernedResourceAdapter<T>
             case "modelId", "refModelId" -> "MODEL";
             case "variableId", "leftVarId", "rightVarId" ->
                     "VARIABLE";
-            case "varId" -> refType(owner.get("refType"));
+            case "varId", "refId" -> refType(owner.get("refType"));
             case "functionId" -> "FUNCTION";
             case "definitionId", "ruleId" -> "RULE";
             case "experimentId" -> "EXPERIMENT";
-            case "datasourceId" -> "EXTERNAL_DATASOURCE";
+            case "datasourceId" -> owner.containsKey("sql")
+                    ? "DATABASE" : "EXTERNAL_DATASOURCE";
             case "dbDatasourceId" -> "DATABASE";
             case "apiConfigId", "apiId" -> "EXTERNAL_API";
+            case "listId", "listIds" -> "LIST_LIBRARY";
             case "objectId", "parentObjectId", "refObjectId",
                     "requestObjectId", "responseObjectId" ->
                     "DATA_OBJECT";

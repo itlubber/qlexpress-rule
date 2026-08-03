@@ -51,9 +51,11 @@ public class GovernanceResourceAdapterConfiguration {
     public GovernedResourceAdapter variableGovernanceAdapter(
             RuleVariableMapper mapper,
             RuleVariableOptionMapper optionMapper,
-            GovernanceSecretCodec secretCodec) {
+            GovernanceSecretCodec secretCodec,
+            VariableSourceReferenceValidator sourceValidator) {
         return new VariableGovernedResourceAdapter(
-                store(mapper), optionMapper, secretCodec);
+                store(mapper), optionMapper, secretCodec,
+                sourceValidator);
     }
 
     @Bean

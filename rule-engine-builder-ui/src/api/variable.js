@@ -55,6 +55,22 @@ export function testVariable(id, params) {
   return request({ url: `/rule/variable/${id}/test`, method: 'post', data: params || {} })
 }
 
+export function getVariableSourceOptions(params) {
+  return request({
+    url: '/rule/variable/source-options',
+    method: 'get',
+    params
+  })
+}
+
+export function previewVariableDraft(variable, params) {
+  return request({
+    url: '/rule/variable/preview',
+    method: 'post',
+    data: { variable, params: params || {} }
+  })
+}
+
 export function getVariableOptions(variableId) {
   return request({ url: `/rule/variable/${variableId}/options`, method: 'get' })
 }

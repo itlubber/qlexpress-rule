@@ -72,8 +72,8 @@ test('变量管理四类业务页签的数据、复制、按钮和弹框均可�
     {
       tab: '变量列表',
       text: 'age',
-      button: '新建变量',
-      dialogTitle: '新建变量'
+      button: '新建字段',
+      dialogTitle: '新建字段'
     },
     {
       tab: '数据对象',

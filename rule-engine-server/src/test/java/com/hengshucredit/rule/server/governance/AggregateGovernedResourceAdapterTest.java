@@ -78,6 +78,36 @@ public class AggregateGovernedResourceAdapterTest {
     }
 
     @Test
+    public void variableSourceFailureDoesNotBlockDisableOrDelete() {
+        RuleVariable variable = variable();
+        RuleVariableOptionMapper optionMapper =
+                mapper(RuleVariableOptionMapper.class,
+                        Map.of("selectList", List.of()),
+                        new ArrayList<>());
+        VariableSourceReferenceValidator sourceValidator =
+                new VariableSourceReferenceValidator() {
+                    @Override
+                    public List<GovernanceIssue> validate(
+                            RuleVariable ignored) {
+                        return List.of(GovernanceIssue.error(
+                                "VARIABLE_SOURCE_NOT_FOUND",
+                                "来源已删除",
+                                GovernanceResourceTypes.VARIABLE,
+                                7L, "$.sourceConfig.apiConfigId"));
+                    }
+                };
+        VariableGovernedResourceAdapter adapter =
+                new VariableGovernedResourceAdapter(
+                        store(variable, RuleVariable::setId),
+                        optionMapper, codec(), sourceValidator);
+        ResourceSnapshot snapshot = adapter.loadEffective(7L);
+
+        Assert.assertFalse(adapter.validate(snapshot, "UPDATE").isEmpty());
+        Assert.assertTrue(adapter.validate(snapshot, "DISABLE").isEmpty());
+        Assert.assertTrue(adapter.validate(snapshot, "DELETE").isEmpty());
+    }
+
+    @Test
     public void dataObjectVersionContainsFieldsAndNestedOptions() {
         RuleDataObject object = new RuleDataObject();
         object.setId(4L);

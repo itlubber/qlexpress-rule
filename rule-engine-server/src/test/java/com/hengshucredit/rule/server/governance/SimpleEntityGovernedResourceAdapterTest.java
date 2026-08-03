@@ -120,6 +120,37 @@ public class SimpleEntityGovernedResourceAdapterTest {
     }
 
     @Test
+    public void variableSourceDependenciesDistinguishDatabaseListsAndReferences() {
+        SimpleEntityGovernedResourceAdapter<SampleResource> adapter =
+                adapter(new TestStore());
+        ResourceSnapshot snapshot = adapter.normalizeDraft(
+                ResourceSnapshot.ofJson(
+                        "{\"name\":\"list-db-variable\","
+                                + "\"sourceConfig\":\"{"
+                                + "\\\"datasourceId\\\":21,"
+                                + "\\\"sql\\\":\\\"select 1\\\","
+                                + "\\\"listIds\\\":[31,32],"
+                                + "\\\"queryOperands\\\":[{"
+                                + "\\\"refId\\\":41,"
+                                + "\\\"refType\\\":\\\"DATA_OBJECT\\\"}]}\"}"));
+
+        java.util.List<ResourceDependencyRef> dependencies =
+                adapter.collectDependencies(snapshot);
+
+        Assert.assertTrue(dependencies.stream().anyMatch(ref ->
+                "DATABASE".equals(ref.targetResourceType())
+                        && Long.valueOf(21L).equals(ref.targetResourceId())));
+        Assert.assertEquals(2, dependencies.stream().filter(ref ->
+                "LIST_LIBRARY".equals(ref.targetResourceType())).count());
+        Assert.assertTrue(dependencies.stream().anyMatch(ref ->
+                "DATA_OBJECT".equals(ref.targetResourceType())
+                        && Long.valueOf(41L).equals(ref.targetResourceId())));
+        Assert.assertFalse(dependencies.stream().anyMatch(ref ->
+                "EXTERNAL_DATASOURCE".equals(ref.targetResourceType())
+                        && Long.valueOf(21L).equals(ref.targetResourceId())));
+    }
+
+    @Test
     public void aggregateRestoreReplacesRootAndChildrenWithoutLifecycleApply() {
         TestStore store = new TestStore();
         SampleResource draft = new SampleResource();

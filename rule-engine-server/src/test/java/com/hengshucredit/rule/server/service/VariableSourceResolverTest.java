@@ -199,6 +199,27 @@ public class VariableSourceResolverTest {
     }
 
     @Test
+    public void draftVariableCanBePreviewedWithoutPersistence() throws Exception {
+        RuleVariable draft = variable("riskScore", "DB",
+                "{\"dbDatasourceId\":3,\"sql\":\"select score from t where id = ?\"," +
+                        "\"params\":[\"$.customerId\"],\"resultPath\":\"0.score\"}");
+        draft.setId(null);
+        draft.setScriptName(null);
+        FakeDbPools dbPools = new FakeDbPools(Collections.singletonList(
+                singletonMap("score", 88)));
+        VariableSourceResolver resolver = resolver(Collections.emptyList(),
+                new FakeApiService(Collections.emptyMap()), dbPools);
+
+        Map<String, Object> result = resolver.previewVariable(
+                draft, singletonMap("customerId", "C001"));
+
+        assertEquals(null, result.get("variableId"));
+        assertEquals("riskScore", result.get("scriptName"));
+        assertEquals(88, result.get("resolvedValue"));
+        assertEquals(Collections.singletonList("C001"), dbPools.lastParams);
+    }
+
+    @Test
     public void sourceVariableIsSkippedWhenNotRequiredByCurrentRule() throws Exception {
         RuleVariable variable = variable("riskScore", "API", "{\"apiConfigId\":7,\"resultPath\":\"body.score\"}");
         FakeApiService apiService = new FakeApiService(responseBody("score", 88));

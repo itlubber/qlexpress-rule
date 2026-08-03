@@ -1,9 +1,13 @@
 const { expect, test } = require('@playwright/test')
 const { installDistRoutes } = require('./support/distRoutes.cjs')
 const { createDetailApiData } = require('./support/detailFixtures.cjs')
+const { createManagementApiData } = require('./support/managementFixtures.cjs')
 
 function workflowFixtures() {
-  const routes = createDetailApiData()
+  const routes = new Map([
+    ...createDetailApiData(),
+    ...createManagementApiData()
+  ])
   routes.set('/api/rule/governance/requests/summary', {
     pendingCount: 3,
     myDraftCount: 1,
@@ -29,6 +33,37 @@ function workflowFixtures() {
       })
     }],
     total: 1
+  })
+  routes.set('/api/rule/variable/source-options', {
+    apiOptions: [{
+      id: 22,
+      code: 'credit_query',
+      name: '征信查询',
+      scope: 'PROJECT',
+      projectId: 1,
+      parentId: 21,
+      parentName: '征信供应商'
+    }],
+    databaseOptions: [{
+      id: 31,
+      code: 'risk_mysql',
+      name: '风控只读库',
+      scope: 'PROJECT',
+      projectId: 1
+    }],
+    listOptions: [{
+      id: 9,
+      code: 'mobile_black',
+      name: '手机号黑名单',
+      scope: 'PROJECT',
+      projectId: 1
+    }]
+  })
+  routes.set('POST /api/rule/variable/preview', {
+    varCode: 'riskScore',
+    varSource: 'API',
+    resolvedValue: 88,
+    resolvedParams: { riskScore: 88 }
   })
   return routes
 }
@@ -73,5 +108,45 @@ test('外数 API 按业务、稳定性和高级能力分层且保留完整配置
   await expect(page.getByText('脚本处理', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '生成审批草稿', exact: true }))
     .toBeVisible()
+  assertClean()
+})
+
+test('新建字段按业务取值方式引导并可在送审前预览外数结果', async ({
+  page
+}) => {
+  const { requests, assertClean } = await installDistRoutes(page, {
+    apiData: workflowFixtures()
+  })
+
+  await page.goto('http://tianshu.local/index.html#/variable?projectId=1')
+  await page.getByRole('button', { name: '新建字段', exact: true }).click()
+
+  const dialog = page.locator('.el-dialog:visible').last()
+  await expect(dialog.getByText('按业务取值方式完成字段配置', { exact: true }))
+    .toBeVisible()
+  await expect(dialog.getByText('3 个可用', { exact: true })).toHaveCount(0)
+  await expect(dialog.getByText('1 个可用', { exact: true })).toHaveCount(3)
+  await dialog.getByRole('button', { name: /外数接口/ }).click()
+  await expect(dialog.getByText('保存前验证取值', { exact: true })).toBeVisible()
+
+  await dialog.locator('.el-form-item').filter({ hasText: '字段编码' })
+    .locator('input').fill('riskScore')
+  await dialog.locator('.el-form-item').filter({ hasText: '字段名称' })
+    .locator('input').fill('风险分')
+  await dialog.locator('.el-form-item').filter({ hasText: '接口配置' })
+    .locator('.el-select').click()
+  await page.getByText('征信查询 / credit_query', { exact: true }).last().click()
+
+  await expect(dialog.getByText('3 / 4 已就绪', { exact: true })).toBeVisible()
+  await dialog.getByRole('button', { name: '预览取值', exact: true }).click()
+  await expect(dialog.getByText('4 / 4 已就绪', { exact: true })).toBeVisible()
+  await expect(dialog.locator('.draft-preview-result')).toContainText('88')
+  await expect(dialog.getByRole('button', {
+    name: '生成审批草稿', exact: true
+  })).toBeVisible()
+  expect(requests.some(request =>
+    request.method === 'POST' &&
+    new URL(request.url).pathname === '/api/rule/variable/preview'
+  )).toBe(true)
   assertClean()
 })

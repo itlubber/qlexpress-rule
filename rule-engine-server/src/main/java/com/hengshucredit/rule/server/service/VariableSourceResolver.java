@@ -841,6 +841,41 @@ public class VariableSourceResolver {
         return result;
     }
 
+    public Map<String, Object> previewVariable(
+            RuleVariable variable, Map<String, Object> inputParams) {
+        if (variable == null) {
+            throw new IllegalArgumentException("字段草稿不能为空");
+        }
+        String varSource = variable.getVarSource();
+        if (!"API".equals(varSource) && !"DB".equals(varSource)
+                && !"LIST".equals(varSource)) {
+            throw new IllegalArgumentException(
+                    "仅支持预览 API、数据库、名单字段");
+        }
+        String scriptName = resolveScriptName(variable);
+        if (!hasText(scriptName)) {
+            throw new IllegalArgumentException("字段编码不能为空");
+        }
+        VariableResolveOptions options = VariableResolveOptions.defaults();
+        options.setForceRefreshSource(true);
+        Map<String, Object> params = inputParams == null
+                ? new LinkedHashMap<>()
+                : new LinkedHashMap<>(inputParams);
+        Map<String, Object> resolved = new LinkedHashMap<>(params);
+        resolveOneSourceVariable(variable, scriptName,
+                parseJsonMap(variable.getSourceConfig()), resolved,
+                options, new LinkedHashMap<>());
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("variableId", variable.getId());
+        result.put("varCode", variable.getVarCode());
+        result.put("scriptName", scriptName);
+        result.put("varSource", varSource);
+        result.put("inputParams", params);
+        result.put("resolvedValue", resolved.get(scriptName));
+        result.put("resolvedParams", resolved);
+        return result;
+    }
+
     private Object resolveApiVariable(RuleVariable variable, Map<String, Object> config, Map<String, Object> params,
                                       VariableResolveOptions options,
                                       Map<String, Map<String, Object>> apiResponseCache) {
@@ -862,7 +897,10 @@ public class VariableSourceResolver {
 
     private Object resolveDbVariable(RuleVariable variable, Map<String, Object> config, Map<String, Object> params,
                                      VariableResolveOptions options) throws Exception {
-        Long datasourceId = longValue(config.get("datasourceId"));
+        Long datasourceId = longValue(config.get("dbDatasourceId"));
+        if (datasourceId == null) {
+            datasourceId = longValue(config.get("datasourceId"));
+        }
         String sql = stringValue(config.get("sql"));
         if (datasourceId == null) {
             throw new IllegalArgumentException("DB变量缺少 datasourceId");
@@ -918,9 +956,15 @@ public class VariableSourceResolver {
     private Map<String, Object> buildDbLogRequest(RuleDbDatasource datasource, RuleVariable variable,
             Map<String, Object> config, String sql, List<Object> queryParams, int maxRows, LocalDateTime startTime) {
         Map<String, Object> request = new LinkedHashMap<>();
+        Long configuredDatasourceId = longValue(
+                config.get("dbDatasourceId"));
+        if (configuredDatasourceId == null) {
+            configuredDatasourceId = longValue(config.get("datasourceId"));
+        }
         request.put("connectionMode", datasource == null ? null : datasource.getConnectionMode());
         request.put("dbType", datasource == null ? null : datasource.getDbType());
-        request.put("datasourceId", datasource == null ? longValue(config.get("datasourceId")) : datasource.getId());
+        request.put("datasourceId", datasource == null
+                ? configuredDatasourceId : datasource.getId());
         request.put("datasourceCode", datasource == null ? null : datasource.getDatasourceCode());
         request.put("datasourceName", datasource == null ? null : datasource.getDatasourceName());
         request.put("targetVariable", variable == null ? null : resolveScriptName(variable));

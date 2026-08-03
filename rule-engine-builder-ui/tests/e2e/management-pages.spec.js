@@ -23,8 +23,8 @@ const pages = [
     name: '变量管理',
     path: '/variable',
     rowText: 'age',
-    createButton: '新建变量',
-    dialogTitle: '新建变量',
+    createButton: '新建字段',
+    dialogTitle: '新建字段',
     listApi: '/api/rule/variable/list',
     projectSelectIndex: 1
   },

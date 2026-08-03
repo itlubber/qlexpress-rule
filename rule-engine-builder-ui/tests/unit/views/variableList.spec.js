@@ -12,6 +12,8 @@ vi.mock('@/api/variable', () => ({
   toGlobalVariable: vi.fn(),
   deleteVariable: vi.fn(),
   testVariable: vi.fn(),
+  getVariableSourceOptions: vi.fn(),
+  previewVariableDraft: vi.fn(),
   importJavaConstants: vi.fn(),
   importJsonConstants: vi.fn(),
   listFieldValidations: vi.fn(),
@@ -53,6 +55,8 @@ import * as projectApi from '@/api/project'
 import * as dataObjectApi from '@/api/dataObject'
 import * as functionApi from '@/api/function'
 import * as modelApi from '@/api/model'
+import * as datasourceApi from '@/api/datasource'
+import * as databaseApi from '@/api/database'
 import * as ruleListApi from '@/api/ruleList'
 import * as definitionApi from '@/api/definition'
 import VariableList from '@/views/variable/VariableList.vue'
@@ -90,6 +94,9 @@ const FormStub = {
 async function mountAndWait(routeQuery = {}) {
   projectApi.listProjects.mockResolvedValue({ data: { records: mockProjects() } })
   variableApi.listVariables.mockResolvedValue({ data: { records: mockVars(), total: 3 } })
+  variableApi.getVariableSourceOptions.mockResolvedValue({ data: {
+    apiOptions: [], databaseOptions: [], listOptions: []
+  } })
   ruleListApi.listLibraries.mockResolvedValue({ data: { records: [{ id: 9, listCode: 'mobile_black', listName: '手机号黑名单' }], total: 1 } })
   variableApi.listVariablesByProject.mockResolvedValue({ data: mockVars() })
   variableApi.listFieldValidations.mockResolvedValue({ data: { records: [{
@@ -173,6 +180,82 @@ describe('VariableList — 初始化与数据加载', () => {
     wrapper.vm.handleCreate()
     expect(wrapper.vm.form.scope).toBe('')
     expect(wrapper.vm.form.projectId).toBe('')
+  })
+
+  test('项目字段来源目录只请求全局与当前项目兼容资源', async () => {
+    variableApi.getVariableSourceOptions.mockResolvedValueOnce({ data: {
+      apiOptions: [{ id: 11, code: 'credit_api', name: '征信接口' }],
+      databaseOptions: [{ id: 21, code: 'risk_db', name: '风险库' }],
+      listOptions: [{ id: 31, code: 'mobile_black', name: '手机号黑名单' }]
+    } })
+    wrapper.vm.form.scope = 'PROJECT'
+    wrapper.vm.form.projectId = 2
+
+    await wrapper.vm.loadVariableSourceCatalog()
+
+    expect(variableApi.getVariableSourceOptions).toHaveBeenCalledWith({
+      scope: 'PROJECT', projectId: 2
+    })
+    expect(wrapper.vm.sourceCatalog.apiOptions[0].id).toBe(11)
+    expect(wrapper.vm.sourceCatalog.databaseOptions[0].id).toBe(21)
+    expect(wrapper.vm.sourceCatalog.listOptions[0].id).toBe(31)
+  })
+
+  test('切换项目后清理不再兼容的已选来源', async () => {
+    wrapper.vm.form = {
+      ...wrapper.vm.initForm(), scope: 'PROJECT', projectId: 2,
+      varSource: 'API', apiConfigId: 99
+    }
+    variableApi.getVariableSourceOptions.mockResolvedValueOnce({ data: {
+      apiOptions: [{ id: 11, code: 'credit_api', name: '征信接口' }],
+      databaseOptions: [], listOptions: []
+    } })
+
+    await wrapper.vm.loadVariableSourceCatalog(true)
+
+    expect(wrapper.vm.form.apiConfigId).toBe('')
+    expect(wrapper.vm.$message.warning).toHaveBeenCalledWith(
+      '原取值来源不属于当前范围，请重新选择'
+    )
+  })
+
+  test('切换字段来源只加载兼容目录而不拉取全量技术资源', async () => {
+    wrapper.vm.form.scope = 'PROJECT'
+    wrapper.vm.form.projectId = 1
+
+    await wrapper.vm.onVarSourceChange('API')
+    await wrapper.vm.onVarSourceChange('DB')
+
+    expect(variableApi.getVariableSourceOptions).toHaveBeenCalled()
+    expect(datasourceApi.listApiConfigs).not.toHaveBeenCalled()
+    expect(databaseApi.listDbDatasources).not.toHaveBeenCalled()
+    expect(ruleListApi.listLibraries).not.toHaveBeenCalled()
+  })
+
+  test('快速切换项目时只采用最后一次来源目录响应', async () => {
+    let resolveFirst
+    let resolveSecond
+    variableApi.getVariableSourceOptions
+      .mockReturnValueOnce(new Promise(resolve => { resolveFirst = resolve }))
+      .mockReturnValueOnce(new Promise(resolve => { resolveSecond = resolve }))
+
+    wrapper.vm.form.scope = 'PROJECT'
+    wrapper.vm.form.projectId = 1
+    const first = wrapper.vm.loadVariableSourceCatalog()
+    wrapper.vm.form.projectId = 2
+    const second = wrapper.vm.loadVariableSourceCatalog()
+
+    resolveSecond({ data: {
+      apiOptions: [{ id: 22 }], databaseOptions: [], listOptions: []
+    } })
+    await second
+    resolveFirst({ data: {
+      apiOptions: [{ id: 11 }], databaseOptions: [], listOptions: []
+    } })
+    await first
+
+    expect(wrapper.vm.sourceCatalog.apiOptions).toEqual([{ id: 22 }])
+    expect(wrapper.vm.sourceCatalogKey).toBe('PROJECT:2')
   })
 
   test('scopeTagLabel 返回正确标签', () => {
@@ -683,6 +766,66 @@ describe('VariableList — 变量操作', () => {
     expect(config.forceRefresh).toBe(true)
     expect(config.exceptionStrategy).toBe('RETURN_DEFAULT')
     expect(payload.apiConfigId).toBeUndefined()
+  })
+
+  test('新字段可在生成审批草稿前执行取值预览', async () => {
+    wrapper.vm.form = {
+      ...wrapper.vm.initForm(), scope: 'PROJECT', projectId: 1,
+      varCode: 'riskScore', varLabel: '风险分', varType: 'NUMBER',
+      varSource: 'DB', dbDatasourceId: 21,
+      dbSql: 'select score from risk where customer_id = ?',
+      dbParams: '["$.customerId"]', dbResultPath: '0.score'
+    }
+    wrapper.vm.draftPreviewParamsText = '{"customerId":"C001"}'
+    variableApi.previewVariableDraft.mockResolvedValueOnce({ data: {
+      resolvedValue: 88,
+      resolvedParams: { customerId: 'C001', riskScore: 88 }
+    } })
+
+    await wrapper.vm.previewDraftVariable()
+
+    expect(variableApi.previewVariableDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        varCode: 'riskScore',
+        sourceConfig: expect.stringContaining('dbDatasourceId')
+      }),
+      { customerId: 'C001' }
+    )
+    expect(wrapper.vm.draftPreviewResult.resolvedValue).toBe(88)
+  })
+
+  test('取值预览失败由统一请求提示承接且不会产生未处理事件异常', async () => {
+    wrapper.vm.form = {
+      ...wrapper.vm.initForm(), scope: 'PROJECT', projectId: 1,
+      varCode: 'riskScore', varLabel: '风险分', varType: 'NUMBER',
+      varSource: 'DB', dbDatasourceId: 21,
+      dbSql: 'select 1 as score', dbParams: '[]', dbResultPath: '0.score'
+    }
+    const requestError = Object.assign(new Error('数据库不可用'), {
+      requestErrorNotified: true
+    })
+    variableApi.previewVariableDraft.mockRejectedValueOnce(requestError)
+
+    await expect(wrapper.vm.previewDraftVariable()).resolves.toBeUndefined()
+
+    expect(wrapper.vm.draftPreviewResult).toBeNull()
+    expect(wrapper.vm.$message.error).not.toHaveBeenCalled()
+    expect(wrapper.vm.draftPreviewing).toBe(false)
+  })
+
+  test('字段配置检查按归属、定义、来源和预览反馈就绪状态', async () => {
+    wrapper.vm.form = {
+      ...wrapper.vm.initForm(), scope: 'PROJECT', projectId: 1,
+      varCode: 'mobileHit', varLabel: '手机号命中', varType: 'BOOLEAN',
+      varSource: 'LIST', listIds: [31],
+      listQueryOperands: [{
+        kind: 'LITERAL', value: '13800138000', valueType: 'STRING'
+      }]
+    }
+    wrapper.vm.draftPreviewResult = { resolvedValue: true }
+
+    expect(wrapper.vm.variableConfigurationChecklist.map(item => item.ready))
+      .toEqual([true, true, true, true])
   })
 
   test('applySourceConfigToForm 回显多字段多名单配置', () => {

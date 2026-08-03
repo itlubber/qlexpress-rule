@@ -1,11 +1,14 @@
 package com.hengshucredit.rule.server.controller.mgmt;
 
 import com.hengshucredit.rule.model.dto.RuleValidationResult;
+import com.hengshucredit.rule.model.dto.VariableSourcePreviewRequest;
 import com.hengshucredit.rule.model.entity.RuleVariable;
 import com.hengshucredit.rule.model.entity.RuleVariableOption;
 import com.hengshucredit.rule.server.common.R;
 import com.hengshucredit.rule.server.governance.GovernanceBatchImportService;
 import com.hengshucredit.rule.server.governance.GovernedProjectionMutation;
+import com.hengshucredit.rule.server.governance.VariableSourceCatalog;
+import com.hengshucredit.rule.server.governance.VariableSourceReferenceValidator;
 import com.hengshucredit.rule.server.security.RequirePermission;
 import com.hengshucredit.rule.server.service.BatchTestService;
 import com.hengshucredit.rule.server.service.ConsoleOperatorResolver;
@@ -44,6 +47,9 @@ public class RuleVariableController {
 
     @Resource
     private ConsoleOperatorResolver operatorResolver;
+
+    @Resource
+    private VariableSourceReferenceValidator sourceReferenceValidator;
 
     /** 健康检查，用于验证变量管理接口是否正常注册 */
     @GetMapping("/health")
@@ -107,6 +113,32 @@ public class RuleVariableController {
     public R<List<RuleVariable>> listByProject(@PathVariable Long projectId,
             @RequestParam(required = false) String varSource) {
         return R.ok(variableService.listByProject(projectId, varSource));
+    }
+
+    @GetMapping("/source-options")
+    public R<VariableSourceCatalog> sourceOptions(
+            @RequestParam String scope,
+            @RequestParam(required = false) Long projectId) {
+        try {
+            return R.ok(sourceReferenceValidator.catalog(scope, projectId));
+        } catch (IllegalArgumentException exception) {
+            return R.fail(exception.getMessage());
+        }
+    }
+
+    @PostMapping("/preview")
+    public R<Map<String, Object>> previewVariable(
+            @RequestBody VariableSourcePreviewRequest request) {
+        try {
+            if (request == null || request.getVariable() == null) {
+                return R.fail("字段草稿不能为空");
+            }
+            sourceReferenceValidator.validateOrThrow(request.getVariable());
+            return R.ok(variableSourceResolver.previewVariable(
+                    request.getVariable(), request.getParams()));
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            return R.fail(exception.getMessage());
+        }
     }
 
     @GetMapping("/{id:\\d+}")

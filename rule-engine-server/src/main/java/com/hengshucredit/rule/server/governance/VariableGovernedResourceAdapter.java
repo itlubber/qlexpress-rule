@@ -15,12 +15,22 @@ public class VariableGovernedResourceAdapter
         extends AggregateEntityGovernedResourceAdapter<RuleVariable> {
 
     private final RuleVariableOptionMapper optionMapper;
+    private final VariableSourceReferenceValidator sourceValidator;
 
     public VariableGovernedResourceAdapter(
             SimpleEntityGovernedResourceAdapter.EntityStore<RuleVariable>
                     store,
             RuleVariableOptionMapper optionMapper,
             GovernanceSecretCodec secretCodec) {
+        this(store, optionMapper, secretCodec, null);
+    }
+
+    public VariableGovernedResourceAdapter(
+            SimpleEntityGovernedResourceAdapter.EntityStore<RuleVariable>
+                    store,
+            RuleVariableOptionMapper optionMapper,
+            GovernanceSecretCodec secretCodec,
+            VariableSourceReferenceValidator sourceValidator) {
         super(new SimpleEntityGovernedResourceAdapter<>(
                 GovernanceResourceTypes.VARIABLE,
                 RuleVariable.class,
@@ -33,6 +43,7 @@ public class VariableGovernedResourceAdapter
                 Set.of(),
                 secretCodec));
         this.optionMapper = optionMapper;
+        this.sourceValidator = sourceValidator;
     }
 
     @Override
@@ -51,6 +62,36 @@ public class VariableGovernedResourceAdapter
             ResourceDependencyRef dependency) {
         return isCollectionOwnershipReference(
                 dependency, "options", "variableId");
+    }
+
+    @Override
+    public List<GovernanceIssue> validate(ResourceSnapshot draft,
+                                          String action) {
+        List<GovernanceIssue> issues = super.validate(draft);
+        if (!"DISABLE".equalsIgnoreCase(action)
+                && !"DELETE".equalsIgnoreCase(action)) {
+            return issues;
+        }
+        return issues.stream()
+                .filter(issue -> !isSourceValidationIssue(issue))
+                .toList();
+    }
+
+    @Override
+    protected void validateAggregate(Map<String, Object> snapshot,
+                                     List<GovernanceIssue> issues) {
+        if (sourceValidator == null) {
+            return;
+        }
+        RuleVariable variable = JSON.parseObject(
+                JSON.toJSONString(snapshot), RuleVariable.class);
+        issues.addAll(sourceValidator.validate(variable));
+    }
+
+    private boolean isSourceValidationIssue(GovernanceIssue issue) {
+        return issue != null && issue.code() != null
+                && (issue.code().startsWith("VARIABLE_SOURCE_")
+                || "VARIABLE_SCOPE_INVALID".equals(issue.code()));
     }
 
     @Override

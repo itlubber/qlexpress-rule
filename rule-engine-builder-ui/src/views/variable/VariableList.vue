@@ -336,7 +336,7 @@
 
         <!-- 空状态 -->
         <div v-if="!loading && standaloneVars.length === 0" class="tab-empty">
-          暂无变量，可点击「新建变量」或「批量导入」添加
+          暂无字段，可点击「新建字段」或「批量导入」添加
         </div>
       </el-tab-pane>
 
@@ -1145,9 +1145,38 @@
     <el-dialog
       :title="variableDialogTitle"
       v-model="dialogVisible"
-      :width="form.varSource === 'LIST' ? '760px' : '600px'"
+      :width="form.varSource === 'LIST' ? '920px' : '820px'"
       :close-on-click-modal="false"
     >
+      <section
+        v-if="!isObjectField"
+        class="variable-config-guide"
+        aria-label="字段配置进度"
+      >
+        <div class="variable-config-guide__heading">
+          <div>
+            <strong>按业务取值方式完成字段配置</strong>
+            <span>先确定字段归属和含义，再选择数据从哪里来。</span>
+          </div>
+          <el-tag type="primary">
+            {{ variableConfigurationReadyCount }} / 4 已就绪
+          </el-tag>
+        </div>
+        <div class="variable-config-checklist">
+          <div
+            v-for="(item, index) in variableConfigurationChecklist"
+            :key="item.label"
+            class="variable-config-check"
+            :class="{ 'is-ready': item.ready }"
+          >
+            <span>{{ item.ready ? '✓' : index + 1 }}</span>
+            <div>
+              <strong>{{ item.label }}</strong>
+              <small>{{ item.help }}</small>
+            </div>
+          </div>
+        </div>
+      </section>
       <el-form
         ref="form"
         :model="form"
@@ -1199,14 +1228,14 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="变量编码" prop="varCode">
+        <el-form-item label="字段编码" prop="varCode">
           <el-input
             v-model="form.varCode"
             placeholder="英文标识，如 taxAmount"
             :disabled="!!form.id"
           />
         </el-form-item>
-        <el-form-item label="变量名称" prop="varLabel">
+        <el-form-item label="字段名称" prop="varLabel">
           <el-input
             v-model="form.varLabel"
             placeholder="中文名称，如 应纳税额"
@@ -1225,28 +1254,21 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item v-if="!isObjectField" label="来源">
-          <el-select
+        <el-form-item v-if="!isObjectField" label="取值方式">
+          <variable-source-selector
             v-model="form.varSource"
             :disabled="isConstantCreate"
-            clearable
-            placeholder="可选"
-            style="width: 100%"
+            :counts="sourceCatalogCounts"
             @change="onVarSourceChange"
-          >
-            <el-option label="输入参数" value="INPUT" /><el-option
-              label="数据库查询"
-              value="DB"
-            />
-            <el-option label="接口调用" value="API" /><el-option
-              label="名单查询"
-              value="LIST"
-            />
-            <el-option label="计算得出" value="COMPUTED" /><el-option
-              label="常量"
-              value="CONSTANT"
-            />
-          </el-select>
+          />
+          <div class="field-help source-catalog-help">
+            <span v-if="sourceCatalogLoading">正在加载当前范围可用来源…</span>
+            <span v-else-if="!form.scope">请先选择作用范围。</span>
+            <span v-else-if="form.scope === 'PROJECT' && !form.projectId">
+              请先选择项目，系统只展示全局与该项目可用的来源。
+            </span>
+            <span v-else>已自动过滤停用及其他项目的来源。</span>
+          </div>
         </el-form-item>
         <template v-if="!isObjectField && form.varSource === 'API'">
           <el-form-item label="接口配置">
@@ -1258,11 +1280,9 @@
               style="width: 100%"
             >
               <el-option
-                v-for="api in apiConfigOptions"
+                v-for="api in sourceCatalog.apiOptions"
                 :key="api.id"
-                :label="
-                  api.apiName ? api.apiName + ' / ' + api.apiCode : api.apiCode
-                "
+                :label="api.name ? api.name + ' / ' + api.code : api.code"
                 :value="api.id"
               />
             </el-select>
@@ -1310,13 +1330,9 @@
               style="width: 100%"
             >
               <el-option
-                v-for="db in dbDatasourceOptions"
+                v-for="db in sourceCatalog.databaseOptions"
                 :key="db.id"
-                :label="
-                  db.datasourceName
-                    ? db.datasourceName + ' / ' + db.datasourceCode
-                    : db.datasourceCode
-                "
+                :label="db.name ? db.name + ' / ' + db.code : db.code"
                 :value="db.id"
               />
             </el-select>
@@ -1374,13 +1390,9 @@
               style="width: 100%"
             >
               <el-option
-                v-for="item in listLibraryOptions"
+                v-for="item in sourceCatalog.listOptions"
                 :key="item.id"
-                :label="
-                  item.listName
-                    ? item.listName + ' / ' + item.listCode
-                    : item.listCode
-                "
+                :label="item.name ? item.name + ' / ' + item.code : item.code"
                 :value="item.id"
               />
             </el-select>
@@ -1395,7 +1407,7 @@
                 :value="operand"
                 :vars="listReferenceOptions"
                 :functions="listFunctionOptions"
-                :list-options="listLibraryOptions"
+                :list-options="compatibleListOptions"
                 :allowed-kinds="listQueryOperandKinds"
                 context="LIST_QUERY_VALUE"
                 :placeholder="'选择第 ' + (index + 1) + ' 个查询字段或表达式'"
@@ -1473,6 +1485,49 @@
             </div>
           </el-form-item>
         </template>
+        <section
+          v-if="!isObjectField && ['API', 'DB', 'LIST'].includes(form.varSource)"
+          class="draft-preview-panel"
+        >
+          <div class="draft-preview-panel__heading">
+            <div>
+              <strong>保存前验证取值</strong>
+              <span>输入一组业务样例，确认来源配置能得到预期结果。</span>
+            </div>
+            <el-button
+              type="primary"
+              plain
+              :loading="draftPreviewing"
+              @click="previewDraftVariable"
+            >
+              预览取值
+            </el-button>
+          </div>
+          <el-alert
+            v-if="form.varSource === 'API' || form.varSource === 'DB'"
+            type="warning"
+            :closable="false"
+            show-icon
+            title="预览会真实访问所选数据源，请使用安全的测试参数。"
+          />
+          <div class="draft-preview-panel__body">
+            <div>
+              <label>样例参数（JSON 对象）</label>
+              <monaco-editor
+                v-model:value="draftPreviewParamsText"
+                language="json"
+                height="120px"
+              />
+            </div>
+            <div>
+              <label>预览结果</label>
+              <pre v-if="draftPreviewResult !== null" class="draft-preview-result">{{
+                formatJson(draftPreviewResult)
+              }}</pre>
+              <div v-else class="draft-preview-empty">尚未预览</div>
+            </div>
+          </div>
+        </section>
         <el-form-item v-if="!isObjectField" label="默认值">
           <el-input
             v-model="form.defaultValue"
@@ -1488,26 +1543,55 @@
         >
           <el-input v-model="form.refObjectCode" placeholder="如嵌套对象编码" />
         </el-form-item>
-        <el-form-item v-if="!isObjectField" label="取值范围"
-          ><el-input v-model="form.valueRange" placeholder="如：0~100、A/B/C"
-        /></el-form-item>
-        <el-form-item v-if="!isObjectField" label="示例值"
-          ><el-input v-model="form.exampleValue" placeholder="如：15000.50"
-        /></el-form-item>
-        <el-form-item label="排序"
-          ><el-input-number v-model="form.sortOrder" :min="0" :max="9999"
-        /></el-form-item>
-        <el-form-item label="状态"
-          ><el-switch
-            v-model="form.status"
-            :active-value="1"
-            :inactive-value="0"
-            active-text="启用"
-            inactive-text="停用"
-        /></el-form-item>
-        <el-form-item v-if="!isObjectField" label="说明"
-          ><el-input v-model="form.description" type="textarea" :rows="2"
-        /></el-form-item>
+        <el-collapse
+          v-if="!isObjectField"
+          v-model="variableAdvancedSections"
+          class="variable-advanced-collapse"
+        >
+          <el-collapse-item name="advanced">
+            <template #title>
+              <div class="variable-advanced-title">
+                <strong>更多说明与发布设置</strong>
+                <span>取值范围、示例、排序、状态和备注</span>
+              </div>
+            </template>
+            <el-form-item label="取值范围">
+              <el-input v-model="form.valueRange" placeholder="如：0~100、A/B/C" />
+            </el-form-item>
+            <el-form-item label="示例值">
+              <el-input v-model="form.exampleValue" placeholder="如：15000.50" />
+            </el-form-item>
+            <el-form-item label="排序">
+              <el-input-number v-model="form.sortOrder" :min="0" :max="9999" />
+            </el-form-item>
+            <el-form-item label="状态">
+              <el-switch
+                v-model="form.status"
+                :active-value="1"
+                :inactive-value="0"
+                active-text="启用"
+                inactive-text="停用"
+              />
+            </el-form-item>
+            <el-form-item label="说明">
+              <el-input v-model="form.description" type="textarea" :rows="2" />
+            </el-form-item>
+          </el-collapse-item>
+        </el-collapse>
+        <template v-else>
+          <el-form-item label="排序">
+            <el-input-number v-model="form.sortOrder" :min="0" :max="9999" />
+          </el-form-item>
+          <el-form-item label="状态">
+            <el-switch
+              v-model="form.status"
+              :active-value="1"
+              :inactive-value="0"
+              active-text="启用"
+              inactive-text="停用"
+            />
+          </el-form-item>
+        </template>
       </el-form>
       <template v-slot:footer>
         <div>
@@ -1515,7 +1599,7 @@
             >取消</el-button
           >
           <el-button size="small" type="primary" @click="handleSubmit"
-            >确定</el-button
+            >{{ isObjectField ? '确定' : '生成审批草稿' }}</el-button
           >
         </div>
       </template>
@@ -2328,6 +2412,8 @@ import {
   toGlobalVariable,
   deleteVariable,
   testVariable,
+  getVariableSourceOptions,
+  previewVariableDraft,
   getVariableOptions,
   saveVariableOptions,
   importJavaConstants,
@@ -2409,6 +2495,7 @@ import MonacoEditor from '@/components/MonacoEditor'
 import RemoteFilterSelect from '@/components/RemoteFilterSelect.vue'
 import ProjectFilterSelect from '@/components/ProjectFilterSelect.vue'
 import OperandPicker from '@/components/common/OperandPicker.vue'
+import VariableSourceSelector from './components/VariableSourceSelector.vue'
 
 export default {
   data() {
@@ -2463,6 +2550,18 @@ export default {
       listFunctionOptions: [],
       listReferenceProjectId: null,
       sourceOptionsLoaded: { API: false, DB: false, LIST: false },
+      sourceCatalogLoading: false,
+      sourceCatalogKey: '',
+      sourceCatalogRequestId: 0,
+      sourceCatalog: {
+        apiOptions: [],
+        databaseOptions: [],
+        listOptions: [],
+      },
+      draftPreviewParamsText: '{}',
+      draftPreviewResult: null,
+      draftPreviewing: false,
+      variableAdvancedSections: [],
       listItemTypeOptions: LIST_ITEM_TYPES,
       listCombinationModeOptions: LIST_COMBINATION_MODES,
       listMatchModeOptions: LIST_MATCH_MODES,
@@ -2473,10 +2572,10 @@ export default {
           { required: true, message: '请选择作用范围', trigger: 'change' },
         ],
         varCode: [
-          { required: true, message: '请输入变量编码', trigger: 'blur' },
+          { required: true, message: '请输入字段编码', trigger: 'blur' },
         ],
         varLabel: [
-          { required: true, message: '请输入变量名称', trigger: 'blur' },
+          { required: true, message: '请输入字段名称', trigger: 'blur' },
         ],
         varType: [
           { required: true, message: '请选择数据类型', trigger: 'change' },
@@ -2631,6 +2730,7 @@ export default {
     OperandPicker,
     RemoteFilterSelect,
     ProjectFilterSelect,
+    VariableSourceSelector,
     ElIconInfo,
     ElIconArrowDown,
     ElIconSuccess,
@@ -2654,6 +2754,16 @@ export default {
     this.loadObjectTree()
     this.loadConstants()
     if (this.activeTab === 'validations') this.loadFieldValidations()
+  },
+  watch: {
+    form: {
+      deep: true,
+      handler() {
+        if (this.dialogVisible && !this.draftPreviewing) {
+          this.draftPreviewResult = null
+        }
+      },
+    },
   },
   computed: {
     standaloneVars() {
@@ -2702,15 +2812,76 @@ export default {
       if (this.activeTab === 'validations') return '新建校验规则'
       if (this.activeTab === 'constants') return '新建常量'
       if (this.activeTab === 'objects') return '新建对象'
-      return '新建变量'
+      return '新建字段'
     },
     /** 变量/对象字段/常量 弹窗标题 */
     variableDialogTitle() {
       if (this.isObjectField)
         return this.form.id ? '编辑对象字段' : '添加对象字段'
-      if (this.form.id) return '编辑变量'
+      if (this.form.id) return '编辑字段'
       if (this.isConstantCreate) return '新建常量'
-      return '新建变量'
+      return '新建字段'
+    },
+    sourceCatalogCounts() {
+      return {
+        API: this.sourceCatalog.apiOptions.length,
+        DB: this.sourceCatalog.databaseOptions.length,
+        LIST: this.sourceCatalog.listOptions.length,
+      }
+    },
+    compatibleListOptions() {
+      return this.sourceCatalog.listOptions.map((item) => ({
+        ...item,
+        listName: item.name,
+        listCode: item.code,
+      }))
+    },
+    variableConfigurationChecklist() {
+      const scoped =
+        this.form.scope === 'GLOBAL' ||
+        (this.form.scope === 'PROJECT' && !!this.form.projectId)
+      const defined = !!(
+        this.form.varCode &&
+        this.form.varLabel &&
+        this.form.varType
+      )
+      let sourced = ['INPUT', 'COMPUTED'].includes(this.form.varSource)
+      if (this.form.varSource === 'CONSTANT') {
+        sourced = hasConstantValue(this.form.defaultValue, this.form.varType)
+      } else if (this.form.varSource === 'API') {
+        sourced = !!this.form.apiConfigId
+      } else if (this.form.varSource === 'DB') {
+        sourced = !!(
+          this.form.dbDatasourceId && String(this.form.dbSql || '').trim()
+        )
+      } else if (this.form.varSource === 'LIST') {
+        sourced =
+          this.form.listIds.length > 0 &&
+          this.form.listQueryOperands.length > 0 &&
+          this.form.listQueryOperands.every(
+            (operand) =>
+              validateOperand(operand, {
+                allowedKinds: this.listQueryOperandKinds,
+              }).length === 0
+          )
+      }
+      const requiresPreview = ['API', 'DB', 'LIST'].includes(
+        this.form.varSource
+      )
+      return [
+        { label: '确定归属', help: '选择全局或具体项目', ready: scoped },
+        { label: '填写定义', help: '补充编码、名称和类型', ready: defined },
+        { label: '配置取值', help: '选择来源并完成必填项', ready: sourced },
+        {
+          label: '验证结果',
+          help: requiresPreview ? '用样例参数预览一次取值' : '该来源无需在线预览',
+          ready: requiresPreview ? this.draftPreviewResult !== null : sourced,
+        },
+      ]
+    },
+    variableConfigurationReadyCount() {
+      return this.variableConfigurationChecklist.filter((item) => item.ready)
+        .length
     },
     /** 数据对象弹窗标题 */
     objectDialogTitle() {
@@ -2841,13 +3012,138 @@ export default {
       }
     },
     async onVarSourceChange(source) {
+      this.resetDraftPreview()
       if (source === 'LIST')
         this.onListReturnModeChange(this.form.listReturnMode)
-      await this.loadVariableSourceOptions(source)
+      await this.loadVariableSourceCatalog(true)
+      if (source === 'LIST') await this.loadListExpressionOptions()
     },
     async onVariableProjectChange() {
       this.listReferenceProjectId = null
+      this.resetDraftPreview()
+      await this.loadVariableSourceCatalog(true)
       if (this.form.varSource === 'LIST') await this.loadListExpressionOptions()
+    },
+    resetDraftPreview() {
+      this.draftPreviewParamsText = '{}'
+      this.draftPreviewResult = null
+    },
+    async loadVariableSourceCatalog(clearInvalid = false) {
+      const requestId = ++this.sourceCatalogRequestId
+      const scope = this.form.scope
+      const projectId = scope === 'GLOBAL' ? 0 : this.form.projectId
+      if (!scope || (scope === 'PROJECT' && !projectId)) {
+        this.sourceCatalogLoading = false
+        this.sourceCatalogKey = ''
+        this.sourceCatalog = {
+          apiOptions: [],
+          databaseOptions: [],
+          listOptions: [],
+        }
+        if (clearInvalid) this.clearIncompatibleSourceSelection()
+        return
+      }
+      const key = scope + ':' + projectId
+      if (key === this.sourceCatalogKey) {
+        this.sourceCatalogLoading = false
+        if (clearInvalid) this.clearIncompatibleSourceSelection()
+        return
+      }
+      this.sourceCatalogLoading = true
+      try {
+        const response = await getVariableSourceOptions({ scope, projectId })
+        if (requestId !== this.sourceCatalogRequestId) return
+        const data = (response && response.data) || response || {}
+        this.sourceCatalog = {
+          apiOptions: Array.isArray(data.apiOptions) ? data.apiOptions : [],
+          databaseOptions: Array.isArray(data.databaseOptions)
+            ? data.databaseOptions
+            : [],
+          listOptions: Array.isArray(data.listOptions) ? data.listOptions : [],
+        }
+        this.sourceCatalogKey = key
+        if (clearInvalid) this.clearIncompatibleSourceSelection()
+      } catch (e) {
+        if (requestId !== this.sourceCatalogRequestId) return
+        this.sourceCatalogKey = ''
+        this.sourceCatalog = {
+          apiOptions: [],
+          databaseOptions: [],
+          listOptions: [],
+        }
+        this.$message.warning('可用取值来源加载失败，请稍后重试')
+      } finally {
+        if (requestId === this.sourceCatalogRequestId) {
+          this.sourceCatalogLoading = false
+        }
+      }
+    },
+    clearIncompatibleSourceSelection() {
+      let cleared = false
+      if (
+        this.form.varSource === 'API' &&
+        this.form.apiConfigId &&
+        !this.sourceCatalog.apiOptions.some(
+          (item) => String(item.id) === String(this.form.apiConfigId)
+        )
+      ) {
+        this.form.apiConfigId = ''
+        cleared = true
+      }
+      if (
+        this.form.varSource === 'DB' &&
+        this.form.dbDatasourceId &&
+        !this.sourceCatalog.databaseOptions.some(
+          (item) => String(item.id) === String(this.form.dbDatasourceId)
+        )
+      ) {
+        this.form.dbDatasourceId = ''
+        cleared = true
+      }
+      const compatibleListIds = (this.form.listIds || []).filter((id) =>
+        this.sourceCatalog.listOptions.some(
+          (item) => String(item.id) === String(id)
+        )
+      )
+      if (
+        this.form.varSource === 'LIST' &&
+        compatibleListIds.length !== this.form.listIds.length
+      ) {
+        this.form.listIds = compatibleListIds
+        cleared = true
+      }
+      if (cleared) {
+        this.$message.warning('原取值来源不属于当前范围，请重新选择')
+      }
+    },
+    async previewDraftVariable() {
+      const payload = this.buildVariablePayload()
+      if (!payload) return
+      const params = this.parseSourceJson(
+        this.draftPreviewParamsText,
+        '样例参数',
+        {}
+      )
+      if (params == null) return
+      if (Array.isArray(params) || typeof params !== 'object') {
+        this.$message.warning('样例参数必须是 JSON 对象')
+        return
+      }
+      this.draftPreviewing = true
+      try {
+        const response = await previewVariableDraft(payload, params)
+        this.draftPreviewResult = (response && response.data) || response
+        this.$message.success('取值预览成功')
+      } catch (error) {
+        this.draftPreviewResult = null
+        if (!error || !error.requestErrorNotified) {
+          this.$message.error(
+            (error && error.message) || '取值预览失败，请检查来源配置'
+          )
+        }
+      } finally {
+        this.draftPreviewing = false
+      }
     },
     async loadVariableSourceOptions(source) {
       if (source === 'API' && !this.sourceOptionsLoaded.API) {
@@ -2956,7 +3252,8 @@ export default {
         this.form.apiFallbackValue =
           config.fallbackValue != null ? String(config.fallbackValue) : ''
       } else if (this.form.varSource === 'DB') {
-        this.form.dbDatasourceId = config.datasourceId || ''
+        this.form.dbDatasourceId =
+          config.dbDatasourceId || config.datasourceId || ''
         this.form.dbSql = config.sql || ''
         this.form.dbParams = this.stringifyConfig(config.params || [])
         this.form.dbResultPath = config.resultPath || ''
@@ -3024,7 +3321,7 @@ export default {
           return null
         }
         payload.sourceConfig = JSON.stringify({
-          datasourceId: payload.dbDatasourceId,
+          dbDatasourceId: payload.dbDatasourceId,
           sql: payload.dbSql,
           params,
           resultPath: payload.dbResultPath || '',
@@ -3745,7 +4042,7 @@ export default {
 
     // ── CRUD ──
     /**
-     * 顶部「新建」：变量列表新建变量；常量列表新建常量；数据对象列表新建对象。
+     * 顶部「新建」：字段列表新建字段；常量列表新建常量；数据对象列表新建对象。
      */
     handlePrimaryCreate() {
       if (this.activeTab === 'validations') {
@@ -3921,11 +4218,14 @@ export default {
       this.isObjectField = false
       this.objectFieldParentId = null
       this.form = this.initForm()
+      this.variableAdvancedSections = []
       if (this.currentProjectId) {
         this.form.scope = 'PROJECT'
         this.form.projectId = this.currentProjectId
       }
+      this.resetDraftPreview()
       this.dialogVisible = true
+      this.loadVariableSourceCatalog()
       this.$nextTick(() => {
         if (this.$refs.form) this.$refs.form.clearValidate()
       })
@@ -3935,9 +4235,13 @@ export default {
       this.isConstantCreate = false
       this.objectFieldParentId = null
       this.form = { ...this.initForm(), ...row }
+      this.variableAdvancedSections = []
       this.form.scope = this.form.scope || 'PROJECT'
       this.applySourceConfigToForm()
-      this.loadVariableSourceOptions(this.form.varSource)
+      this.resetDraftPreview()
+      this.draftPreviewParamsText = this.buildTestParamTemplate(row)
+      this.loadVariableSourceCatalog(true)
+      if (this.form.varSource === 'LIST') this.loadListExpressionOptions()
       this.dialogVisible = true
       this.$nextTick(() => {
         if (this.$refs.form) this.$refs.form.clearValidate()
@@ -5019,6 +5323,173 @@ export default {
 }
 .source-tech-collapse {
   margin-top: 14px;
+}
+.variable-config-guide {
+  margin-bottom: 18px;
+  padding: 15px 16px;
+  border: 1px solid #dbe5f3;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #f8fbff 0%, #f4f7fc 100%);
+}
+.variable-config-guide__heading,
+.draft-preview-panel__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.variable-config-guide__heading strong,
+.draft-preview-panel__heading strong {
+  display: block;
+  color: #172033;
+  font-size: 14px;
+}
+.variable-config-guide__heading span,
+.draft-preview-panel__heading span {
+  display: block;
+  margin-top: 3px;
+  color: #68758a;
+  font-size: 12px;
+}
+.variable-config-checklist {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 13px;
+}
+.variable-config-check {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  background: rgb(255 255 255 / 82%);
+}
+.variable-config-check > span {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #e8edf5;
+  color: #60708a;
+  font-size: 11px;
+  font-weight: 700;
+}
+.variable-config-check strong,
+.variable-config-check small {
+  display: block;
+}
+.variable-config-check strong {
+  color: #334155;
+  font-size: 12px;
+}
+.variable-config-check small {
+  margin-top: 2px;
+  color: #7b8798;
+  font-size: 10px;
+  line-height: 1.35;
+}
+.variable-config-check.is-ready {
+  border-color: #b9e3cd;
+  background: #f3fbf6;
+}
+.variable-config-check.is-ready > span {
+  background: #daf2e4;
+  color: #16834b;
+}
+.source-catalog-help {
+  margin-top: 7px;
+}
+.variable-advanced-collapse {
+  margin: 2px 0 16px 120px;
+  border: 1px solid #e1e7ef;
+  border-radius: 7px;
+}
+.variable-advanced-collapse :deep(.el-collapse-item__header) {
+  height: auto;
+  min-height: 48px;
+  padding: 0 12px;
+  border-bottom: 0;
+  border-radius: 7px;
+}
+.variable-advanced-collapse :deep(.el-collapse-item__wrap) {
+  border-bottom: 0;
+}
+.variable-advanced-collapse :deep(.el-collapse-item__content) {
+  padding: 4px 12px 4px 0;
+}
+.variable-advanced-title strong,
+.variable-advanced-title span {
+  display: block;
+  line-height: 1.4;
+}
+.variable-advanced-title strong {
+  color: #334155;
+  font-size: 12px;
+}
+.variable-advanced-title span {
+  color: #8290a3;
+  font-size: 10px;
+}
+.draft-preview-panel {
+  margin: 4px 0 18px;
+  padding: 15px 16px;
+  border: 1px solid #d9e3f0;
+  border-radius: 9px;
+  background: #f8fafc;
+}
+.draft-preview-panel :deep(.el-alert) {
+  margin-top: 12px;
+}
+.draft-preview-panel__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+.draft-preview-panel__body label {
+  display: block;
+  margin-bottom: 6px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+}
+.draft-preview-result,
+.draft-preview-empty {
+  box-sizing: border-box;
+  min-height: 120px;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid #d8e0ea;
+  border-radius: 5px;
+  background: #fff;
+}
+.draft-preview-result {
+  max-height: 220px;
+  overflow: auto;
+  color: #1e293b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.draft-preview-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 12px;
+}
+@media (max-width: 900px) {
+  .variable-config-checklist {
+    grid-template-columns: 1fr 1fr;
+  }
+  .draft-preview-panel__body {
+    grid-template-columns: 1fr;
+  }
 }
 .import-result-body {
   text-align: center;
