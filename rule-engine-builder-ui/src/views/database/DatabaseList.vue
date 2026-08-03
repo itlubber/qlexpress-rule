@@ -590,8 +590,9 @@
     <el-dialog
       title="只读查询"
       v-model="queryDialogVisible"
-      width="840px"
+      width="900px"
       append-to-body
+      @closed="closeQuery"
     >
       <div class="query-target">
         当前数据源：{{ queryTarget.datasourceName }} /
@@ -604,17 +605,21 @@
             language="sql"
             theme="rule-sql-light"
             height="170px"
+            :read-only="queryLoading"
+            @change="syncQueryParamsToSql"
           />
+          <div class="query-sql-help">
+            仅支持单条 SELECT，不允许分号或锁定查询。使用 ? 表示按顺序绑定的参数。
+          </div>
         </el-form-item>
-        <el-row :gutter="12">
+        <el-row :gutter="12" align="middle">
           <el-col :span="16">
-            <el-form-item label="参数数组">
-              <monaco-editor
-                v-model:value="queryForm.paramsText"
-                language="json"
-                height="90px"
-              />
-            </el-form-item>
+            <div class="query-placeholder-summary">
+              <strong>查询参数</strong>
+              <span>
+                已识别 {{ queryPlaceholderCount }} 个有效 ? 占位符
+              </span>
+            </div>
           </el-col>
           <el-col :span="8">
             <el-form-item label="最大行数">
@@ -622,14 +627,84 @@
                 v-model="queryForm.maxRows"
                 :min="1"
                 :max="500"
+                :disabled="queryLoading"
                 style="width: 100%"
+                @change="resetQueryResult"
               />
             </el-form-item>
           </el-col>
         </el-row>
+        <div v-if="queryParamRows.length" class="query-params">
+          <div
+            v-for="(param, index) in queryParamRows"
+            :key="index"
+            class="query-param-row"
+          >
+            <div class="query-param-order">
+              <strong>参数 {{ index + 1 }}</strong>
+              <span>对应第 {{ index + 1 }} 个 ?</span>
+            </div>
+            <el-select
+              v-model="param.type"
+              :aria-label="`参数 ${index + 1} 类型`"
+              :disabled="queryLoading"
+              class="query-param-type"
+              @change="onQueryParamTypeChange(param)"
+            >
+              <el-option
+                v-for="option in queryParamTypeOptions"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
+              />
+            </el-select>
+            <el-input-number
+              v-if="param.type === 'NUMBER'"
+              v-model="param.value"
+              :aria-label="`参数 ${index + 1} 值`"
+              :disabled="queryLoading"
+              controls-position="right"
+              class="query-param-value"
+              @change="resetQueryResult"
+            />
+            <el-select
+              v-else-if="param.type === 'BOOLEAN'"
+              v-model="param.value"
+              :aria-label="`参数 ${index + 1} 值`"
+              :disabled="queryLoading"
+              class="query-param-value"
+              @change="resetQueryResult"
+            >
+              <el-option label="是（true）" :value="true" />
+              <el-option label="否（false）" :value="false" />
+            </el-select>
+            <div v-else-if="param.type === 'NULL'" class="query-null-value">
+              空值（NULL）
+            </div>
+            <el-input
+              v-else
+              v-model="param.value"
+              :aria-label="`参数 ${index + 1} 值`"
+              :disabled="queryLoading"
+              class="query-param-value"
+              placeholder="输入文本、日期或时间"
+              @change="resetQueryResult"
+            />
+          </div>
+        </div>
+        <div v-else class="query-no-params">
+          当前 SQL 不含参数占位符，可直接执行查询。
+        </div>
       </el-form>
+      <div
+        class="query-result-state"
+        :class="'is-' + queryStatus.toLowerCase()"
+      >
+        <strong>{{ queryStatusTitle }}</strong>
+        <span>{{ queryStatusDescription }}</span>
+      </div>
       <el-table
-        v-if="queryRows.length"
+        v-if="queryStatus === 'SUCCESS' && queryRows.length"
         :data="queryRows"
         border
         size="small"
@@ -645,10 +720,9 @@
           show-overflow-tooltip
         />
       </el-table>
-      <div v-else class="empty-query-result">暂无查询结果</div>
       <template v-slot:footer>
         <div>
-          <el-button size="small" @click="queryDialogVisible = false"
+          <el-button size="small" @click="closeQuery"
             >关闭</el-button
           >
           <el-button
@@ -736,9 +810,19 @@ export default {
       queryDialogVisible: false,
       queryTarget: {},
       queryLoading: false,
-      queryForm: { sql: '', paramsText: '[]', maxRows: 100 },
+      queryForm: { sql: '', maxRows: 100 },
+      queryParamRows: [],
+      queryStatus: 'IDLE',
+      queryError: '',
+      queryRequestId: 0,
       queryRows: [],
       queryColumns: [],
+      queryParamTypeOptions: [
+        { label: '文本', value: 'STRING' },
+        { label: '数值', value: 'NUMBER' },
+        { label: '布尔', value: 'BOOLEAN' },
+        { label: '空值', value: 'NULL' },
+      ],
       dbTypeOptions: [
         {
           label: 'MySQL',
@@ -802,6 +886,30 @@ export default {
     }
     this.loadProjects()
     this.loadData()
+  },
+  computed: {
+    queryPlaceholderCount() {
+      return this.countSqlPlaceholders(this.queryForm.sql)
+    },
+    queryStatusTitle() {
+      return {
+        IDLE: '等待执行查询',
+        RUNNING: '正在执行查询',
+        SUCCESS: '查询成功',
+        EMPTY: '查询成功，未返回数据',
+        ERROR: '查询失败',
+      }[this.queryStatus]
+    },
+    queryStatusDescription() {
+      if (this.queryStatus === 'RUNNING') return '正在连接数据库并读取结果。'
+      if (this.queryStatus === 'SUCCESS')
+        return `已返回 ${this.queryRows.length} 行，最多展示 ${this.queryForm.maxRows} 行。`
+      if (this.queryStatus === 'EMPTY')
+        return 'SQL 已正常执行，但当前条件没有匹配记录。'
+      if (this.queryStatus === 'ERROR')
+        return this.queryError || '请检查 SQL、参数和值后重试。'
+      return '填写只读 SQL 并核对参数后执行。'
+    },
   },
   methods: {
     emptyForm() {
@@ -946,37 +1054,238 @@ export default {
       })
     },
     openQuery(row) {
+      ++this.queryRequestId
       this.queryTarget = row
-      this.queryForm = { sql: '', paramsText: '[]', maxRows: 100 }
+      this.queryForm = { sql: '', maxRows: 100 }
+      this.queryParamRows = []
       this.queryRows = []
       this.queryColumns = []
+      this.queryStatus = 'IDLE'
+      this.queryError = ''
+      this.queryLoading = false
       this.queryDialogVisible = true
     },
     async runQuery() {
-      let params
-      try {
-        params = this.queryForm.paramsText
-          ? JSON.parse(this.queryForm.paramsText)
-          : []
-        if (!Array.isArray(params)) throw new Error('参数必须是数组')
-      } catch (e) {
-        this.$message.error('参数数组不是合法 JSON')
+      const validationError = this.validateReadOnlyQuery(this.queryForm.sql)
+      if (validationError) {
+        this.queryStatus = 'ERROR'
+        this.queryError = validationError
         return
       }
+      this.syncQueryParamsToSql(this.queryForm.sql, false)
+      const paramError = this.validateQueryParams()
+      if (paramError) {
+        this.queryStatus = 'ERROR'
+        this.queryError = paramError
+        return
+      }
+      const params = this.queryParamRows.map((param) =>
+        this.queryParamValue(param)
+      )
+      const datasourceId = this.queryTarget.id
+      const requestId = ++this.queryRequestId
       this.queryLoading = true
+      this.queryStatus = 'RUNNING'
+      this.queryError = ''
+      this.queryRows = []
+      this.queryColumns = []
       try {
-        const res = await queryDbDatasource(this.queryTarget.id, {
+        const res = await queryDbDatasource(datasourceId, {
           sql: this.queryForm.sql,
           params,
           maxRows: this.queryForm.maxRows,
         })
+        if (!this.isActiveQueryRequest(requestId, datasourceId)) return
         this.queryRows = res.data || []
         this.queryColumns = this.queryRows.length
           ? Object.keys(this.queryRows[0])
           : []
+        this.queryStatus = this.queryRows.length ? 'SUCCESS' : 'EMPTY'
+      } catch (e) {
+        if (!this.isActiveQueryRequest(requestId, datasourceId)) return
+        this.queryStatus = 'ERROR'
+        this.queryError = this.requestErrorMessage(
+          e,
+          '请检查数据库连接、SQL 和参数后重试'
+        )
       } finally {
-        this.queryLoading = false
+        if (this.isActiveQueryRequest(requestId, datasourceId)) {
+          this.queryLoading = false
+        }
       }
+    },
+    closeQuery() {
+      ++this.queryRequestId
+      this.queryLoading = false
+      this.queryDialogVisible = false
+    },
+    resetQueryResult() {
+      ++this.queryRequestId
+      this.queryLoading = false
+      this.queryStatus = 'IDLE'
+      this.queryError = ''
+      this.queryRows = []
+      this.queryColumns = []
+    },
+    syncQueryParamsToSql(sql, resetResult = true) {
+      const placeholderCount = this.countSqlPlaceholders(sql)
+      const rows = this.queryParamRows
+        .slice(0, placeholderCount)
+        .map((param) => ({ ...param }))
+      while (rows.length < placeholderCount) {
+        rows.push({ type: 'STRING', value: '' })
+      }
+      this.queryParamRows = rows
+      if (resetResult) this.resetQueryResult()
+    },
+    countSqlPlaceholders(sql) {
+      const text = String(sql || '')
+      let count = 0
+      let state = 'NORMAL'
+      let dollarDelimiter = ''
+      let oracleQuoteEnd = ''
+      for (let index = 0; index < text.length; index++) {
+        const char = text[index]
+        const next = text[index + 1]
+        if (state === 'LINE_COMMENT') {
+          if (char === '\n' || char === '\r') state = 'NORMAL'
+          continue
+        }
+        if (state === 'BLOCK_COMMENT') {
+          if (char === '*' && next === '/') {
+            state = 'NORMAL'
+            index++
+          }
+          continue
+        }
+        if (state === 'DOLLAR_QUOTE') {
+          if (text.startsWith(dollarDelimiter, index)) {
+            state = 'NORMAL'
+            index += dollarDelimiter.length - 1
+          }
+          continue
+        }
+        if (state === 'ORACLE_QUOTE') {
+          if (char === oracleQuoteEnd && next === "'") {
+            state = 'NORMAL'
+            index++
+          }
+          continue
+        }
+        if (state === 'BRACKET_QUOTE') {
+          if (char === ']' && next === ']') {
+            index++
+          } else if (char === ']') {
+            state = 'NORMAL'
+          }
+          continue
+        }
+        if (state !== 'NORMAL') {
+          const quote =
+            state === 'SINGLE_QUOTE'
+              ? "'"
+              : state === 'DOUBLE_QUOTE'
+              ? '"'
+              : '`'
+          if (char === quote && next === quote) {
+            index++
+          } else if (char === '\\') {
+            index++
+          } else if (char === quote) {
+            state = 'NORMAL'
+          }
+          continue
+        }
+        if (char === '-' && next === '-') {
+          state = 'LINE_COMMENT'
+          index++
+        } else if (char === '#') {
+          state = 'LINE_COMMENT'
+        } else if (char === '/' && next === '*') {
+          state = 'BLOCK_COMMENT'
+          index++
+        } else if (char === '$') {
+          const match = text
+            .slice(index)
+            .match(/^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/)
+          if (match) {
+            dollarDelimiter = match[0]
+            state = 'DOLLAR_QUOTE'
+            index += dollarDelimiter.length - 1
+          }
+        } else if (
+          (char === 'q' || char === 'Q') &&
+          next === "'" &&
+          text[index + 2]
+        ) {
+          const opener = text[index + 2]
+          const quotePairs = { '[': ']', '(': ')', '{': '}', '<': '>' }
+          oracleQuoteEnd = quotePairs[opener] || opener
+          state = 'ORACLE_QUOTE'
+          index += 2
+        } else if (char === '[') {
+          state = 'BRACKET_QUOTE'
+        } else if (char === "'") {
+          state = 'SINGLE_QUOTE'
+        } else if (char === '"') {
+          state = 'DOUBLE_QUOTE'
+        } else if (char === '`') {
+          state = 'BACKTICK_QUOTE'
+        } else if (char === '?') {
+          count++
+        }
+      }
+      return count
+    },
+    onQueryParamTypeChange(param) {
+      if (param.type === 'NUMBER' || param.type === 'NULL') param.value = null
+      else if (param.type === 'BOOLEAN') param.value = true
+      else param.value = param.value == null ? '' : String(param.value)
+      this.resetQueryResult()
+    },
+    queryParamValue(param) {
+      if (param.type === 'NULL') return null
+      if (param.type === 'BOOLEAN') return Boolean(param.value)
+      if (param.type === 'NUMBER') return Number(param.value)
+      return param.value == null ? '' : String(param.value)
+    },
+    validateQueryParams() {
+      for (let index = 0; index < this.queryParamRows.length; index++) {
+        const param = this.queryParamRows[index]
+        if (
+          param.type === 'NUMBER' &&
+          (param.value === null ||
+            param.value === '' ||
+            !Number.isFinite(Number(param.value)))
+        ) {
+          return `参数 ${index + 1} 请选择数值类型并填写有效数字`
+        }
+      }
+      return ''
+    },
+    validateReadOnlyQuery(sql) {
+      const text = String(sql || '').trim()
+      if (!text) return '请输入要执行的 SELECT 查询'
+      if (!/^select\b/i.test(text)) return '只允许执行 SELECT 查询'
+      if (text.indexOf(';') >= 0) return '只允许单条查询，请移除 SQL 分号'
+      if (/\bfor\s+update\b|\block\s+in\s+share\s+mode\b/i.test(text))
+        return '只读查询不允许使用数据库锁定语句'
+      return ''
+    },
+    isActiveQueryRequest(requestId, datasourceId) {
+      return (
+        requestId === this.queryRequestId &&
+        String(datasourceId) === String(this.queryTarget.id)
+      )
+    },
+    requestErrorMessage(error, fallback) {
+      const responseMessage =
+        error &&
+        error.response &&
+        error.response.data &&
+        error.response.data.message
+      const message = responseMessage || (error && error.message)
+      return message && String(message).trim() ? String(message) : fallback
     },
     onScopeChange(scope) {
       if (scope === 'GLOBAL') this.form.projectId = 0
@@ -1168,17 +1477,127 @@ export default {
     margin-bottom: 10px;
   }
 
-  .empty-query-result {
-    border: 1px dashed #cbd5e1;
-    color: #94a3b8;
-    text-align: center;
-    padding: 28px;
+  .query-sql-help {
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.5;
+    margin-top: 6px;
+  }
+
+  .query-placeholder-summary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #0f172a;
+    padding: 0 0 14px 90px;
+
+    span {
+      color: #64748b;
+      font-size: 12px;
+    }
+  }
+
+  .query-params {
+    border: 1px solid #dbeafe;
+    background: #f8fbff;
     border-radius: 4px;
+    padding: 8px 12px;
+    margin: 0 0 14px 90px;
+  }
+
+  .query-param-row {
+    display: grid;
+    grid-template-columns: 132px 126px minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+
+    & + & {
+      border-top: 1px solid #e2e8f0;
+    }
+  }
+
+  .query-param-order {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    color: #334155;
+
+    span {
+      color: #94a3b8;
+      font-size: 11px;
+    }
+  }
+
+  .query-param-value {
+    width: 100%;
+  }
+
+  .query-null-value {
+    height: 32px;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    color: #64748b;
+    background: #f1f5f9;
+    border: 1px dashed #cbd5e1;
+    border-radius: 4px;
+  }
+
+  .query-no-params {
+    color: #64748b;
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    border-radius: 4px;
+    padding: 12px 14px;
+    margin: 0 0 14px 90px;
+  }
+
+  .query-result-state {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    color: #475569;
+    border-radius: 4px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+
+    span {
+      font-size: 12px;
+    }
+
+    &.is-running {
+      border-color: #93c5fd;
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+
+    &.is-success,
+    &.is-empty {
+      border-color: #86efac;
+      background: #f0fdf4;
+      color: #15803d;
+    }
+
+    &.is-error {
+      border-color: #fecaca;
+      background: #fef2f2;
+      color: #b91c1c;
+    }
   }
 
   @media (max-width: 1200px) {
     .usage-guide {
       grid-template-columns: repeat(1, minmax(0, 1fr));
+    }
+
+    .query-placeholder-summary,
+    .query-params,
+    .query-no-params {
+      margin-left: 0;
+      padding-left: 12px;
     }
   }
 }

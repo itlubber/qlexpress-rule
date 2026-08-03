@@ -150,3 +150,41 @@ test('新建字段按业务取值方式引导并可在送审前预览外数结�
   )).toBe(true)
   assertClean()
 })
+
+test('数据库只读查询按 SQL 占位符引导填写参数并区分结果状态', async ({
+  page
+}) => {
+  let queryPayload
+  const fixtures = workflowFixtures()
+  fixtures.set('POST /api/rule/database/31/query', async ({ request }) => {
+    queryPayload = request.postDataJSON()
+    return [{ score: queryPayload.params[0] }]
+  })
+  const { assertClean } = await installDistRoutes(page, { apiData: fixtures })
+
+  await page.goto('http://tianshu.local/index.html#/database')
+  const datasourceRow = page.getByRole('row').filter({ hasText: 'risk_mysql' })
+  await datasourceRow.getByRole('button', { name: '查询', exact: true }).click()
+
+  const dialog = page.locator('.el-dialog:visible').last()
+  await expect(dialog.getByText('只读查询', { exact: true })).toBeVisible()
+  const editor = dialog.locator('.monaco-editor-container')
+  await editor.click()
+  await page.keyboard.insertText('SELECT ? AS score')
+  await expect(dialog.getByText('已识别 1 个有效 ? 占位符', { exact: true }))
+    .toBeVisible()
+
+  await dialog.locator('.query-param-type').click()
+  await page.getByRole('option', { name: '数值', exact: true }).last().click()
+  await dialog.getByLabel('参数 1 值').fill('88')
+  await dialog.getByRole('button', { name: '执行查询', exact: true }).click()
+
+  await expect(dialog.getByText('查询成功', { exact: true })).toBeVisible()
+  await expect(dialog.getByRole('cell', { name: '88', exact: true })).toBeVisible()
+  expect(queryPayload).toEqual({
+    sql: 'SELECT ? AS score',
+    params: [88],
+    maxRows: 100
+  })
+  assertClean()
+})

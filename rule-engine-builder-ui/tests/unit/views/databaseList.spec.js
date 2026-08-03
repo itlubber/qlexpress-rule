@@ -149,4 +149,128 @@ describe('DatabaseList — JDBC URL 生成', () => {
     expect(wrapper.vm.databaseGuideCards[0].text).toContain('只读账号')
     expect(wrapper.vm.databaseGuideCards[2].text).toContain('sourceConfig')
   })
+
+  test('SQL 占位符统计会忽略字符串和注释中的问号', () => {
+    const sql = [
+      "SELECT ? AS score, '?' AS literal, \"?\" AS quoted",
+      'FROM risk_score',
+      'WHERE enabled = ? -- ? in comment',
+      'AND note = /* ? block */ ?'
+    ].join('\n')
+
+    expect(wrapper.vm.countSqlPlaceholders(sql)).toBe(3)
+  })
+
+  test('SQL 占位符统计兼容 PostgreSQL、SQL Server 与 Oracle 引用语法', () => {
+    const sql = [
+      'SELECT $$?$$ AS pg_plain, $tag$?$tag$ AS pg_tagged,',
+      "[?] AS sql_server_identifier, q'[?]' AS oracle_text, ? AS bound_value"
+    ].join('\n')
+
+    expect(wrapper.vm.countSqlPlaceholders(sql)).toBe(1)
+  })
+
+  test('SQL 改变时按占位符数量调整参数行并保留已有值', () => {
+    wrapper.vm.queryParamRows = [
+      { type: 'NUMBER', value: 88 },
+      { type: 'BOOLEAN', value: true }
+    ]
+
+    wrapper.vm.syncQueryParamsToSql('SELECT ? AS score, ? AS enabled, ? AS name')
+
+    expect(wrapper.vm.queryParamRows).toEqual([
+      { type: 'NUMBER', value: 88 },
+      { type: 'BOOLEAN', value: true },
+      { type: 'STRING', value: '' }
+    ])
+
+    wrapper.vm.syncQueryParamsToSql('SELECT ? AS score')
+    expect(wrapper.vm.queryParamRows).toEqual([{ type: 'NUMBER', value: 88 }])
+  })
+
+  test('只读查询按参数类型构建数组并展示成功结果', async () => {
+    databaseApi.queryDbDatasource.mockResolvedValueOnce({
+      data: [{ score: 88, enabled: false, note: null }]
+    })
+    wrapper.vm.openQuery({ id: 31, datasourceName: '风控库' })
+    wrapper.vm.queryForm.sql = 'SELECT ? AS score, ? AS enabled, ? AS note'
+    wrapper.vm.syncQueryParamsToSql(wrapper.vm.queryForm.sql)
+    wrapper.vm.queryParamRows = [
+      { type: 'NUMBER', value: 88 },
+      { type: 'BOOLEAN', value: false },
+      { type: 'NULL', value: null }
+    ]
+
+    await wrapper.vm.runQuery()
+
+    expect(databaseApi.queryDbDatasource).toHaveBeenCalledWith(31, {
+      sql: 'SELECT ? AS score, ? AS enabled, ? AS note',
+      params: [88, false, null],
+      maxRows: 100
+    })
+    expect(wrapper.vm.queryStatus).toBe('SUCCESS')
+    expect(wrapper.vm.queryColumns).toEqual(['score', 'enabled', 'note'])
+  })
+
+  test('非只读 SQL 在前端阻止且保留可修正错误', async () => {
+    wrapper.vm.openQuery({ id: 31, datasourceName: '风控库' })
+    wrapper.vm.queryForm.sql = 'UPDATE customer SET level = ?'
+    wrapper.vm.syncQueryParamsToSql(wrapper.vm.queryForm.sql)
+
+    await wrapper.vm.runQuery()
+
+    expect(databaseApi.queryDbDatasource).not.toHaveBeenCalled()
+    expect(wrapper.vm.queryStatus).toBe('ERROR')
+    expect(wrapper.vm.queryError).toContain('SELECT')
+  })
+
+  test('查询失败与成功零行使用不同状态', async () => {
+    wrapper.vm.openQuery({ id: 31, datasourceName: '风控库' })
+    wrapper.vm.queryForm.sql = 'SELECT 1 WHERE 1 = 0'
+    databaseApi.queryDbDatasource.mockResolvedValueOnce({ data: [] })
+    await wrapper.vm.runQuery()
+    expect(wrapper.vm.queryStatus).toBe('EMPTY')
+
+    databaseApi.queryDbDatasource.mockRejectedValueOnce(
+      new Error('数据库连接暂时不可用')
+    )
+    await wrapper.vm.runQuery()
+    expect(wrapper.vm.queryStatus).toBe('ERROR')
+    expect(wrapper.vm.queryError).toContain('数据库连接暂时不可用')
+  })
+
+  test('数值参数未填写时不会被误当成 0 发送', async () => {
+    wrapper.vm.openQuery({ id: 31, datasourceName: '风控库' })
+    wrapper.vm.queryForm.sql = 'SELECT ? AS score'
+    wrapper.vm.syncQueryParamsToSql(wrapper.vm.queryForm.sql)
+    wrapper.vm.queryParamRows[0] = { type: 'NUMBER', value: null }
+
+    await wrapper.vm.runQuery()
+
+    expect(databaseApi.queryDbDatasource).not.toHaveBeenCalled()
+    expect(wrapper.vm.queryStatus).toBe('ERROR')
+    expect(wrapper.vm.queryError).toContain('参数 1')
+  })
+
+  test('切换数据源后旧查询响应不能覆盖当前结果', async () => {
+    let resolveFirst
+    let resolveSecond
+    databaseApi.queryDbDatasource
+      .mockReturnValueOnce(new Promise(resolve => { resolveFirst = resolve }))
+      .mockReturnValueOnce(new Promise(resolve => { resolveSecond = resolve }))
+
+    wrapper.vm.openQuery({ id: 31, datasourceName: '旧数据源' })
+    wrapper.vm.queryForm.sql = 'SELECT 1 AS value'
+    const first = wrapper.vm.runQuery()
+    wrapper.vm.openQuery({ id: 32, datasourceName: '当前数据源' })
+    wrapper.vm.queryForm.sql = 'SELECT 2 AS value'
+    const second = wrapper.vm.runQuery()
+    resolveSecond({ data: [{ value: 2 }] })
+    await second
+    resolveFirst({ data: [{ value: 1 }] })
+    await first
+
+    expect(wrapper.vm.queryRows).toEqual([{ value: 2 }])
+    expect(wrapper.vm.queryStatus).toBe('SUCCESS')
+  })
 })
