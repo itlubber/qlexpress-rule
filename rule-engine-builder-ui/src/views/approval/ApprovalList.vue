@@ -3,22 +3,41 @@
     <header class="page-header">
       <div>
         <span class="page-eyebrow">LIFECYCLE GOVERNANCE</span>
-        <h1>审批管理</h1>
-        <p>集中处理引擎各模块的变更、依赖校验、版本生效和历史恢复。</p>
+        <h1>审批任务中心</h1>
+        <p>优先处理待审批事项，也可按申请人、资源和动作追踪完整变更记录。</p>
       </div>
       <div class="header-stat">
-        <strong>{{ total }}</strong>
-        <span>当前筛选申请</span>
+        <strong>{{ summary.pendingCount }}</strong>
+        <span>待处理</span>
       </div>
     </header>
 
+    <section class="summary-grid" aria-label="审批任务概览">
+      <button
+        v-for="item in summaryCards"
+        :key="item.key"
+        type="button"
+        class="summary-card"
+        :class="{ 'is-active': summarySelection === item.key }"
+        @click="applySummary(item.key)"
+      >
+        <span>{{ item.label }}</span>
+        <strong>{{ item.value }}</strong>
+        <small>{{ item.help }}</small>
+      </button>
+    </section>
+
     <section class="approval-card">
-      <el-tabs v-model="activeTab" class="module-tabs" @tab-change="changeTab">
+      <el-tabs
+        v-model="activeScope"
+        class="module-tabs"
+        @tab-change="changeScope"
+      >
         <el-tab-pane
-          v-for="tab in tabs"
-          :key="tab.name"
-          :label="tab.label"
-          :name="tab.name"
+          v-for="scope in taskScopes"
+          :key="scope.name"
+          :label="scope.label"
+          :name="scope.name"
         />
       </el-tabs>
 
@@ -30,9 +49,27 @@
           class="keyword-filter"
           @keyup.enter="search"
         />
-        <el-select v-model="filters.status" clearable placeholder="申请状态">
+        <el-select
+          v-model="filters.resourceType"
+          clearable
+          filterable
+          placeholder="资源类型"
+        >
           <el-option
-            v-for="item in statusOptions"
+            v-for="item in resourceOptions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
+        </el-select>
+        <el-select
+          v-if="activeScope !== 'PENDING'"
+          v-model="filters.status"
+          clearable
+          placeholder="申请状态"
+        >
+          <el-option
+            v-for="item in visibleStatusOptions"
             :key="item.value"
             :label="item.label"
             :value="item.value"
@@ -100,8 +137,8 @@
         </el-table-column>
         <template #empty>
           <div class="empty-state">
-            <strong>当前模块暂无审批申请</strong>
-            <span>从对应业务模块发起生命周期变更后会显示在这里。</span>
+            <strong>{{ emptyTitle }}</strong>
+            <span>{{ emptyHelp }}</span>
           </div>
         </template>
       </el-table>
@@ -122,7 +159,10 @@
 
 <script>
 import router from '@/router'
-import { listGovernanceRequests } from '@/api/governance'
+import {
+  getGovernanceSummary,
+  listGovernanceRequests,
+} from '@/api/governance'
 import { routeProjectId } from '@/utils/projectContext'
 
 const STATUS_OPTIONS = [
@@ -134,6 +174,13 @@ const STATUS_OPTIONS = [
   { value: 'CANCELLED', label: '已取消' }
 ]
 
+const TERMINAL_STATUS_VALUES = new Set([
+  'APPROVED',
+  'REJECTED',
+  'CANCELLED',
+  'CONFLICT',
+])
+
 const ACTION_OPTIONS = [
   { value: 'CREATE', label: '新增' },
   { value: 'UPDATE', label: '修改' },
@@ -143,49 +190,137 @@ const ACTION_OPTIONS = [
   { value: 'RESTORE', label: '恢复版本' }
 ]
 
+const RESOURCE_OPTIONS = [
+  { value: 'VARIABLE', label: '字段' },
+  { value: 'DATA_OBJECT', label: '数据对象' },
+  { value: 'FIELD_VALIDATION', label: '字段校验' },
+  { value: 'MODEL', label: '模型' },
+  { value: 'EXTERNAL_DATASOURCE', label: '外数源' },
+  { value: 'EXTERNAL_API', label: '外数 API' },
+  { value: 'DATABASE', label: '数据库' },
+  { value: 'FUNCTION', label: '函数' },
+  { value: 'RULE', label: '规则' },
+  { value: 'RULE_PROJECT_BINDING', label: '项目规则关联' },
+  { value: 'LIST_LIBRARY', label: '名单库' },
+  { value: 'LIST_RECORD_BATCH', label: '名单内容批次' },
+  { value: 'BILLING_CONFIG', label: '计费配置' },
+  { value: 'EXPERIMENT', label: '分流' },
+  { value: 'PROJECT', label: '项目' },
+]
+
 export default {
   name: 'ApprovalList',
   data() {
     return {
-      tabs: [
-        { name: 'FIELD', label: '字段' },
-        { name: 'MODEL', label: '模型' },
-        { name: 'DATASOURCE', label: '外数' },
-        { name: 'DATABASE', label: '数据库' },
-        { name: 'FUNCTION', label: '函数' },
-        { name: 'RULE', label: '规则' },
-        { name: 'EXPERIMENT', label: '分流' },
-        { name: 'PROJECT', label: '项目' }
+      taskScopes: [
+        { name: 'PENDING', label: '待处理' },
+        { name: 'MINE', label: '我的申请' },
+        { name: 'COMPLETED', label: '已结束' },
+        { name: 'ALL', label: '全部记录' },
       ],
+      resourceOptions: RESOURCE_OPTIONS,
       statusOptions: STATUS_OPTIONS,
       actionOptions: ACTION_OPTIONS,
-      activeTab: 'FIELD',
+      activeScope: 'PENDING',
       filters: {
         keyword: '',
+        resourceType: '',
         status: '',
-        action: ''
+        action: '',
+      },
+      summary: {
+        pendingCount: 0,
+        myDraftCount: 0,
+        myRequestCount: 0,
+        completedCount: 0,
       },
       records: [],
       pageNum: 1,
       pageSize: 20,
       total: 0,
       loading: false,
-      contextProjectId: null
+      contextProjectId: null,
     }
+  },
+  computed: {
+    summaryCards() {
+      return [
+        {
+          key: 'PENDING',
+          label: '待处理',
+          value: this.summary.pendingCount,
+          help: '等待审批并生效',
+        },
+        {
+          key: 'MY_DRAFT',
+          label: '我的草稿',
+          value: this.summary.myDraftCount,
+          help: '尚未提交的申请',
+        },
+        {
+          key: 'MINE',
+          label: '我的申请',
+          value: this.summary.myRequestCount,
+          help: '我发起的全部记录',
+        },
+        {
+          key: 'COMPLETED',
+          label: '已结束',
+          value: this.summary.completedCount,
+          help: '已通过、驳回或取消',
+        },
+      ]
+    },
+    visibleStatusOptions() {
+      if (this.activeScope !== 'COMPLETED') return this.statusOptions
+      return this.statusOptions.filter((item) =>
+        TERMINAL_STATUS_VALUES.has(item.value)
+      )
+    },
+    summarySelection() {
+      if (this.activeScope === 'PENDING') return 'PENDING'
+      if (this.activeScope === 'MINE' && this.filters.status === 'EDITING') {
+        return 'MY_DRAFT'
+      }
+      if (this.activeScope === 'MINE' && !this.filters.status) return 'MINE'
+      if (this.activeScope === 'COMPLETED') return 'COMPLETED'
+      return ''
+    },
+    emptyTitle() {
+      return this.activeScope === 'PENDING'
+        ? '当前没有等待处理的审批'
+        : '没有符合条件的审批记录'
+    },
+    emptyHelp() {
+      return this.activeScope === 'PENDING'
+        ? '新的业务变更提交后会自动出现在这里。'
+        : '可以调整资源类型、状态或关键词后重新查询。'
+    },
   },
   created() {
     this.contextProjectId = routeProjectId(
       this.$route || router.currentRoute.value,
       this.$store && this.$store.state.currentProject
     )
+    this.loadSummary()
     this.loadRequests()
   },
   methods: {
+    async loadSummary() {
+      const response = await getGovernanceSummary({
+        ...(this.contextProjectId
+          ? { projectId: this.contextProjectId }
+          : {}),
+      })
+      this.summary = { ...this.summary, ...(response.data || {}) }
+    },
     async loadRequests() {
       this.loading = true
       try {
         const response = await listGovernanceRequests({
-          tab: this.activeTab,
+          taskScope: this.activeScope,
+          tab: undefined,
+          resourceType: this.filters.resourceType || undefined,
           keyword: this.filters.keyword || undefined,
           status: this.filters.status || undefined,
           action: this.filters.action || undefined,
@@ -200,8 +335,15 @@ export default {
         this.loading = false
       }
     },
-    changeTab() {
+    changeScope() {
       this.pageNum = 1
+      if (this.activeScope === 'PENDING') this.filters.status = ''
+      if (
+        this.activeScope === 'COMPLETED' &&
+        !TERMINAL_STATUS_VALUES.has(this.filters.status)
+      ) {
+        this.filters.status = ''
+      }
       this.loadRequests()
     },
     search() {
@@ -209,11 +351,40 @@ export default {
       this.loadRequests()
     },
     resetFilters() {
-      this.filters = { keyword: '', status: '', action: '' }
+      this.filters = {
+        keyword: '',
+        resourceType: '',
+        status: '',
+        action: '',
+      }
       this.search()
     },
+    applySummary(key) {
+      this.pageNum = 1
+      if (key === 'PENDING') {
+        this.activeScope = 'PENDING'
+        this.filters.status = ''
+      } else if (key === 'MY_DRAFT') {
+        this.activeScope = 'MINE'
+        this.filters.status = 'EDITING'
+      } else if (key === 'MINE') {
+        this.activeScope = 'MINE'
+        this.filters.status = ''
+      } else {
+        this.activeScope = 'COMPLETED'
+        this.filters.status = ''
+      }
+      this.loadRequests()
+    },
     openDetail(row) {
-      router.push(`/approval/${row.id}`)
+      if (!this.contextProjectId) {
+        router.push(`/approval/${row.id}`)
+        return
+      }
+      router.push({
+        path: `/approval/${row.id}`,
+        query: { projectId: this.contextProjectId },
+      })
     },
     snapshot(row) {
       const text = row.submittedSnapshotJson || row.draftSnapshotJson
@@ -354,6 +525,49 @@ export default {
   box-shadow: 0 12px 34px rgb(25 40 65 / 7%);
 }
 
+.summary-grid {
+  display: grid;
+  max-width: 1440px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 auto 16px;
+}
+
+.summary-card {
+  display: flex;
+  min-height: 108px;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 16px 18px;
+  border: 1px solid #e1e6ed;
+  border-radius: 12px;
+  background: #fff;
+  color: #6b7585;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.summary-card:hover,
+.summary-card.is-active {
+  border-color: #8eafea;
+  box-shadow: 0 8px 22px rgb(39 99 213 / 10%);
+}
+
+.summary-card.is-active {
+  background: #f5f8ff;
+}
+
+.summary-card strong {
+  margin: 7px 0 3px;
+  color: #18212f;
+  font-size: 28px;
+}
+
+.summary-card small {
+  color: #8a94a3;
+}
+
 .module-tabs {
   padding: 0 22px;
   border-bottom: 1px solid #edf0f4;
@@ -457,6 +671,10 @@ export default {
 
   .filter-bar .keyword-filter {
     width: 100%;
+  }
+
+  .summary-grid {
+    grid-template-columns: 1fr 1fr;
   }
 }
 </style>

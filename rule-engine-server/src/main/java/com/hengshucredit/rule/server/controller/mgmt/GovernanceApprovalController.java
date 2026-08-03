@@ -9,6 +9,7 @@ import com.hengshucredit.rule.model.dto.GovernanceSubmitRequest;
 import com.hengshucredit.rule.model.entity.GovernanceApprovalRequest;
 import com.hengshucredit.rule.server.common.Result;
 import com.hengshucredit.rule.server.governance.GovernanceApprovalService;
+import com.hengshucredit.rule.server.governance.GovernanceApprovalSummary;
 import com.hengshucredit.rule.server.governance.GovernancePreflightReport;
 import com.hengshucredit.rule.server.governance.GovernanceRequestDetail;
 import com.hengshucredit.rule.server.governance.GovernanceRequestView;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -40,7 +42,16 @@ public class GovernanceApprovalController {
     @RequirePermission("approval:view")
     public Result<IPage<GovernanceRequestView>> requests(
             @ModelAttribute GovernanceApprovalQuery query) {
-        return Result.ok(approvalService.page(query));
+        return Result.ok(approvalService.page(
+                query, operatorResolver.resolve()));
+    }
+
+    @GetMapping("/requests/summary")
+    @RequirePermission("approval:view")
+    public Result<GovernanceApprovalSummary> summary(
+            @RequestParam(required = false) Long projectId) {
+        return Result.ok(approvalService.summary(
+                projectId, operatorResolver.resolve()));
     }
 
     @GetMapping("/requests/{id}")

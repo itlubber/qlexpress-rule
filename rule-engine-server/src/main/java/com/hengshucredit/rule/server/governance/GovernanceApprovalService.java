@@ -506,6 +506,11 @@ public class GovernanceApprovalService {
 
     public IPage<GovernanceRequestView> page(
             GovernanceApprovalQuery query) {
+        return page(query, null);
+    }
+
+    public IPage<GovernanceRequestView> page(
+            GovernanceApprovalQuery query, String actor) {
         GovernanceApprovalQuery safeQuery = query == null
                 ? new GovernanceApprovalQuery() : query;
         int pageNum = Math.max(1, safeQuery.getPageNum());
@@ -513,6 +518,26 @@ public class GovernanceApprovalService {
                 Math.max(1, safeQuery.getPageSize()));
         LambdaQueryWrapper<GovernanceApprovalRequest> wrapper =
                 new LambdaQueryWrapper<>();
+        String taskScope = hasText(safeQuery.getTaskScope())
+                ? safeQuery.getTaskScope().trim()
+                .toUpperCase(Locale.ROOT) : "ALL";
+        boolean pendingScope = "PENDING".equals(taskScope);
+        if (pendingScope) {
+            wrapper.eq(GovernanceApprovalRequest::getStatus,
+                    GovernanceRequestStatus.PENDING.name());
+        } else if ("MINE".equals(taskScope)) {
+            wrapper.eq(GovernanceApprovalRequest::getApplicant,
+                    requireActor(actor));
+        } else if ("COMPLETED".equals(taskScope)) {
+            wrapper.in(GovernanceApprovalRequest::getStatus,
+                    GovernanceRequestStatus.APPROVED.name(),
+                    GovernanceRequestStatus.REJECTED.name(),
+                    GovernanceRequestStatus.CONFLICT.name(),
+                    GovernanceRequestStatus.CANCELLED.name());
+        } else if (!"ALL".equals(taskScope)) {
+            throw new IllegalArgumentException(
+                    "不支持的审批任务视角: " + taskScope);
+        }
         List<String> tabTypes = GovernanceResourceTypes.forTab(
                 safeQuery.getTab());
         if (!tabTypes.isEmpty()) {
@@ -522,7 +547,7 @@ public class GovernanceApprovalService {
             wrapper.eq(GovernanceApprovalRequest::getResourceType,
                     normalizeType(safeQuery.getResourceType()));
         }
-        if (hasText(safeQuery.getStatus())) {
+        if (!pendingScope && hasText(safeQuery.getStatus())) {
             wrapper.eq(GovernanceApprovalRequest::getStatus,
                     safeQuery.getStatus().toUpperCase(Locale.ROOT));
         }
@@ -558,6 +583,56 @@ public class GovernanceApprovalService {
                 .map(GovernanceRequestView::from)
                 .toList());
         return result;
+    }
+
+    public GovernanceApprovalSummary summary(
+            Long projectId, String actor) {
+        String applicant = requireActor(actor);
+        LambdaQueryWrapper<GovernanceApprovalRequest> pending =
+                projectScoped(projectId)
+                        .eq(GovernanceApprovalRequest::getStatus,
+                                GovernanceRequestStatus.PENDING.name());
+        LambdaQueryWrapper<GovernanceApprovalRequest> myDrafts =
+                projectScoped(projectId)
+                        .eq(GovernanceApprovalRequest::getApplicant,
+                                applicant)
+                        .eq(GovernanceApprovalRequest::getStatus,
+                                GovernanceRequestStatus.EDITING.name());
+        LambdaQueryWrapper<GovernanceApprovalRequest> myRequests =
+                projectScoped(projectId)
+                        .eq(GovernanceApprovalRequest::getApplicant,
+                                applicant);
+        LambdaQueryWrapper<GovernanceApprovalRequest> completed =
+                projectScoped(projectId)
+                        .in(GovernanceApprovalRequest::getStatus,
+                                GovernanceRequestStatus.APPROVED.name(),
+                                GovernanceRequestStatus.REJECTED.name(),
+                                GovernanceRequestStatus.CONFLICT.name(),
+                                GovernanceRequestStatus.CANCELLED.name());
+        return new GovernanceApprovalSummary(
+                safeCount(pending),
+                safeCount(myDrafts),
+                safeCount(myRequests),
+                safeCount(completed));
+    }
+
+    private LambdaQueryWrapper<GovernanceApprovalRequest> projectScoped(
+            Long projectId) {
+        LambdaQueryWrapper<GovernanceApprovalRequest> wrapper =
+                new LambdaQueryWrapper<>();
+        if (projectId != null) {
+            if (projectId <= 0) {
+                throw new IllegalArgumentException("项目 ID 必须为正整数");
+            }
+            wrapper.eq(GovernanceApprovalRequest::getProjectId, projectId);
+        }
+        return wrapper;
+    }
+
+    private long safeCount(
+            LambdaQueryWrapper<GovernanceApprovalRequest> wrapper) {
+        Long value = requestMapper.selectCount(wrapper);
+        return value == null ? 0L : value;
     }
 
     public GovernanceRequestDetail detail(Long requestId) {

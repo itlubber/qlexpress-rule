@@ -2,6 +2,7 @@ vi.mock('@/api/governance', () => ({
   listGovernanceRequests: vi.fn().mockResolvedValue({
     data: { records: [], total: 0 }
   }),
+  getGovernanceSummary: vi.fn().mockResolvedValue({ data: {} }),
   getGovernanceRequest: vi.fn().mockResolvedValue({
     data: { request: null, diff: { fields: [] } }
   }),

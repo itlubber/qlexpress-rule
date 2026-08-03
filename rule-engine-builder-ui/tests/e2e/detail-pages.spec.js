@@ -118,7 +118,8 @@ const editableDetails = [
     name: '外数接口详情',
     path: '/datasource/api/22',
     label: '接口编码',
-    value: 'credit_query'
+    value: 'credit_query',
+    primaryAction: '生成审批草稿'
   },
   {
     name: '数据库详情',
@@ -143,7 +144,10 @@ for (const detail of editableDetails) {
       .first()
     await expect(input).toBeVisible()
     await expect(input).toHaveValue(detail.value)
-    await expectPrimaryActions(page, ['返回', '保存'])
+    await expectPrimaryActions(page, [
+      '返回',
+      detail.primaryAction || '保存'
+    ])
     await expectNoRootOverflow(page)
     expect(errors.pageErrors).toEqual([])
     expect(errors.consoleErrors).toEqual([])
@@ -174,7 +178,7 @@ test('模型详情加载输入输出字段且字段内容可复制', async ({ pa
 test('新建外数接口页面字段与主操作正常显示', async ({ page }) => {
   const errors = await openDetailPage(page, '/datasource/api/new')
   await expect(page.getByText('新建外数 API 接口', { exact: true }).first()).toBeVisible()
-  await expectPrimaryActions(page, ['返回', '保存'])
+  await expectPrimaryActions(page, ['返回', '生成审批草稿'])
   await expect(page.locator('.el-form-item:visible').first()).toBeVisible()
   await expectNoRootOverflow(page)
   expect(errors.pageErrors).toEqual([])

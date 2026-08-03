@@ -141,4 +141,19 @@ describe('统一审批详情', () => {
     )
     expect(wrapper.text()).not.toContain('项目规则关联 #0')
   })
+
+  test('返回审批列表时保留项目上下文', async() => {
+    const wrapper = shallowMount(ApprovalDetail, {
+      global: { directives: { permission: {} } }
+    })
+    await flushPromises()
+    wrapper.vm.route.query = { projectId: '9' }
+
+    wrapper.vm.goBack()
+
+    expect(wrapper.vm.navigation.push).toHaveBeenCalledWith({
+      path: '/approval',
+      query: { projectId: 9 }
+    })
+  })
 })

@@ -18,7 +18,7 @@
           type="primary"
           :loading="saving"
           @click="handleSave"
-          >保存</el-button
+          >生成审批草稿</el-button
         >
       </div>
     </div>
@@ -31,6 +31,38 @@
       size="small"
       class="detail-form"
     >
+      <section class="configuration-guide" aria-label="外数 API 配置进度">
+        <div class="guide-heading">
+          <div>
+            <div class="panel-title">配置检查</div>
+            <div class="panel-subtitle">
+              按基础信息、数据映射、请求预览、审批生效的顺序完成；高级参数已有安全默认值。
+            </div>
+          </div>
+          <span class="guide-progress">
+            {{ readyChecklistCount }} / {{ configurationChecklist.length }} 已就绪
+          </span>
+        </div>
+        <div class="checklist-grid">
+          <button
+            v-for="item in configurationChecklist"
+            :key="item.key"
+            type="button"
+            class="checklist-item"
+            :class="`is-${item.status.toLowerCase()}`"
+            @click="goToChecklistItem(item)"
+          >
+            <span class="checklist-state">
+              {{ item.status === 'READY' ? '✓' : item.order }}
+            </span>
+            <span>
+              <strong>{{ item.label }}</strong>
+              <small>{{ item.help }}</small>
+            </span>
+          </button>
+        </div>
+      </section>
+
       <div class="basic-panel">
         <div class="panel-heading">
           <div>
@@ -184,8 +216,25 @@
         </el-form-item>
       </div>
 
+      <section class="config-group-bar" aria-label="配置能力分组">
+        <button
+          v-for="group in configGroups"
+          :key="group.name"
+          type="button"
+          :class="{ 'is-active': activeConfigGroup === group.name }"
+          @click="switchConfigGroup(group.name)"
+        >
+          <strong>{{ group.label }}</strong>
+          <small>{{ group.help }}</small>
+        </button>
+      </section>
+
       <el-tabs v-model="activeConfigTab" class="config-tabs">
-        <el-tab-pane label="接口鉴权" name="auth">
+        <el-tab-pane
+          v-if="isConfigTabVisible('auth')"
+          label="接口鉴权"
+          name="auth"
+        >
           <div class="tab-section">
             <el-row :gutter="12">
               <el-col :lg="8" :md="24">
@@ -439,7 +488,11 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="连接&流控" name="connection">
+        <el-tab-pane
+          v-if="isConfigTabVisible('connection')"
+          label="连接&流控"
+          name="connection"
+        >
           <div class="tab-section">
             <div class="config-card">
               <div class="section-title">独立连接池</div>
@@ -559,7 +612,11 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="脚本处理" name="scripts">
+        <el-tab-pane
+          v-if="isConfigTabVisible('scripts')"
+          label="脚本处理"
+          name="scripts"
+        >
           <div class="tab-section">
             <el-alert
               type="info"
@@ -657,7 +714,11 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="请求头" name="headers">
+        <el-tab-pane
+          v-if="isConfigTabVisible('headers')"
+          label="请求头"
+          name="headers"
+        >
           <div class="tab-section">
             <div class="section-toolbar">
               <div>
@@ -708,7 +769,11 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="请求参数" name="query">
+        <el-tab-pane
+          v-if="isConfigTabVisible('query')"
+          label="请求参数"
+          name="query"
+        >
           <div class="tab-section">
             <div class="section-toolbar">
               <div>
@@ -755,7 +820,11 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="请求体" name="request">
+        <el-tab-pane
+          v-if="isConfigTabVisible('request')"
+          label="请求体"
+          name="request"
+        >
           <div class="tab-section">
             <div class="section-toolbar">
               <div>
@@ -900,7 +969,11 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="响应体" name="response">
+        <el-tab-pane
+          v-if="isConfigTabVisible('response')"
+          label="响应体"
+          name="response"
+        >
           <div class="tab-section">
             <div class="section-toolbar">
               <div>
@@ -1134,7 +1207,7 @@
         </el-tab-pane>
 
         <el-tab-pane
-          v-if="form.requestMode === 'ASYNC'"
+          v-if="isConfigTabVisible('async')"
           label="异步回调"
           name="async"
         >
@@ -1311,7 +1384,11 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="异常&重试" name="retry">
+        <el-tab-pane
+          v-if="isConfigTabVisible('retry')"
+          label="异常&重试"
+          name="retry"
+        >
           <div class="tab-section">
             <el-row :gutter="12">
               <el-col :lg="6" :md="12">
@@ -1502,7 +1579,11 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="缓存&计费" name="billing">
+        <el-tab-pane
+          v-if="isConfigTabVisible('billing')"
+          label="缓存&计费"
+          name="billing"
+        >
           <div class="tab-section">
             <el-row :gutter="12">
               <el-col :lg="6" :md="24">
@@ -1658,7 +1739,11 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="接口测试" name="test">
+        <el-tab-pane
+          v-if="isConfigTabVisible('test')"
+          label="接口测试"
+          name="test"
+        >
           <div class="tab-section">
             <div class="section-toolbar">
               <div>
@@ -1736,7 +1821,7 @@
               />
             </el-form-item>
             <div v-if="!form.id" class="empty-state">
-              新接口需要先保存后才能执行真实调用。
+              首次配置可先生成请求预览；审批通过并生成正式接口后才能执行真实调用。
             </div>
           </div>
         </el-tab-pane>
@@ -1786,7 +1871,38 @@ export default {
       invokeResultText: '',
       requestPreviewText: '',
       form: this.emptyForm(),
+      activeConfigGroup: 'business',
       activeConfigTab: 'auth',
+      configGroups: [
+        {
+          name: 'business',
+          label: '业务配置',
+          help: '鉴权、请求、响应和测试',
+        },
+        {
+          name: 'reliability',
+          label: '稳定性策略',
+          help: '连接、重试、熔断和计费',
+        },
+        {
+          name: 'advanced',
+          label: '高级能力',
+          help: '仅在签名或加解密时使用脚本',
+        },
+      ],
+      configTabs: [
+        { name: 'auth', group: 'business' },
+        { name: 'headers', group: 'business' },
+        { name: 'query', group: 'business' },
+        { name: 'request', group: 'business' },
+        { name: 'response', group: 'business' },
+        { name: 'test', group: 'business' },
+        { name: 'connection', group: 'reliability' },
+        { name: 'async', group: 'reliability', asyncOnly: true },
+        { name: 'retry', group: 'reliability' },
+        { name: 'billing', group: 'reliability' },
+        { name: 'scripts', group: 'advanced' },
+      ],
       requestBodyMode: 'MAPPING',
       responseMappingMode: 'MAPPING',
       requestMappingJsonText: '{}',
@@ -1959,6 +2075,76 @@ export default {
       const code = this.form.apiCode || '{apiCode}'
       return '/rule/datasource/api-callback/' + code
     },
+    visibleConfigTabs() {
+      return this.configTabs.filter((item) => {
+        if (item.group !== this.activeConfigGroup) return false
+        return !item.asyncOnly || this.form.requestMode === 'ASYNC'
+      })
+    },
+    configurationChecklist() {
+      const basicReady = Boolean(
+        this.form.datasourceId &&
+          String(this.form.apiCode || '').trim() &&
+          String(this.form.apiName || '').trim() &&
+          String(this.form.endpointUrl || '').trim()
+      )
+      const requestReady =
+        ['GET', 'DELETE'].includes(this.form.requestMethod) ||
+        Boolean(this.form.requestObjectId) ||
+        this.hasConfiguredRow(this.queryRows, ['name']) ||
+        this.hasConfiguredRow(this.requestMappingRows, ['targetPath'])
+      const responseReady =
+        Boolean(this.form.responseObjectId) ||
+        this.hasConfiguredRow(this.responseMappingRows, ['outputField']) ||
+        this.responseConditionRows.length > 0
+      const previewReady = Boolean(this.requestPreviewText)
+      const effectiveReady = Boolean(this.form.id)
+      return [
+        {
+          key: 'basic',
+          order: 1,
+          label: '基础信息',
+          status: basicReady ? 'READY' : 'ATTENTION',
+          help: basicReady ? '调用目标已填写' : '先填写数据源、名称、编码和地址',
+        },
+        {
+          key: 'request',
+          order: 2,
+          label: '请求数据',
+          tab: 'request',
+          status: requestReady ? 'READY' : 'ATTENTION',
+          help: requestReady ? '已有请求结构' : '按接口文档配置参数或请求体',
+        },
+        {
+          key: 'response',
+          order: 3,
+          label: '响应数据',
+          tab: 'response',
+          status: responseReady ? 'READY' : 'ATTENTION',
+          help: responseReady ? '已有输出映射' : '建议配置业务需要的输出字段',
+        },
+        {
+          key: 'preview',
+          order: 4,
+          label: '请求预览',
+          tab: 'test',
+          status: previewReady ? 'READY' : 'ATTENTION',
+          help: previewReady ? '本次已生成预览' : '先预览，不访问外部服务',
+        },
+        {
+          key: 'effective',
+          order: 5,
+          label: '审批生效',
+          status: effectiveReady ? 'READY' : 'ATTENTION',
+          help: effectiveReady ? '正式接口已存在' : '生成草稿并完成审批后生效',
+        },
+      ]
+    },
+    readyChecklistCount() {
+      return this.configurationChecklist.filter(
+        (item) => item.status === 'READY'
+      ).length
+    },
   },
   watch: {
     'form.requestMode'(value) {
@@ -2007,8 +2193,43 @@ export default {
     await this.initializeRoute()
   },
   methods: {
+    hasConfiguredRow(rows, keys) {
+      return (rows || []).some((row) =>
+        (keys || []).some((key) => String((row && row[key]) || '').trim())
+      )
+    },
+    isConfigTabVisible(name) {
+      return this.visibleConfigTabs.some((item) => item.name === name)
+    },
+    switchConfigGroup(group) {
+      this.activeConfigGroup = group
+      const tabs = this.configTabs.filter((item) => {
+        if (item.group !== group) return false
+        return !item.asyncOnly || this.form.requestMode === 'ASYNC'
+      })
+      if (!tabs.some((item) => item.name === this.activeConfigTab)) {
+        this.activeConfigTab = tabs.length ? tabs[0].name : 'auth'
+      }
+    },
+    goToConfigTab(name) {
+      const tab = this.configTabs.find((item) => item.name === name)
+      if (!tab) return
+      this.activeConfigGroup = tab.group
+      this.activeConfigTab = tab.name
+    },
+    goToChecklistItem(item) {
+      if (item && item.tab) {
+        this.goToConfigTab(item.tab)
+        return
+      }
+      const panel = this.$el && this.$el.querySelector('.basic-panel')
+      if (panel && panel.scrollIntoView) {
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    },
     async initializeRoute() {
       this.form = this.emptyForm()
+      this.activeConfigGroup = 'business'
       this.activeConfigTab = 'auth'
       this.invokeResultText = ''
       this.requestPreviewText = ''
@@ -3107,7 +3328,15 @@ export default {
       return data
     },
     handleBack() {
-      this.$router.push({ path: '/datasource', query: { tab: 'api' } })
+      this.$router.push({
+        path: '/datasource',
+        query: {
+          tab: 'api',
+          ...(this.contextProjectId
+            ? { projectId: this.contextProjectId }
+            : {}),
+        },
+      })
     },
     handleSave() {
       this.$refs.form.validate(async (valid) => {
@@ -3131,7 +3360,12 @@ export default {
           }
           const saved = res && res.data ? res.data : null
           if (saved && saved.id) {
-            this.$router.push('/approval/' + saved.id)
+            this.$router.push({
+              path: '/approval/' + saved.id,
+              query: this.contextProjectId
+                ? { projectId: this.contextProjectId }
+                : {},
+            })
           }
         } finally {
           this.saving = false
@@ -3304,7 +3538,12 @@ export default {
         const res = await updateApiConfig(data)
         const saved = res && res.data ? res.data : res
         if (saved && saved.id) {
-          this.$router.push('/approval/' + saved.id)
+          this.$router.push({
+            path: '/approval/' + saved.id,
+            query: this.contextProjectId
+              ? { projectId: this.contextProjectId }
+              : {},
+          })
         }
         this.$message.success('测试样例变更已送审')
       } catch (e) {
@@ -3533,10 +3772,115 @@ export default {
     border-radius: 4px;
     padding: 16px;
   }
+  .configuration-guide {
+    margin: -16px -16px 18px;
+    padding: 18px 20px;
+    border-bottom: 1px solid #dce5f2;
+    background: linear-gradient(135deg, #f7faff 0%, #eef4ff 100%);
+  }
+  .guide-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+  }
+  .guide-progress {
+    padding: 5px 9px;
+    border-radius: 999px;
+    background: #fff;
+    color: #2763d5;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .checklist-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .checklist-item {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 9px;
+    padding: 10px;
+    border: 1px solid #dce4ef;
+    border-radius: 8px;
+    background: rgb(255 255 255 / 88%);
+    color: #475569;
+    cursor: pointer;
+    text-align: left;
+  }
+  .checklist-item:hover {
+    border-color: #8eafea;
+  }
+  .checklist-item > span:last-child {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+  }
+  .checklist-item strong {
+    color: #1f2937;
+    font-size: 13px;
+  }
+  .checklist-item small {
+    margin-top: 3px;
+    overflow: hidden;
+    color: #738096;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .checklist-state {
+    display: grid;
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+    place-items: center;
+    border-radius: 50%;
+    background: #fff1d6;
+    color: #9a5d00;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .checklist-item.is-ready .checklist-state {
+    background: #dff6e8;
+    color: #177245;
+  }
   .basic-panel {
     border-bottom: 1px solid #e5e7eb;
     padding-bottom: 8px;
     margin-bottom: 12px;
+  }
+  .config-group-bar {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin: 14px 0 6px;
+  }
+  .config-group-bar button {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 11px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 7px;
+    background: #fff;
+    color: #64748b;
+    cursor: pointer;
+    text-align: left;
+  }
+  .config-group-bar button:hover,
+  .config-group-bar button.is-active {
+    border-color: #8eafea;
+    background: #f3f7ff;
+  }
+  .config-group-bar strong {
+    color: #1f2937;
+    font-size: 13px;
+  }
+  .config-group-bar small {
+    margin-top: 3px;
   }
   .panel-heading,
   .section-toolbar {
@@ -3670,6 +4014,9 @@ export default {
 }
 @media (max-width: 1100px) {
   .api-detail-page {
+    .checklist-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
     .mapping-layout {
       display: block;
     }

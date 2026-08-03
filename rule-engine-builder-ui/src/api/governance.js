@@ -4,6 +4,10 @@ export function listGovernanceRequests(params) {
   return request.get('/rule/governance/requests', { params })
 }
 
+export function getGovernanceSummary(params) {
+  return request.get('/rule/governance/requests/summary', { params })
+}
+
 export function getGovernanceRequest(id) {
   return request.get(`/rule/governance/requests/${id}`)
 }

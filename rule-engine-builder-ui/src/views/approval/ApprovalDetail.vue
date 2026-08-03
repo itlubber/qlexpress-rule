@@ -1,7 +1,7 @@
 <template>
   <div class="approval-detail-page">
     <header class="detail-header">
-      <button class="back-button" type="button" @click="navigation.back()">
+      <button class="back-button" type="button" @click="goBack">
         ← 返回审批列表
       </button>
       <div v-if="request" class="header-main">
@@ -366,6 +366,15 @@ export default {
     this.loadDetail()
   },
   methods: {
+    goBack() {
+      const projectId = Number(this.route.query && this.route.query.projectId)
+      this.navigation.push({
+        path: '/approval',
+        query: Number.isInteger(projectId) && projectId > 0
+          ? { projectId }
+          : {},
+      })
+    },
     async loadDetail() {
       this.loading = true
       try {
@@ -427,7 +436,13 @@ export default {
         version.id
       )
       ElMessage.success('已生成历史恢复草稿')
-      this.navigation.push(`/approval/${response.data.id}`)
+      const projectId = Number(this.route.query && this.route.query.projectId)
+      this.navigation.push({
+        path: `/approval/${response.data.id}`,
+        query: Number.isInteger(projectId) && projectId > 0
+          ? { projectId }
+          : {},
+      })
     },
     requestSnapshot() {
       const text = this.request.submittedSnapshotJson || this.request.draftSnapshotJson

@@ -39,6 +39,65 @@ function createContext(overrides = {}) {
 }
 
 describe('ApiDetail helpers', () => {
+  test('默认只展示业务配置并把稳定性与高级能力分层', () => {
+    const ctx = createContext({ activeConfigGroup: 'business' })
+    ctx.configTabs = ApiDetail.data.call(ctx).configTabs
+
+    const visible = ApiDetail.computed.visibleConfigTabs.call(ctx)
+
+    expect(visible.map(item => item.name)).toEqual([
+      'auth', 'headers', 'query', 'request', 'response', 'test'
+    ])
+    ctx.visibleConfigTabs = visible
+    ctx.switchConfigGroup('reliability')
+    ctx.visibleConfigTabs = ApiDetail.computed.visibleConfigTabs.call(ctx)
+    expect(ctx.visibleConfigTabs.map(item => item.name)).toEqual([
+      'connection', 'retry', 'billing'
+    ])
+  })
+
+  test('异步接口在稳定性分组中显示回调配置', () => {
+    const ctx = createContext({
+      activeConfigGroup: 'reliability',
+      form: {
+        ...ApiDetail.methods.emptyForm(),
+        requestMode: 'ASYNC'
+      }
+    })
+    ctx.configTabs = ApiDetail.data.call(ctx).configTabs
+
+    expect(ApiDetail.computed.visibleConfigTabs.call(ctx).map(item => item.name))
+      .toEqual(['connection', 'async', 'retry', 'billing'])
+  })
+
+  test('配置检查可把用户带到对应配置项', () => {
+    const ctx = createContext({
+      activeConfigGroup: 'business',
+      activeConfigTab: 'auth'
+    })
+    ctx.configTabs = ApiDetail.data.call(ctx).configTabs
+
+    ctx.goToConfigTab('retry')
+
+    expect(ctx.activeConfigGroup).toBe('reliability')
+    expect(ctx.activeConfigTab).toBe('retry')
+  })
+
+  test('返回外数列表时保留项目上下文', () => {
+    const push = vi.fn()
+    const ctx = createContext({
+      contextProjectId: 9,
+      $router: { push }
+    })
+
+    ctx.handleBack()
+
+    expect(push).toHaveBeenCalledWith({
+      path: '/datasource',
+      query: { tab: 'api', projectId: 9 }
+    })
+  })
+
   test('loadDatasourceOptions includes disabled datasources for configuration', async () => {
     const disabledDatasource = { id: 2, datasourceCode: 'icekredit_qingyun', status: 0 }
     datasourceApi.listDatasources.mockResolvedValue({ data: { records: [disabledDatasource] } })
