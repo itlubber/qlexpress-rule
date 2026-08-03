@@ -22,6 +22,7 @@ function createContext(overrides = {}) {
     testVisible: false,
     testReady: false,
     testLoadStatus: 'IDLE',
+    testLoadError: '',
     testLoadWarnings: [],
     testParamSource: 'DEFAULTS',
     testSetupRequestId: 0,
@@ -29,6 +30,8 @@ function createContext(overrides = {}) {
     testMode: 'manual',
     testFields: [],
     testParams: {},
+    complexTestFieldDrafts: {},
+    complexTestFieldErrors: {},
     testJson: '{}',
     jsonError: '',
     testRequest: { requestKey: '', requestTime: '' },
@@ -89,8 +92,36 @@ describe('ExperimentList', () => {
     expect(experimentListTemplate).toContain('JSON 高级模式')
     expect(experimentListTemplate).toContain('分流上下文')
     expect(experimentListTemplate).toContain('原始执行结果')
+    expect(experimentListTemplate).toContain("testLoadStatus === 'ERROR'")
+    expect(experimentListTemplate).toContain('{{ testLoadError }}')
+    expect(experimentListTemplate).toContain('>重新加载</el-button')
     expect(experimentListTemplate).toContain('<style lang="scss">\n.experiment-execution-dialog')
     expect(experimentListTemplate).toContain('max-width: calc(100vw - 24px)')
+    expect(experimentListTemplate).toContain('max-width: 100%')
+    expect(experimentListTemplate).toContain('overflow-x: auto')
+    expect(experimentListTemplate).toContain('overflow-wrap: anywhere')
+  })
+
+  test('typed enum options render before primitive controls and keep field value types', () => {
+    const enumBranch = experimentListTemplate.indexOf(
+      'field.validValues && field.validValues.length'
+    )
+    const numberBranch = experimentListTemplate.indexOf('isNumberTestField(field)')
+    const ctx = createContext()
+
+    expect(enumBranch).toBeGreaterThan(-1)
+    expect(enumBranch).toBeLessThan(numberBranch)
+    expect(experimentListTemplate).toContain(
+      ':value="testFieldOptionValue(field, value)"'
+    )
+    expect(ctx.testFieldOptionValue).toBeTypeOf('function')
+    expect(ctx.testFieldOptionValue({ fieldType: 'NUMBER' }, '12.5')).toBe(12.5)
+    expect(ctx.testFieldOptionValue({ fieldType: 'INTEGER' }, '7')).toBe(7)
+    expect(ctx.testFieldOptionValue({ fieldType: 'BOOLEAN' }, 'false')).toBe(false)
+    expect(ctx.testFieldOptionValue({ fieldType: 'BOOLEAN' }, '1')).toBe(true)
+    expect(ctx.testFieldOptionValue({ fieldType: 'DATE' }, '2026-08-04')).toBe(
+      '2026-08-04'
+    )
   })
 
   test('项目上下文限定实验列表并传递给新建页面', async () => {
@@ -373,11 +404,15 @@ describe('ExperimentList', () => {
     })
   })
 
-  test('handleTest degrades to a readable warning and empty JSON-only entry when Schema loading fails', async () => {
-    getRuleTestSchema.mockRejectedValueOnce(new Error('Schema 服务暂不可用'))
+  test('handleTest degrades to JSON with a readable reason when Schema fields cannot be formized', async () => {
+    getRuleTestSchema.mockResolvedValueOnce({ data: {
+      inputs: [{ refId: 1, refType: 'VARIABLE', valueType: 'NUMBER' }],
+      sampleParams: {},
+      diagnostics: []
+    } })
     const ctx = createContext()
 
-    await ctx.handleTest({ id: 9, experimentCode: 'EXP_DEGRADED' })
+    await ctx.handleTest({ id: 9, experimentCode: 'EXP_JSON_ONLY' })
 
     expect(ctx.testLoadStatus).toBe('DEGRADED')
     expect(ctx.testReady).toBe(true)
@@ -385,9 +420,23 @@ describe('ExperimentList', () => {
     expect(ctx.testFields).toEqual([])
     expect(ctx.testParams).toEqual({})
     expect(ctx.testJson).toBe('{}')
-    expect(ctx.testLoadWarnings).toEqual([
-      expect.stringContaining('Schema 服务暂不可用')
-    ])
+    expect(ctx.testLoadWarnings.join(' ')).toContain('无法生成字段化入参')
+  })
+
+  test('handleTest enters ERROR with details when Schema initialization fails and blocks execution', async () => {
+    getRuleTestSchema.mockRejectedValueOnce({
+      response: { data: { message: '找不到有效规则，无法建立执行上下文' } }
+    })
+    const ctx = createContext()
+
+    await ctx.handleTest({ id: 9, experimentCode: 'EXP_ERROR' })
+    await ctx.doExecute()
+
+    expect(ctx.testLoadStatus).toBe('ERROR')
+    expect(ctx.testReady).toBe(false)
+    expect(ctx.testLoadError).toContain('找不到有效规则')
+    expect(ctx.testLoadWarnings).toEqual([])
+    expect(executeExperiment).not.toHaveBeenCalled()
   })
 
   test('form and JSON modes preserve nested Schema fields, while invalid JSON retains an error and blocks execution', async () => {
@@ -515,8 +564,47 @@ describe('ExperimentList', () => {
     ctx.updateComplexTestField(ctx.testFields[0], '{invalid json')
     await ctx.doExecute()
 
-    expect(ctx.jsonError).toContain('JSON 格式错误')
+    expect(ctx.complexTestFieldErrors['profile.tags']).toContain('JSON 格式错误')
     expect(executeExperiment).toHaveBeenCalledTimes(1)
+  })
+
+  test('complex fields keep independent raw drafts and errors until every field is valid', async () => {
+    const ctx = createContext({
+      testVisible: true,
+      testReady: true,
+      testMode: 'manual',
+      testFields: [
+        { fieldName: 'profile.tags', fieldType: 'ARRAY' },
+        { fieldName: 'profile.meta', fieldType: 'OBJECT' }
+      ],
+      testParams: { 'profile.tags': [], 'profile.meta': {} },
+      testExperiment: { experimentCode: 'EXP_COMPLEX_ERRORS' }
+    })
+
+    ctx.updateComplexTestField(ctx.testFields[0], '["unfinished"')
+    expect(ctx.complexTestFieldDrafts['profile.tags']).toBe('["unfinished"')
+    expect(ctx.complexTestFieldErrors['profile.tags']).toContain('JSON 格式错误')
+
+    ctx.updateComplexTestField(ctx.testFields[1], '{"level":"A"}')
+    expect(ctx.complexTestFieldDrafts['profile.tags']).toBe('["unfinished"')
+    expect(ctx.formatComplexTestField(ctx.testFields[0])).toBe('["unfinished"')
+    expect(ctx.complexTestFieldErrors['profile.tags']).toContain('JSON 格式错误')
+    expect(ctx.complexTestFieldErrors['profile.meta']).toBeUndefined()
+
+    ctx.switchToJsonMode()
+    await ctx.doExecute()
+
+    expect(ctx.testMode).toBe('manual')
+    expect(executeExperiment).not.toHaveBeenCalled()
+
+    ctx.updateComplexTestField(ctx.testFields[0], '["complete"]')
+    ctx.switchToJsonMode()
+
+    expect(ctx.complexTestFieldErrors).toEqual({})
+    expect(ctx.testMode).toBe('json')
+    expect(JSON.parse(ctx.testJson)).toEqual({
+      profile: { tags: ['complete'], meta: { level: 'A' } }
+    })
   })
 
   test('closing the dialog invalidates an in-flight execution so its late response cannot write state', async () => {

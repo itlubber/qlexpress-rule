@@ -508,6 +508,15 @@
         <span>正在加载实验输入字段和推荐样例，请稍候。</span>
       </div>
 
+      <div
+        v-else-if="testLoadStatus === 'ERROR'"
+        class="execution-load-state is-error"
+      >
+        <strong>实验验证初始化失败</strong>
+        <span>{{ testLoadError }}</span>
+        <el-button size="small" type="primary" @click="handleTest(testExperiment)">重新加载</el-button>
+      </div>
+
       <template v-else-if="testReady">
         <section
           class="execution-readiness"
@@ -594,8 +603,22 @@
                 class="execution-field-cell"
               >
                 <div class="execution-field-label">{{ field.fieldLabel || field.fieldName }}</div>
+                <el-select
+                  v-if="field.validValues && field.validValues.length"
+                  v-model="testParams[field.fieldName]"
+                  clearable
+                  filterable
+                  style="width: 100%"
+                >
+                  <el-option
+                    v-for="value in field.validValues"
+                    :key="value"
+                    :label="value"
+                    :value="testFieldOptionValue(field, value)"
+                  />
+                </el-select>
                 <el-input-number
-                  v-if="isNumberTestField(field)"
+                  v-else-if="isNumberTestField(field)"
                   v-model="testParams[field.fieldName]"
                   controls-position="right"
                   :precision="isIntegerTestField(field) ? 0 : undefined"
@@ -625,21 +648,13 @@
                   placeholder="请输入合法 JSON"
                   @update:model-value="updateComplexTestField(field, $event)"
                 />
-                <el-select
-                  v-else-if="field.validValues && field.validValues.length"
-                  v-model="testParams[field.fieldName]"
-                  clearable
-                  filterable
-                  style="width: 100%"
-                >
-                  <el-option
-                    v-for="value in field.validValues"
-                    :key="value"
-                    :label="value"
-                    :value="value"
-                  />
-                </el-select>
                 <el-input v-else v-model="testParams[field.fieldName]" placeholder="输入值" />
+                <div
+                  v-if="complexTestFieldErrors[field.fieldName]"
+                  class="execution-json-error"
+                >
+                  {{ complexTestFieldErrors[field.fieldName] }}
+                </div>
                 <div class="execution-field-hint">{{ field.fieldName }}</div>
               </div>
             </div>
@@ -723,7 +738,7 @@
             size="small"
             type="primary"
             :loading="testing"
-            :disabled="!testReady || testing"
+            :disabled="testLoadStatus === 'ERROR' || !testReady || testing"
             @click="doExecute"
             >验证执行</el-button
           >
@@ -805,6 +820,7 @@ export default {
       testExperiment: null,
       testReady: false,
       testLoadStatus: 'IDLE',
+      testLoadError: '',
       testLoadWarnings: [],
       testParamSource: 'DEFAULTS',
       testSetupRequestId: 0,
@@ -812,6 +828,8 @@ export default {
       testMode: 'manual',
       testFields: [],
       testParams: {},
+      complexTestFieldDrafts: {},
+      complexTestFieldErrors: {},
       testJson: '{}',
       jsonError: '',
       testRequest: { requestKey: '', requestTime: '' },
@@ -1283,11 +1301,14 @@ export default {
       this.testing = false
       this.testReady = false
       this.testLoadStatus = 'LOADING'
+      this.testLoadError = ''
       this.testLoadWarnings = []
       this.testParamSource = 'DEFAULTS'
       this.testMode = 'manual'
       this.testFields = []
       this.testParams = {}
+      this.complexTestFieldDrafts = {}
+      this.complexTestFieldErrors = {}
       this.testJson = '{}'
       this.jsonError = ''
       try {
@@ -1299,6 +1320,21 @@ export default {
         )
         if (!this.isCurrentTestSetup(setupRequestId)) return
         const fields = schemaFieldsToTestFields(schema.inputs)
+        const warnings = this.normalizeTestWarnings(schema.diagnostics)
+        if (fields.length === 0) {
+          this.testFields = []
+          this.testParams = {}
+          this.testJson = '{}'
+          this.testLoadWarnings = [
+            ...warnings,
+            '测试 Schema 未提供可用输入字段，无法生成字段化入参；请使用 JSON 高级模式继续验证。',
+          ]
+          this.testParamSource = 'EMPTY'
+          this.testMode = 'json'
+          this.testLoadStatus = 'DEGRADED'
+          this.testReady = true
+          return
+        }
         const params = flattenSchemaSample(fields, schema.sampleParams)
         this.testFields = fields
         this.testParams = params
@@ -1307,7 +1343,7 @@ export default {
           null,
           2
         )
-        this.testLoadWarnings = this.normalizeTestWarnings(schema.diagnostics)
+        this.testLoadWarnings = warnings
         this.testParamSource = Object.keys(schema.sampleParams).length
           ? 'SCHEMA_SAMPLE'
           : 'FIELD_DEFAULTS'
@@ -1318,14 +1354,18 @@ export default {
         if (!this.isCurrentTestSetup(setupRequestId)) return
         this.testFields = []
         this.testParams = {}
+        this.complexTestFieldDrafts = {}
+        this.complexTestFieldErrors = {}
         this.testJson = '{}'
         this.testMode = 'json'
-        this.testLoadStatus = 'DEGRADED'
-        this.testLoadWarnings = [
-          '测试 Schema 加载失败，已切换为 JSON 输入：' +
-            this.testErrorMessage(e, '未知错误'),
-        ]
-        this.testReady = true
+        this.testParamSource = 'EMPTY'
+        this.testLoadStatus = 'ERROR'
+        this.testLoadError = this.testErrorMessage(
+          e,
+          '无法加载实验测试 Schema，请确认实验包含有效规则和可执行上下文。'
+        )
+        this.testLoadWarnings = []
+        this.testReady = false
       }
     },
     isCurrentTestSetup(setupRequestId) {
@@ -1345,7 +1385,11 @@ export default {
       )
     },
     testErrorMessage(error, fallback) {
-      return (error && error.message) || fallback
+      return (
+        (error && error.response && error.response.data && error.response.data.message) ||
+        (error && error.message) ||
+        fallback
+      )
     },
     testFieldType(field) {
       return String((field && (field.fieldType || field.valueType)) || 'STRING').toUpperCase()
@@ -1365,21 +1409,46 @@ export default {
     isComplexTestField(field) {
       return ['ARRAY', 'LIST', 'VECTOR', 'OBJECT', 'MAP'].includes(this.testFieldType(field))
     },
+    testFieldOptionValue(field, value) {
+      if (this.isNumberTestField(field)) {
+        const number = Number(value)
+        return Number.isNaN(number) ? value : number
+      }
+      if (this.isBooleanTestField(field)) {
+        if (typeof value === 'boolean') return value
+        const normalized = String(value).trim().toLowerCase()
+        if (normalized === 'true' || normalized === '1') return true
+        if (normalized === 'false' || normalized === '0') return false
+      }
+      return value
+    },
     formatComplexTestField(field) {
+      if (
+        Object.prototype.hasOwnProperty.call(
+          this.complexTestFieldDrafts,
+          field.fieldName
+        )
+      )
+        return this.complexTestFieldDrafts[field.fieldName]
       const value = this.testParams[field.fieldName]
       if (typeof value === 'string') return value
       return JSON.stringify(value === undefined ? (this.testFieldType(field) === 'OBJECT' || this.testFieldType(field) === 'MAP' ? {} : []) : value, null, 2)
     },
     updateComplexTestField(field, value) {
+      this.complexTestFieldDrafts[field.fieldName] = value
       try {
         const parsed = JSON.parse(value)
         const error = this.testFieldValidationError(field, parsed)
         if (error) throw new Error(error)
         this.testParams[field.fieldName] = parsed
-        this.jsonError = ''
+        delete this.complexTestFieldErrors[field.fieldName]
       } catch (e) {
-        this.jsonError = 'JSON 格式错误: ' + this.testErrorMessage(e, '请输入合法 JSON')
+        this.complexTestFieldErrors[field.fieldName] =
+          'JSON 格式错误: ' + this.testErrorMessage(e, '请输入合法 JSON')
       }
+    },
+    hasComplexTestFieldErrors() {
+      return Object.keys(this.complexTestFieldErrors).length > 0
     },
     testFieldValidationError(field, value) {
       if (!this.isComplexTestField(field) || value === undefined) return ''
@@ -1418,6 +1487,10 @@ export default {
     },
     switchToJsonMode() {
       if (this.testMode === 'json') return
+      if (this.hasComplexTestFieldErrors()) {
+        this.$message.error('请先修正复杂字段中的 JSON 错误')
+        return
+      }
       this.testMode = 'json'
       this.syncParamsToJson()
     },
@@ -1444,6 +1517,8 @@ export default {
           if (value !== undefined) nextParams[path] = value
         })
         this.testParams = nextParams
+        this.complexTestFieldDrafts = {}
+        this.complexTestFieldErrors = {}
         this.jsonError = ''
         return true
       } catch (e) {
@@ -1466,11 +1541,18 @@ export default {
       this.testing = false
       this.testReady = false
       this.testLoadStatus = 'IDLE'
+      this.testLoadError = ''
       this.testResult = null
+      this.complexTestFieldDrafts = {}
+      this.complexTestFieldErrors = {}
       this.jsonError = ''
     },
     async doExecute() {
       if (!this.testReady || this.testing) return
+      if (this.hasComplexTestFieldErrors()) {
+        this.$message.error('请先修正复杂字段中的 JSON 错误')
+        return
+      }
       let params
       if (this.testMode === 'manual' && this.testFields.length > 0) {
         if (this.jsonError) {
@@ -1694,6 +1776,13 @@ export default {
     span {
       color: #64748b;
       font-size: 12px;
+    }
+
+    &.is-error {
+      strong,
+      span {
+        color: #b91c1c;
+      }
     }
   }
 
@@ -1956,8 +2045,18 @@ export default {
     }
   }
 
+  .execution-raw-result {
+    min-width: 0;
+    max-width: 100%;
+  }
+
   .execution-raw-result pre {
+    box-sizing: border-box;
+    max-width: 100%;
     max-height: 220px;
+    overflow-x: auto;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
   }
 
   .execution-dialog-footer {
