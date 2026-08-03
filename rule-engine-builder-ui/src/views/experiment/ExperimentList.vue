@@ -491,6 +491,7 @@
       v-model="testVisible"
       width="840px"
       append-to-body
+      @closed="closeTestDialog"
     >
       <el-form size="small" label-width="100px">
         <el-form-item label="请求唯一键">
@@ -513,6 +514,7 @@
             v-model:value="testJson"
             language="json"
             height="240px"
+            @change="onJsonInput"
           />
         </el-form-item>
       </el-form>
@@ -522,7 +524,7 @@
       </div>
       <template v-slot:footer>
         <div>
-          <el-button size="small" @click="testVisible = false">关闭</el-button>
+          <el-button size="small" @click="closeTestDialog">关闭</el-button>
           <el-button
             size="small"
             type="primary"
@@ -562,7 +564,13 @@ import {
 } from '@/utils/decisionConditionTree'
 import { collectOperandReferences, syncOperandReference } from '@/utils/operand'
 import { normalizeRuleOptions } from '@/utils/ruleCallConfig'
-import { normalizeTestSchema } from '@/utils/testSchema'
+import {
+  buildNestedSchemaParams,
+  flattenSchemaSample,
+  normalizeTestSchema,
+  readParamPath,
+  schemaFieldsToTestFields,
+} from '@/utils/testSchema'
 import { routeProjectId } from '@/utils/projectContext'
 
 export default {
@@ -600,7 +608,17 @@ export default {
       testVisible: false,
       testing: false,
       testExperiment: null,
-      testJson: '{\n  "requestId": "REQ001"\n}',
+      testReady: false,
+      testLoadStatus: 'IDLE',
+      testLoadWarnings: [],
+      testParamSource: 'DEFAULTS',
+      testSetupRequestId: 0,
+      testExecutionRequestId: 0,
+      testMode: 'manual',
+      testFields: [],
+      testParams: {},
+      testJson: '{}',
+      jsonError: '',
       testRequest: { requestKey: '', requestTime: '' },
       testResult: null,
       ElIconPlus: markRaw(ElIconPlus),
@@ -1061,82 +1079,189 @@ export default {
       if (changed) this.$forceUpdate()
     },
     async handleTest(row) {
+      const setupRequestId = ++this.testSetupRequestId
+      ++this.testExecutionRequestId
       this.testExperiment = row
       this.testResult = null
       this.testRequest = { requestKey: '', requestTime: '' }
-      let schema = null
+      this.testVisible = true
+      this.testing = false
+      this.testReady = false
+      this.testLoadStatus = 'LOADING'
+      this.testLoadWarnings = []
+      this.testParamSource = 'DEFAULTS'
+      this.testMode = 'manual'
+      this.testFields = []
+      this.testParams = {}
+      this.testJson = '{}'
+      this.jsonError = ''
       try {
-        schema = normalizeTestSchema(
+        const schema = normalizeTestSchema(
           await getRuleTestSchema({
             targetType: 'EXPERIMENT',
             targetId: row.id,
           })
         )
+        if (!this.isCurrentTestSetup(setupRequestId)) return
+        const fields = schemaFieldsToTestFields(schema.inputs)
+        const params = flattenSchemaSample(fields, schema.sampleParams)
+        this.testFields = fields
+        this.testParams = params
+        this.testJson = JSON.stringify(
+          buildNestedSchemaParams(fields, params),
+          null,
+          2
+        )
+        this.testLoadWarnings = this.normalizeTestWarnings(schema.diagnostics)
+        this.testParamSource = Object.keys(schema.sampleParams).length
+          ? 'SCHEMA_SAMPLE'
+          : 'FIELD_DEFAULTS'
+        this.testLoadStatus = 'READY'
+        this.testReady = true
       } catch (e) {
-        /* compatibility fallback for older servers */
+        if (!this.isCurrentTestSetup(setupRequestId)) return
+        this.testFields = []
+        this.testParams = {}
+        this.testJson = '{}'
+        this.testMode = 'json'
+        this.testLoadStatus = 'DEGRADED'
+        this.testLoadWarnings = [
+          '测试 Schema 加载失败，已切换为 JSON 输入：' +
+            this.testErrorMessage(e, '未知错误'),
+        ]
+        this.testReady = true
       }
-      this.testJson =
-        schema && Object.keys(schema.sampleParams).length
-          ? JSON.stringify(schema.sampleParams, null, 2)
-          : this.defaultTestJson(row)
-      this.testVisible = true
     },
-    defaultTestJson(row) {
-      const code = row && row.experimentCode ? row.experimentCode : 'EXP'
-      return JSON.stringify(
-        {
-          requestId: code + '_REQ_001',
-          taxpayerType: '一般纳税人',
-          goodsCategory: '货物',
-          annualRevenue: 5000,
-          taxComplianceScore: 85,
-          yearsInBusiness: 10,
-          hasViolation: false,
-          totalAmount: 113000,
-          isExempt: false,
-          creditLevel: 'A',
-          taxBurdenDeviation: 0.08,
-          violationCount: 0,
-          serviceType: 'ICT服务',
-          paymentMode: '后付费',
-          customerType: '企业客户',
-          taxpayerQualification: '一般纳税人',
-          customerLevel: '金',
-          monthlyConsumption: 5000,
-          invoiceDeviationRate: 0.05,
-          redInvoiceRatio: 0.02,
-          zeroRateInvoiceRatio: 0.01,
-          crossRegionInvoiceRatio: 0.08,
-          billingAmount: 100000,
-          basicServiceRatio: 0.6,
-          vasServiceRatio: 0.4,
-        },
+    isCurrentTestSetup(setupRequestId) {
+      return this.testSetupRequestId === setupRequestId
+    },
+    isCurrentTestExecution(executionRequestId, setupRequestId) {
+      return (
+        this.isCurrentTestSetup(setupRequestId) &&
+        this.testExecutionRequestId === executionRequestId
+      )
+    },
+    normalizeTestWarnings(diagnostics) {
+      return (diagnostics || []).map((diagnostic) =>
+        typeof diagnostic === 'string'
+          ? diagnostic
+          : diagnostic.message || JSON.stringify(diagnostic)
+      )
+    },
+    testErrorMessage(error, fallback) {
+      return (error && error.message) || fallback
+    },
+    switchToJsonMode() {
+      if (this.testMode === 'json') return
+      this.testMode = 'json'
+      this.syncParamsToJson()
+    },
+    switchToManualMode() {
+      if (this.testMode === 'manual') return
+      this.testMode = 'manual'
+      this.syncJsonToParams()
+    },
+    syncParamsToJson() {
+      this.testJson = JSON.stringify(
+        buildNestedSchemaParams(this.testFields, this.testParams),
         null,
         2
       )
+      this.jsonError = ''
+    },
+    syncJsonToParams() {
+      try {
+        const params = JSON.parse(this.testJson || '{}')
+        this.testFields.forEach((field) => {
+          const path = field.scriptName || field.fieldName
+          const value = readParamPath(params, path)
+          if (value !== undefined) this.testParams[path] = value
+        })
+        this.jsonError = ''
+      } catch (e) {
+        this.jsonError = 'JSON 格式错误: ' + this.testErrorMessage(e, '未知错误')
+      }
+    },
+    onJsonInput() {
+      try {
+        JSON.parse(this.testJson || '{}')
+        this.jsonError = ''
+      } catch (e) {
+        this.jsonError = 'JSON 格式错误: ' + this.testErrorMessage(e, '未知错误')
+      }
+    },
+    closeTestDialog() {
+      ++this.testSetupRequestId
+      ++this.testExecutionRequestId
+      this.testVisible = false
+      this.testing = false
+      this.testReady = false
+      this.testLoadStatus = 'IDLE'
+      this.testResult = null
+      this.jsonError = ''
     },
     async doExecute() {
+      if (this.testing) return
       let params
-      try {
-        params = JSON.parse(this.testJson || '{}')
-      } catch (e) {
-        this.$message.error('入参JSON格式错误: ' + e.message)
-        return
+      if (this.testMode === 'manual' && this.testFields.length > 0) {
+        params = buildNestedSchemaParams(this.testFields, this.testParams)
+      } else {
+        try {
+          params = JSON.parse(this.testJson || '{}')
+          this.jsonError = ''
+        } catch (e) {
+          this.jsonError =
+            'JSON 格式错误: ' + this.testErrorMessage(e, '未知错误')
+          this.$message.error(this.jsonError)
+          return
+        }
       }
+      const setupRequestId = this.testSetupRequestId
+      const executionRequestId = ++this.testExecutionRequestId
       this.testing = true
+      this.testResult = null
       try {
-        const res = await executeExperiment(
-          this.testExperiment.experimentCode,
-          {
-            params,
-            requestKey: this.testRequest.requestKey || '',
-            requestTime: this.testRequest.requestTime || null,
-          }
-        )
-        this.testResult = res.data
+        const res = await executeExperiment(this.testExperiment.experimentCode, {
+          params,
+          requestKey: this.testRequest.requestKey || '',
+          requestTime: this.testRequest.requestTime || null,
+        })
+        if (this.isCurrentTestExecution(executionRequestId, setupRequestId))
+          this.testResult = res.data
+      } catch (e) {
+        if (this.isCurrentTestExecution(executionRequestId, setupRequestId)) {
+          const errorMessage = this.testErrorMessage(e, '实验执行失败')
+          this.testResult = { success: false, errorMessage }
+          this.$message.error('实验执行失败: ' + errorMessage)
+        }
       } finally {
-        this.testing = false
+        if (this.isCurrentTestExecution(executionRequestId, setupRequestId))
+          this.testing = false
       }
+    },
+    buildExecutionResultSummary(result) {
+      const groupSummary = []
+      const appendGroup = (group, stage) => {
+        if (!group) return
+        let status = 'SUCCESS'
+        if (group.skipped) status = 'SKIPPED'
+        else if (group.success === false) status = 'FAILED'
+        else if (stage === 'TEST' && group.matched) status = 'MATCHED'
+        else if (stage === 'TEST') status = 'NOT_MATCHED'
+        const item = { groupCode: group.groupCode, stage, status }
+        if (group.errorMessage) item.errorMessage = group.errorMessage
+        groupSummary.push(item)
+      }
+      appendGroup(result && result.productionGroup, 'PRODUCTION')
+      ;((result && result.testGroups) || []).forEach((group) =>
+        appendGroup(group, 'TEST')
+      )
+      const overall = {
+        status: result && result.success === false ? 'FAILED' : 'SUCCESS',
+      }
+      if (overall.status === 'FAILED' && result && result.errorMessage)
+        overall.errorMessage = result.errorMessage
+      return { overall, groups: groupSummary }
     },
     productionGroups(row) {
       return (row.groups || []).filter(
