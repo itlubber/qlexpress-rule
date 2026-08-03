@@ -233,11 +233,24 @@ public class RuleDefinitionController {
                 : Collections.emptyMap();
         String modelJson = body.get("modelJson") == null ? null
                 : normalizeModelJson(body.get("modelJson").toString());
+        Long executionProjectId = optionalPositiveLong(body.get("projectId"));
         if (modelJson != null && !modelJson.trim().isEmpty()) {
             String modelType = body.get("modelType") == null ? null : body.get("modelType").toString();
-            return R.ok(executeService.testExecutePreview(definitionId, modelJson, modelType, params));
+            return R.ok(executeService.testExecutePreview(
+                    definitionId, modelJson, modelType, params,
+                    executionProjectId));
         }
-        return R.ok(executeService.testExecute(definitionId, params));
+        return R.ok(executeService.testExecute(
+                definitionId, params, executionProjectId));
+    }
+
+    private Long optionalPositiveLong(Object value) {
+        if (value == null || value.toString().isBlank()) return null;
+        Long result = Long.valueOf(value.toString());
+        if (result <= 0) {
+            throw new IllegalArgumentException("项目 ID 必须为正整数");
+        }
+        return result;
     }
 
     @PostMapping("/publish/{definitionId}")

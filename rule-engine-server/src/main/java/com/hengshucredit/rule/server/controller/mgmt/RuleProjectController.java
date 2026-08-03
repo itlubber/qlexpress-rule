@@ -1,11 +1,13 @@
 package com.hengshucredit.rule.server.controller.mgmt;
 
 import com.hengshucredit.rule.model.dto.ApiDocDTO;
+import com.hengshucredit.rule.model.dto.ProjectWorkbenchDTO;
 import com.hengshucredit.rule.model.entity.RuleProject;
 import com.hengshucredit.rule.server.common.R;
 import com.hengshucredit.rule.server.governance.GovernedProjectionMutation;
 import com.hengshucredit.rule.server.service.RuleProjectService;
 import com.hengshucredit.rule.server.service.ProjectAuthService;
+import com.hengshucredit.rule.server.service.ProjectWorkbenchService;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -27,6 +29,9 @@ public class RuleProjectController {
     @Resource
     private ProjectAuthService projectAuthService;
 
+    @Resource
+    private ProjectWorkbenchService projectWorkbenchService;
+
     @GetMapping("/list")
     public R<IPage<RuleProject>> list(
             @RequestParam(value = "pageNum", defaultValue = "1") int pageNum,
@@ -43,6 +48,11 @@ public class RuleProjectController {
     @GetMapping("/{id}")
     public R<RuleProject> get(@PathVariable Long id) {
         return R.ok(projectService.getById(id));
+    }
+
+    @GetMapping("/{id}/workbench")
+    public R<ProjectWorkbenchDTO> workbench(@PathVariable Long id) {
+        return R.ok(projectWorkbenchService.getWorkbench(id));
     }
 
     @PostMapping

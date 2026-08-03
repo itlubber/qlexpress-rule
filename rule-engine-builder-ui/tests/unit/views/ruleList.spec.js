@@ -4,6 +4,7 @@ import { h, nextTick } from 'vue'
 // Mock API 模块
 vi.mock('@/api/definition', () => ({
   listDefinitions: vi.fn(),
+  listProjectDefinitions: vi.fn(),
   createDefinition: vi.fn(),
   deleteDefinition: vi.fn()
 }))
@@ -69,11 +70,12 @@ const InputStub = {
 // ─── 测试用例 ─────────────────────────────────────────────
 
 
-function createMountOptions() {
+function createMountOptions(routeQuery = {}) {
   return {
     mocks: {
-      $route: { params: {} },
+      $route: { params: {}, query: routeQuery },
       $router: { push: vi.fn(), replace: vi.fn() },
+      $store: { state: { currentProject: null } },
       $message: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), warning: vi.fn() }),
       // $confirm 每次都是新 mock，测试中通过 mockResolvedValueOnce 配置返回值
       $confirm: vi.fn()
@@ -245,6 +247,57 @@ describe('RuleList — 规则操作', () => {
     wrapper.vm.handleCreate()
     expect(wrapper.vm.dialogVisible).toBe(true)
     expect(wrapper.vm.form.status).toBe(0)
+    expect(wrapper.vm.form.scope).toBe('')
+  })
+
+  test('项目上下文限定列表并让新规则默认归属当前项目', async () => {
+    definitionApi.listProjectDefinitions.mockResolvedValue({
+      data: { records: mockRules(), total: 3 }
+    })
+    projectApi.listProjects.mockResolvedValue({ data: { records: mockProjects() } })
+    const contextWrapper = mount(RuleList, createMountOptions({ projectId: '2' }))
+
+    await nextTick()
+    await new Promise(r => setTimeout(r, 20))
+    contextWrapper.vm.handleCreate()
+
+    expect(definitionApi.listProjectDefinitions).toHaveBeenCalledWith(
+      2,
+      expect.objectContaining({ pageNum: 1 })
+    )
+    expect(contextWrapper.vm.form.scope).toBe('PROJECT')
+    expect(contextWrapper.vm.form.projectId).toBe(2)
+    contextWrapper.unmount()
+  })
+
+  test('项目上下文中的规则编码和名称建议不会查询项目外规则', async () => {
+    definitionApi.listProjectDefinitions.mockResolvedValue({
+      data: { records: mockRules(), total: 3 }
+    })
+    projectApi.listProjects.mockResolvedValue({ data: { records: mockProjects() } })
+    const contextWrapper = mount(RuleList, createMountOptions({ projectId: '2' }))
+    await nextTick()
+
+    await contextWrapper.vm.fetchRuleCodeOptions({
+      query: 'risk',
+      pageNum: 1,
+      pageSize: 20,
+    })
+    await contextWrapper.vm.fetchRuleNameOptions({
+      query: '风险',
+      pageNum: 1,
+      pageSize: 20,
+    })
+
+    expect(definitionApi.listProjectDefinitions).toHaveBeenCalledWith(
+      2,
+      expect.objectContaining({ ruleCode: 'risk' })
+    )
+    expect(definitionApi.listProjectDefinitions).toHaveBeenCalledWith(
+      2,
+      expect.objectContaining({ ruleName: '风险' })
+    )
+    contextWrapper.unmount()
   })
 
   test('handleDetail 跳转到详情页', () => {

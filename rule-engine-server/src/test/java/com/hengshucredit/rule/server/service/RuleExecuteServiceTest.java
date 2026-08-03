@@ -184,6 +184,95 @@ public class RuleExecuteServiceTest {
     }
 
     @Test
+    public void boundGlobalRulePreviewUsesSelectedProjectForRuntimeSourcesAndLogs() {
+        RuleExecuteService service = new RuleExecuteService();
+        RecordingPreviewResolver resolver = new RecordingPreviewResolver();
+        RecordingLogService logService = new RecordingLogService();
+        RecordingBillingService billingService = new RecordingBillingService();
+        NoOpRuntimeInvoker runtimeInvoker = new NoOpRuntimeInvoker();
+        RuleDefinitionService definitionService = new FakeDefinitionService() {
+            @Override
+            public RuleDefinition getById(Serializable id) {
+                RuleDefinition definition = super.getById(id);
+                definition.setProjectId(null);
+                definition.setScope("GLOBAL");
+                return definition;
+            }
+
+            @Override
+            public boolean isDefinitionAvailableInProject(Long definitionId,
+                                                          Long projectId) {
+                return Long.valueOf(10L).equals(definitionId)
+                        && Long.valueOf(7L).equals(projectId);
+            }
+        };
+        RuleProjectService projectService = new FakeProjectService() {
+            @Override
+            public RuleProject getById(Serializable id) {
+                RuleProject project = new RuleProject();
+                project.setId(7L);
+                project.setProjectCode("bound_project");
+                return project;
+            }
+        };
+
+        ReflectionTestUtils.setField(service, "qlExpressEngine", new QLExpressEngine());
+        ReflectionTestUtils.setField(service, "definitionService", definitionService);
+        ReflectionTestUtils.setField(service, "projectService", projectService);
+        ReflectionTestUtils.setField(service, "logService", logService);
+        ReflectionTestUtils.setField(service, "functionService", new FakeFunctionService());
+        ReflectionTestUtils.setField(service, "functionRegistrar", new FunctionRegistrar());
+        ReflectionTestUtils.setField(service, "billingService", billingService);
+        ReflectionTestUtils.setField(service, "variableSourceResolver", resolver);
+        ReflectionTestUtils.setField(service, "runtimeRuleInvoker", runtimeInvoker);
+        ReflectionTestUtils.setField(service, "executionParameterBinder", new ExecutionParameterBinder());
+        ReflectionTestUtils.setField(service, "compileService", new RuleCompileService() {
+            @Override
+            public CompileResult compilePreview(Long definitionId, String modelJson,
+                                                String modelType) {
+                return CompileResult.ok("1", "QLEXPRESS");
+            }
+        });
+        ReflectionTestUtils.setField(service, "ruleFieldAnalyzer", new RuleFieldAnalyzer() {
+            @Override
+            public ResolvedFields resolveFields(Long definitionId, String modelJson,
+                                                String modelType, Long projectId) {
+                assertEquals(Long.valueOf(7L), projectId);
+                return new ResolvedFields(Collections.emptyList(), Collections.emptyList());
+            }
+        });
+
+        RuleResult result = service.testExecutePreview(
+                10L, "{\"script\":\"1\"}", "SCRIPT",
+                Collections.emptyMap(), 7L);
+
+        assertTrue(result.getErrorMessage(), result.isSuccess());
+        assertEquals(Long.valueOf(7L), resolver.projectId);
+        assertEquals(Long.valueOf(7L), runtimeInvoker.executionProjectId);
+        assertEquals("bound_project", logService.saved.getProjectCode());
+        assertEquals(Long.valueOf(7L), billingService.authContext.getProjectId());
+    }
+
+    @Test
+    public void testExecutionRejectsProjectThatDoesNotOwnOrBindRule() {
+        RuleExecuteService service = new RuleExecuteService();
+        ReflectionTestUtils.setField(service, "definitionService",
+                new FakeDefinitionService() {
+                    @Override
+                    public boolean isDefinitionAvailableInProject(
+                            Long definitionId, Long projectId) {
+                        return false;
+                    }
+                });
+
+        RuleResult result = service.testExecute(
+                10L, Collections.emptyMap(), 99L);
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getErrorMessage().contains("未关联"));
+    }
+
+    @Test
     public void publishedExecutionScansAndInstallsExplicitSourceStatus() {
         RuleExecuteService service = new RuleExecuteService();
         SourceStatusResolver resolver = new SourceStatusResolver();
@@ -461,11 +550,13 @@ public class RuleExecuteServiceTest {
     }
 
     private static class RecordingPreviewResolver extends VariableSourceResolver {
+        private Long projectId;
         private Set<String> requiredScriptNames;
 
         @Override
         public Map<String, Object> resolveInto(Long projectId, Map<String, Object> target,
                                                VariableResolveOptions options) {
+            this.projectId = projectId;
             requiredScriptNames = options.getRequiredScriptNames();
             return target;
         }
@@ -544,6 +635,7 @@ public class RuleExecuteServiceTest {
         private Map<String, Object> values;
         private Map<String, Object> originalInput;
         private String modelJson;
+        private Long executionProjectId;
 
         @Override
         public void register(com.alibaba.qlexpress4.Express4Runner runner) {
@@ -589,6 +681,7 @@ public class RuleExecuteServiceTest {
                           boolean testMode, String modelJson) {
             this.values = values;
             this.originalInput = new LinkedHashMap<>(originalInput);
+            this.executionProjectId = executionProjectId;
             this.modelJson = modelJson;
         }
 
@@ -600,6 +693,7 @@ public class RuleExecuteServiceTest {
             this.values = values;
             this.originalInput = new LinkedHashMap<>(originalInput);
             this.modelJson = modelJson;
+            this.executionProjectId = executionProjectId;
         }
 
         @Override

@@ -87,7 +87,7 @@ const FormStub = {
 
 
 
-async function mountAndWait() {
+async function mountAndWait(routeQuery = {}) {
   projectApi.listProjects.mockResolvedValue({ data: { records: mockProjects() } })
   variableApi.listVariables.mockResolvedValue({ data: { records: mockVars(), total: 3 } })
   ruleListApi.listLibraries.mockResolvedValue({ data: { records: [{ id: 9, listCode: 'mobile_black', listName: '手机号黑名单' }], total: 1 } })
@@ -103,8 +103,9 @@ async function mountAndWait() {
 
   const wrapper = mount(VariableList, {
     mocks: {
-      $route: { params: {} },
+      $route: { params: {}, query: routeQuery },
       $router: { push: vi.fn(), replace: vi.fn() },
+      $store: { state: { currentProject: null } },
       $confirm: vi.fn().mockResolvedValue(true),
       $message: { success: vi.fn(), error: vi.fn(), warning: vi.fn() }
     },
@@ -153,6 +154,25 @@ describe('VariableList — 初始化与数据加载', () => {
 
   test('activeTab 默认为 list', () => {
     expect(wrapper.vm.activeTab).toBe('list')
+  })
+
+  test('项目上下文限定字段数据并作为新建字段默认归属', async () => {
+    const contextWrapper = await mountAndWait({ projectId: '2' })
+
+    expect(contextWrapper.vm.currentProjectId).toBe(2)
+    expect(variableApi.listVariables).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: 2, standaloneOnly: true })
+    )
+    contextWrapper.vm.handleCreate()
+    expect(contextWrapper.vm.form.scope).toBe('PROJECT')
+    expect(contextWrapper.vm.form.projectId).toBe(2)
+    contextWrapper.unmount()
+  })
+
+  test('无项目上下文时新建字段必须由用户选择作用范围', () => {
+    wrapper.vm.handleCreate()
+    expect(wrapper.vm.form.scope).toBe('')
+    expect(wrapper.vm.form.projectId).toBe('')
   })
 
   test('scopeTagLabel 返回正确标签', () => {

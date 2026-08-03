@@ -10,6 +10,31 @@ const apiData = new Map([
     records: [{ id: 1, projectCode: 'e2e_project', projectName: 'E2E 项目', status: 1 }],
     total: 1
   }],
+  ['/api/rule/project/1/workbench', {
+    project: {
+      id: 1,
+      projectCode: 'e2e_project',
+      projectName: 'E2E 项目',
+      status: 1
+    },
+    metrics: {
+      fieldCount: 2,
+      dataSourceCount: 0,
+      enabledDataSourceCount: 0,
+      modelCount: 0,
+      ruleCount: 1,
+      draftRuleCount: 1,
+      publishedRuleCount: 0,
+      testScenarioCount: 0,
+      pendingApprovalCount: 0,
+      recentExecutionCount: 0,
+      recentSuccessCount: 0,
+      recentSuccessRate: null
+    },
+    checks: [],
+    warnings: [],
+    recentExecution: null
+  }],
   ['/api/rule/definition/list', { records: [], total: 0 }],
   ['/api/rule/runtime-log/list', { records: [], total: 0 }],
   ['/api/rule/model/list', { records: [], total: 0 }],

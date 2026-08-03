@@ -1357,13 +1357,14 @@ import {
   updateApiConfig,
   updateDatasource,
 } from '@/api/datasource'
-import { listProjects } from '@/api/project'
+import { getProject, listProjects } from '@/api/project'
 import { listDataObjects } from '@/api/dataObject'
 import { collectReferencePaths, setPathValue } from '@/utils/testParamTemplate'
 import ModuleCallLog from '@/components/common/ModuleCallLog.vue'
 import MonacoEditor from '@/components/MonacoEditor'
 import RemoteFilterSelect from '@/components/RemoteFilterSelect.vue'
 import ProjectFilterSelect from '@/components/ProjectFilterSelect.vue'
+import { routeProjectId } from '@/utils/projectContext'
 
 export default {
   data() {
@@ -1383,6 +1384,7 @@ export default {
         },
       ],
       activeTab: 'datasource',
+      contextProjectId: null,
       projects: [],
       datasourceList: [],
       datasourceOptions: [],
@@ -1393,6 +1395,7 @@ export default {
       datasourceQuery: {
         pageNum: 1,
         pageSize: 10,
+        projectId: '',
         projectCode: '',
         projectName: '',
         scope: '',
@@ -1441,6 +1444,7 @@ export default {
       apiQuery: {
         pageNum: 1,
         pageSize: 10,
+        projectId: '',
         projectCode: '',
         projectName: '',
         datasourceCode: '',
@@ -1524,17 +1528,41 @@ export default {
     RemoteFilterSelect,
     ProjectFilterSelect,
   },
-  created() {
+  async created() {
     if (this.$route && this.$route.query && this.$route.query.tab === 'api') {
       this.activeTab = 'api'
     }
+    const contextProjectId = routeProjectId(
+      this.$route,
+      this.$store && this.$store.state.currentProject
+    )
+    let contextReady = true
+    if (contextProjectId) {
+      try {
+        const response = await getProject(contextProjectId)
+        if (!response.data) throw new Error('项目不存在')
+        this.applyProjectContext(response.data)
+      } catch (e) {
+        this.contextProjectId = Number(contextProjectId)
+        contextReady = false
+        this.$message.error(e.message || '加载项目范围失败')
+      }
+    }
     this.loadProjects()
+    if (!contextReady) return
     this.loadDatasources()
     this.loadApiConfigs()
     this.loadDatasourceOptions()
     this.loadDataObjectOptions(0)
   },
   methods: {
+    applyProjectContext(project) {
+      if (!project || !project.id) return
+      this.contextProjectId = Number(project.id)
+      this.datasourceQuery.projectId = this.contextProjectId
+      this.apiQuery.projectId = this.contextProjectId
+      if (project.projectCode) this.apiQuery.projectCode = project.projectCode
+    },
     emptyDatasourceForm() {
       return {
         id: null,
@@ -1650,6 +1678,9 @@ export default {
         pageNum: 1,
         pageSize: 500,
         status: 1,
+        ...(this.contextProjectId
+          ? { projectId: this.contextProjectId }
+          : {}),
       })
       this.datasourceOptions = (res.data && res.data.records) || []
     },
@@ -1716,6 +1747,7 @@ export default {
       this.datasourceQuery = {
         pageNum: 1,
         pageSize: this.datasourceQuery.pageSize,
+        projectId: this.contextProjectId || '',
         projectCode: '',
         projectName: '',
         scope: '',
@@ -1734,6 +1766,7 @@ export default {
       this.apiQuery = {
         pageNum: 1,
         pageSize: this.apiQuery.pageSize,
+        projectId: this.contextProjectId || '',
         projectCode: '',
         projectName: '',
         datasourceCode: '',
@@ -1745,7 +1778,12 @@ export default {
       this.loadApiConfigs()
     },
     handleCreateDatasource() {
-      this.$router.push('/datasource/source/new')
+      this.$router.push({
+        path: '/datasource/source/new',
+        query: this.contextProjectId
+          ? { projectId: this.contextProjectId }
+          : {},
+      })
     },
     handleEditDatasource(row) {
       this.$router.push('/datasource/source/' + row.id)
@@ -1757,7 +1795,12 @@ export default {
       this.authTestDialogVisible = true
     },
     async handleCreateApi(row) {
-      const query = row && row.id ? { datasourceId: row.id } : {}
+      const query = {
+        ...(row && row.id ? { datasourceId: row.id } : {}),
+        ...(this.contextProjectId
+          ? { projectId: this.contextProjectId }
+          : {}),
+      }
       this.$router.push({ path: '/datasource/api/new', query })
     },
     async handleEditApi(row) {

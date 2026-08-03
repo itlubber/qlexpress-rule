@@ -19,6 +19,20 @@
       >
     </div>
 
+    <project-workbench-overview
+      :workbench="workbench"
+      :loading="workbenchLoading"
+      :error="workbenchError"
+      @action="openWorkbenchAction"
+    />
+
+    <div class="rule-section-heading">
+      <div>
+        <h3>项目规则</h3>
+        <p>管理项目自有规则以及当前项目引用的全局规则。</p>
+      </div>
+    </div>
+
     <!-- 筛选条件 -->
     <div class="uiue-search-container">
       <el-form :inline="true" size="small" @keyup.enter="handleQuery">
@@ -415,14 +429,20 @@ import {
   deleteDefinition,
   deleteProjectBinding,
 } from '@/api/definition'
-import { getProject } from '@/api/project'
+import { getProject, getProjectWorkbench } from '@/api/project'
 import request from '@/api/request'
 import { restorePageState, savePageState } from '@/utils/pageStateCache'
+import ProjectWorkbenchOverview from '@/components/ProjectWorkbenchOverview.vue'
 export default {
+  name: 'ProjectDetail',
+  components: { ProjectWorkbenchOverview },
   data() {
     return {
       pid: null,
       project: null,
+      workbench: null,
+      workbenchLoading: false,
+      workbenchError: '',
       loading: false,
       list: [],
       total: 0,
@@ -459,16 +479,62 @@ export default {
       ElIconDocumentAdd: markRaw(ElIconDocumentAdd),
     }
   },
-  name: 'ProjectDetail',
   created() {
     this.pid = this.$route.params.id
     this.restoreCachedState()
-    getProject(this.pid).then((r) => {
-      this.project = r.data
-    })
+    this.loadProject()
+    this.loadWorkbench()
     this.load()
   },
   methods: {
+    async loadProject() {
+      try {
+        const response = await getProject(this.pid)
+        this.project = response.data
+        if (this.project) {
+          this.$store.commit('SET_CURRENT_PROJECT', this.project)
+        }
+      } catch (e) {
+        this.$message.error(e.message || '加载项目信息失败')
+      }
+    },
+    async loadWorkbench() {
+      this.workbenchLoading = true
+      this.workbenchError = ''
+      try {
+        const response = await getProjectWorkbench(this.pid)
+        this.workbench = response.data
+      } catch (e) {
+        this.workbenchError = e.message || '请稍后重试'
+      } finally {
+        this.workbenchLoading = false
+      }
+    },
+    openWorkbenchAction(item) {
+      if (!item || !item.actionCode) return
+      if (item.actionCode === 'REFRESH_WORKBENCH') {
+        this.loadWorkbench()
+        return
+      }
+      const routes = {
+        MANAGE_PROJECT: '/project',
+        CONFIGURE_FIELDS: '/variable',
+          CONFIGURE_SOURCES: '/datasource',
+          CONFIGURE_EXTERNAL_SOURCES: '/datasource',
+          CONFIGURE_DATABASE_SOURCES: '/database',
+        CONFIGURE_MODELS: '/model',
+        CONFIGURE_RULES: '/rule',
+        TEST_RULES: '/test',
+        REVIEW_APPROVALS: '/approval',
+        VIEW_LOGS: '/log',
+      }
+      const path = routes[item.actionCode]
+      if (!path) return
+      this.$router.push({
+        path,
+        query: { projectId: Number(this.pid) },
+      })
+    },
     cacheKey() {
       return 'ProjectDetail:' + this.pid
     },
@@ -685,3 +751,21 @@ export default {
   },
 }
 </script>
+
+<style lang="scss" scoped>
+.rule-section-heading {
+  margin-bottom: 12px;
+}
+
+.rule-section-heading h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 18px;
+}
+
+.rule-section-heading p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 12px;
+}
+</style>

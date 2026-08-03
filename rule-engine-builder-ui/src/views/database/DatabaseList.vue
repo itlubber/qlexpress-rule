@@ -681,6 +681,7 @@ import ModuleCallLog from '@/components/common/ModuleCallLog.vue'
 import MonacoEditor from '@/components/MonacoEditor'
 import RemoteFilterSelect from '@/components/RemoteFilterSelect.vue'
 import ProjectFilterSelect from '@/components/ProjectFilterSelect.vue'
+import { routeProjectId } from '@/utils/projectContext'
 
 export default {
   data() {
@@ -700,6 +701,7 @@ export default {
         },
       ],
       projects: [],
+      contextProjectId: null,
       activeTab: 'datasource',
       tableData: [],
       total: 0,
@@ -791,6 +793,13 @@ export default {
     ProjectFilterSelect,
   },
   created() {
+    this.contextProjectId = routeProjectId(
+      this.$route,
+      this.$store && this.$store.state.currentProject
+    )
+    if (this.contextProjectId) {
+      this.qp.projectId = this.contextProjectId
+    }
     this.loadProjects()
     this.loadData()
   },
@@ -877,13 +886,23 @@ export default {
         scope: '',
         datasourceCode: '',
         datasourceName: '',
-        dbType: '',
-        status: '',
-      }
+          dbType: '',
+          status: '',
+          ...(this.contextProjectId
+            ? { projectId: this.contextProjectId }
+            : {}),
+        }
       this.loadData()
     },
     handleCreate() {
-      this.$router.push('/database/new')
+      if (!this.contextProjectId) {
+        this.$router.push('/database/new')
+        return
+      }
+      this.$router.push({
+        path: '/database/new',
+        query: { projectId: this.contextProjectId },
+      })
     },
     handleEdit(row) {
       this.$router.push('/database/' + row.id)

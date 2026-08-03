@@ -235,7 +235,7 @@ test('账单配置、明细、汇总及新建弹窗可用', async ({ page }) => 
   await expect(configCode).toBeVisible()
   await expectTextSelectable(configCode, 'engine_call')
   await page.getByRole('button', { name: '新建计费项' }).click()
-  const dialog = page.getByRole('dialog', { name: '新建计费项' })
+  const dialog = page.getByRole('dialog', { name: '新建计费配置审批' })
   await expectDialogInsideViewport(page, dialog)
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()

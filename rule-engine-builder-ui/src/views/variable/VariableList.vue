@@ -1163,7 +1163,11 @@
             getObjectCode(objectFieldParentId)
           }}</span>
         </el-form-item>
-        <el-form-item v-if="!isObjectField" label="作用范围">
+        <el-form-item
+          v-if="!isObjectField"
+          label="作用范围"
+          prop="scope"
+        >
           <el-select
             v-model="form.scope"
             placeholder="选择作用范围"
@@ -1550,7 +1554,7 @@
             placeholder="QLExpress 脚本中的引用名，如 taxRequest"
           />
         </el-form-item>
-        <el-form-item label="作用范围">
+        <el-form-item label="作用范围" prop="scope">
           <el-select
             v-model="objectForm.scope"
             :disabled="!!objectForm.id"
@@ -2390,6 +2394,7 @@ import {
 } from '@/utils/testParamTemplate'
 import { normalizeTestSchema } from '@/utils/testSchema'
 import { normalizeTestResult } from '@/utils/testResult'
+import { routeProjectId } from '@/utils/projectContext'
 import {
   cloneOperand,
   collectOperandReferences,
@@ -2464,6 +2469,9 @@ export default {
       listQueryOperandKinds:
         getExpressionContext('LIST_QUERY_VALUE').allowedKinds,
       rules: {
+        scope: [
+          { required: true, message: '请选择作用范围', trigger: 'change' },
+        ],
         varCode: [
           { required: true, message: '请输入变量编码', trigger: 'blur' },
         ],
@@ -2517,13 +2525,16 @@ export default {
         objectCode: '',
         objectLabel: '',
         scriptName: '',
-        scope: 'PROJECT',
+        scope: '',
         projectId: '',
         objectType: 'INPUT',
         sourceType: 'MANUAL',
         description: '',
       },
       objectRules: {
+        scope: [
+          { required: true, message: '请选择作用范围', trigger: 'change' },
+        ],
         objectCode: [
           { required: true, message: '请输入对象编码', trigger: 'blur' },
         ],
@@ -2542,7 +2553,7 @@ export default {
         jsonContent: '',
         ddlSource: '',
         objectCode: '',
-        scope: 'GLOBAL',
+        scope: '',
         projectId: '',
       },
       importJavaEntityVisible: false,
@@ -2627,6 +2638,15 @@ export default {
   name: 'VariableList',
   created() {
     this.restoreCachedState()
+    this.currentProjectId =
+      routeProjectId(
+        this.$route,
+        this.$store && this.$store.state.currentProject
+      ) || ''
+    if (this.currentProjectId) {
+      this.qp.projectId = this.currentProjectId
+      this.validationQp.projectId = this.currentProjectId
+    }
     this.loadProjects()
   },
   mounted() {
@@ -2770,7 +2790,7 @@ export default {
     initForm() {
       return {
         id: null,
-        scope: 'GLOBAL',
+        scope: '',
         projectId: '',
         varCode: '',
         varLabel: '',
@@ -2809,7 +2829,7 @@ export default {
     initFieldValidationForm() {
       return {
         id: null,
-        scope: 'GLOBAL',
+        scope: '',
         projectId: '',
         validationCode: '',
         validationName: '',
@@ -3369,7 +3389,7 @@ export default {
       this.qp = {
         pageNum: 1,
         pageSize: this.qp.pageSize,
-        projectId: '',
+        projectId: this.currentProjectId || '',
         varType: '',
         varSource: '',
         keyword: '',
@@ -3397,6 +3417,7 @@ export default {
           if (projectName) p.projectName = projectName
           if (sourceType) p.sourceType = sourceType
           if (objectCode) p.objectCode = objectCode
+          if (this.currentProjectId) p.projectId = this.currentProjectId
           return p
         }
         let res = await request.get('/rule/dataobject/tree', {
@@ -3501,7 +3522,7 @@ export default {
         objectCode: '',
         objectLabel: '',
         scriptName: '',
-        scope: this.currentProjectId ? 'PROJECT' : 'GLOBAL',
+        scope: this.currentProjectId ? 'PROJECT' : '',
         projectId: this.currentProjectId || '',
         objectType: 'INPUT',
         sourceType: 'MANUAL',
@@ -3538,6 +3559,10 @@ export default {
     handleObjectSubmit() {
       this.$refs.objForm.validate(async (valid) => {
         if (!valid) return
+        if (!this.objectForm.scope) {
+          this.$message.warning('请选择作用范围')
+          return
+        }
         if (this.objectForm.scope === 'PROJECT' && !this.objectForm.projectId) {
           this.$message.warning('请选择所属项目')
           return
@@ -3725,6 +3750,10 @@ export default {
     handlePrimaryCreate() {
       if (this.activeTab === 'validations') {
         this.validationForm = this.initFieldValidationForm()
+        if (this.currentProjectId) {
+          this.validationForm.scope = 'PROJECT'
+          this.validationForm.projectId = this.currentProjectId
+        }
         this.validationOriginalStatus = null
         this.validationDialogVisible = true
         return
@@ -3734,12 +3763,12 @@ export default {
         this.isObjectField = false
         this.objectFieldParentId = null
         this.form = { ...this.initForm(), varSource: 'CONSTANT', status: 1 }
-        // 如果当前选中了项目，默认项目级范围，否则全局
+        // 项目上下文中默认归属当前项目；全局入口由用户明确选择范围。
         if (this.currentProjectId) {
           this.form.scope = 'PROJECT'
           this.form.projectId = this.currentProjectId
         } else {
-          this.form.scope = 'GLOBAL'
+          this.form.scope = ''
           this.form.projectId = ''
         }
         this.dialogVisible = true
@@ -3776,7 +3805,7 @@ export default {
         pageNum: 1,
         pageSize: this.validationQp.pageSize,
         scope: '',
-        projectId: '',
+        projectId: this.currentProjectId || '',
         validationType: '',
         keyword: '',
       }
@@ -3806,6 +3835,10 @@ export default {
     },
     async saveFieldValidation() {
       const form = this.validationForm
+      if (!form.scope) {
+        this.$message.warning('请选择作用范围')
+        return
+      }
       if (
         !form.validationCode ||
         !form.validationName ||
@@ -3888,8 +3921,8 @@ export default {
       this.isObjectField = false
       this.objectFieldParentId = null
       this.form = this.initForm()
-      // 如果当前选中了项目，则 projectId 默认填充，scope 保持 initForm 的 PROJECT
       if (this.currentProjectId) {
+        this.form.scope = 'PROJECT'
         this.form.projectId = this.currentProjectId
       }
       this.dialogVisible = true
@@ -3945,6 +3978,10 @@ export default {
           this.openApproval(response, '对象字段变更已送审')
           this.dialogVisible = false
           this.isObjectField = false
+          return
+        }
+        if (!this.form.scope) {
+          this.$message.warning('请选择作用范围')
           return
         }
         if (!this.form.projectId) this.form.projectId = this.currentProjectId
@@ -4440,8 +4477,8 @@ export default {
         jsonContent: '',
         ddlSource: '',
         objectCode: '',
-        scope: 'GLOBAL',
-        projectId: '',
+        scope: this.currentProjectId ? 'PROJECT' : '',
+        projectId: this.currentProjectId || '',
       }
       if (cmd === 'java-entity') this.importJavaEntityVisible = true
       else if (cmd === 'json-object') this.importJsonObjectVisible = true
@@ -4457,15 +4494,26 @@ export default {
       reader.readAsText(file)
       return false
     },
-    async doImportJavaEntity() {
-      if (!this.importForm.javaSource.trim()) {
-        this.$message.warning('请输入或上传 Java 源码')
-        return
+    ensureImportScope() {
+      if (!this.importForm.scope) {
+        this.$message.warning('请选择作用范围')
+        return false
       }
-      if (this.importForm.scope === 'PROJECT' && !this.importForm.projectId) {
+      if (
+        this.importForm.scope === 'PROJECT' &&
+        !this.importForm.projectId
+      ) {
         this.$message.warning(
           '导入为「项目级」时请选择项目，或将作用范围改为「全局」'
         )
+        return false
+      }
+      return true
+    },
+    async doImportJavaEntity() {
+      if (!this.ensureImportScope()) return
+      if (!this.importForm.javaSource.trim()) {
+        this.$message.warning('请输入或上传 Java 源码')
         return
       }
       this.importing = true
@@ -4488,18 +4536,13 @@ export default {
       }
     },
     async doImportJsonObject() {
+      if (!this.ensureImportScope()) return
       if (!this.importForm.objectCode.trim()) {
         this.$message.warning('请输入对象编码')
         return
       }
       if (!this.importForm.jsonContent.trim()) {
         this.$message.warning('请输入 JSON 内容')
-        return
-      }
-      if (this.importForm.scope === 'PROJECT' && !this.importForm.projectId) {
-        this.$message.warning(
-          '导入为「项目级」时请选择项目，或将作用范围改为「全局」'
-        )
         return
       }
       this.importing = true
@@ -4524,14 +4567,9 @@ export default {
     },
     /** 从 CREATE TABLE DDL 导入数据对象（COMMENT → 变量名称） */
     async doImportDdl() {
+      if (!this.ensureImportScope()) return
       if (!this.importForm.ddlSource || !this.importForm.ddlSource.trim()) {
         this.$message.warning('请输入建表 DDL')
-        return
-      }
-      if (this.importForm.scope === 'PROJECT' && !this.importForm.projectId) {
-        this.$message.warning(
-          '导入为「项目级」时请选择项目，或将作用范围改为「全局」'
-        )
         return
       }
       this.importing = true
@@ -4554,14 +4592,9 @@ export default {
       }
     },
     async doImportJavaConst() {
+      if (!this.ensureImportScope()) return
       if (!this.importForm.javaSource.trim()) {
         this.$message.warning('请输入或上传 Java 源码')
-        return
-      }
-      if (this.importForm.scope === 'PROJECT' && !this.importForm.projectId) {
-        this.$message.warning(
-          '导入为「项目级」时请选择项目，或将作用范围改为「全局」'
-        )
         return
       }
       this.importing = true
@@ -4583,14 +4616,9 @@ export default {
       }
     },
     async doImportJsonConst() {
+      if (!this.ensureImportScope()) return
       if (!this.importForm.jsonContent.trim()) {
         this.$message.warning('请输入 JSON 内容')
-        return
-      }
-      if (this.importForm.scope === 'PROJECT' && !this.importForm.projectId) {
-        this.$message.warning(
-          '导入为「项目级」时请选择项目，或将作用范围改为「全局」'
-        )
         return
       }
       this.importing = true

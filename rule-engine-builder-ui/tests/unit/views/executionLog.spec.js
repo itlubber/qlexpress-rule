@@ -51,7 +51,7 @@ const defaultStubs = {
 }
 
 const defaultMocks = {
-  $route: { params: {} },
+  $route: { params: {}, query: {} },
   $router: { push: vi.fn(), replace: vi.fn() }
 }
 
@@ -127,6 +127,31 @@ test('uses project code and name fuzzy filters', async () => {
   wrapper.unmount()
 })
 
+test('project context metadata failure does not fall back to all execution logs', async () => {
+  projectApi.getProject.mockRejectedValueOnce(new Error('project missing'))
+  requestApi.mockResolvedValue({ data: { records: mockLogs(), total: 3 } })
+  const message = { error: vi.fn() }
+
+  const wrapper = shallowMount(ExecutionLog, {
+    mocks: {
+      $route: { params: {}, query: { projectId: '7' } },
+      $router: defaultMocks.$router,
+      $store: { state: { currentProject: null } },
+      $message: message
+    },
+    stubs: defaultStubs
+  })
+  await nextTick()
+  await new Promise(resolve => setTimeout(resolve, 20))
+
+  expect(wrapper.vm.contextProjectId).toBe(7)
+  expect(wrapper.vm.contextError).toContain('停止加载')
+  expect(requestApi).not.toHaveBeenCalled()
+  expect(wrapper.vm.list).toEqual([])
+  expect(message.error).toHaveBeenCalled()
+  wrapper.unmount()
+})
+
 // ─── 测试用例 ─────────────────────────────────────────────
 
 describe('ExecutionLog — 初始化与数据加载', () => {
@@ -142,6 +167,18 @@ describe('ExecutionLog — 初始化与数据加载', () => {
 
   test('mounted 后加载日志列表', () => {
     expect(requestApi).toHaveBeenCalled()
+  })
+
+  test('项目上下文用稳定项目编码限定执行日志', () => {
+    wrapper.vm.applyProjectContext({
+      id: 1,
+      projectCode: 'project_a',
+      projectName: '项目A'
+    })
+
+    expect(wrapper.vm.contextProjectId).toBe(1)
+    expect(wrapper.vm.qp.projectCode).toBe('project_a')
+    expect(wrapper.vm.qp.projectName).toBe('')
   })
 
   test('初始日志请求严格使用当前页码和分页大小', () => {

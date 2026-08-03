@@ -293,6 +293,7 @@ test('关键控件的默认、hover、focus 与语义色均保持清晰反馈', 
     .locator('xpath=..')
     .evaluate((element) => getComputedStyle(element).boxShadow)
   expect(focusShadow).not.toBe('none')
+  await page.keyboard.press('Escape')
 
   const firstRow = page.locator('.el-table__body tr').first()
   const firstCell = firstRow.locator('td').first()
@@ -342,7 +343,7 @@ test('列表操作按查看、编辑、执行、发布和危险动作展示稳�
         ['设计', 'warning'],
         ['生命周期', 'success'],
         ['下线', 'warning'],
-        ['删除', 'danger'],
+        ['申请删除规则', 'danger'],
       ],
     },
     {

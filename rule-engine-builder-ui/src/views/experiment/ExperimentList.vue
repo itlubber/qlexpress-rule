@@ -563,6 +563,7 @@ import {
 import { collectOperandReferences, syncOperandReference } from '@/utils/operand'
 import { normalizeRuleOptions } from '@/utils/ruleCallConfig'
 import { normalizeTestSchema } from '@/utils/testSchema'
+import { routeProjectId } from '@/utils/projectContext'
 
 export default {
   data() {
@@ -571,11 +572,13 @@ export default {
       experiments: [],
       total: 0,
       projects: [],
+      contextProjectId: null,
       rulesForProject: [],
       contentLoaded: true,
       query: {
         pageNum: 1,
         pageSize: 10,
+        projectId: '',
         projectCode: '',
         projectName: '',
         status: '',
@@ -636,6 +639,11 @@ export default {
     },
   },
   created() {
+    this.contextProjectId = routeProjectId(
+      this.$route,
+      this.$store && this.$store.state.currentProject
+    )
+    if (this.contextProjectId) this.query.projectId = this.contextProjectId
     this.loadProjects()
     this.loadExperiments()
   },
@@ -747,6 +755,7 @@ export default {
       this.query = {
         pageNum: 1,
         pageSize: this.query.pageSize,
+        projectId: this.contextProjectId || '',
         projectCode: '',
         projectName: '',
         status: '',
@@ -755,7 +764,12 @@ export default {
       this.loadExperiments()
     },
     async handleCreate() {
-      this.$router.push('/experiment/new')
+      this.$router.push({
+        path: '/experiment/new',
+        query: this.contextProjectId
+          ? { projectId: this.contextProjectId }
+          : {},
+      })
     },
     async handleEdit(row) {
       this.$router.push('/experiment/detail/' + row.id)

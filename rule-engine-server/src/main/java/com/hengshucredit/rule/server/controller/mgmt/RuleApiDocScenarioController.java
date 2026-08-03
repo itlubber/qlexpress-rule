@@ -77,7 +77,10 @@ public class RuleApiDocScenarioController {
                                  @RequestBody(required = false) Map<String, Object> body) {
         Map<String, Object> params = body != null && body.get("params") instanceof Map
                 ? (Map<String, Object>) body.get("params") : Collections.emptyMap();
-        return R.ok(executeService.testExecute(definitionId, params));
+        Long projectId = body == null || body.get("projectId") == null
+                ? null : Long.valueOf(body.get("projectId").toString());
+        return R.ok(executeService.testExecute(
+                definitionId, params, projectId));
     }
 
     private <T> R<T> execute(Supplier<T> action) {

@@ -38,7 +38,7 @@ public class RuleExternalApiConfigService extends ServiceImpl<RuleExternalApiCon
     @Resource
     private ExternalApiResponseCache externalApiResponseCache;
 
-    public IPage<RuleExternalApiConfig> pageList(int pageNum, int pageSize, Long datasourceId,
+    public IPage<RuleExternalApiConfig> pageList(int pageNum, int pageSize, Long datasourceId, Long projectId,
                                                  String projectCode, String projectName, String datasourceCode,
                                                  String apiCode, String apiName, String requestMode, Integer status) {
         ProjectFilterService.ProjectMatches projectMatches = projectFilterService.resolve(projectCode, projectName);
@@ -50,8 +50,12 @@ public class RuleExternalApiConfigService extends ServiceImpl<RuleExternalApiCon
         if (datasourceId != null && datasourceId > 0) {
             wrapper.eq(RuleExternalApiConfig::getDatasourceId, datasourceId);
         }
-        if (projectMatches.isActive() || hasText(datasourceCode)) {
+        boolean exactProject = projectId != null && projectId > 0;
+        if (exactProject || projectMatches.isActive() || hasText(datasourceCode)) {
             LambdaQueryWrapper<RuleExternalDatasource> datasourceWrapper = new LambdaQueryWrapper<>();
+            if (exactProject) {
+                datasourceWrapper.eq(RuleExternalDatasource::getProjectId, projectId);
+            }
             if (projectMatches.isActive()) {
                 datasourceWrapper.in(RuleExternalDatasource::getProjectId, projectMatches.getProjectIds());
             }

@@ -1,5 +1,6 @@
 import DatasourceList from '@/views/datasource/DatasourceList.vue'
 import ProjectFilterSelect from '@/components/ProjectFilterSelect.vue'
+import * as projectApi from '@/api/project'
 
 function createContext(overrides = {}) {
   const ctx = {
@@ -25,10 +26,47 @@ describe('DatasourceList helpers', () => {
     expect(DatasourceList.components.ProjectFilterSelect).toBe(ProjectFilterSelect)
     expect(data.datasourceQuery).toEqual(expect.objectContaining({ projectCode: '', projectName: '' }))
     expect(data.apiQuery).toEqual(expect.objectContaining({ projectCode: '', projectName: '' }))
+    expect(data.apiQuery.projectId).toBe('')
   })
 
   test('created loads api config list on first entry', () => {
     expect(DatasourceList.created.toString()).toContain('this.loadApiConfigs()')
+  })
+
+  test('project context scopes datasource and API queries by stable project identity', () => {
+    const ctx = createContext({
+      datasourceQuery: {},
+      apiQuery: {}
+    })
+
+    ctx.applyProjectContext({ id: 7, projectCode: 'RISK' })
+
+    expect(ctx.contextProjectId).toBe(7)
+    expect(ctx.datasourceQuery.projectId).toBe(7)
+    expect(ctx.apiQuery.projectId).toBe(7)
+    expect(ctx.apiQuery.projectCode).toBe('RISK')
+  })
+
+  test('project context metadata failure keeps datasource and API lists empty', async () => {
+    projectApi.getProject.mockRejectedValueOnce(new Error('project missing'))
+    const ctx = createContext({
+      $route: { query: { projectId: '7' } },
+      $store: { state: { currentProject: null } },
+      $message: { error: vi.fn() },
+    })
+    ctx.loadProjects = vi.fn()
+    ctx.loadDatasources = vi.fn()
+    ctx.loadApiConfigs = vi.fn()
+    ctx.loadDatasourceOptions = vi.fn()
+    ctx.loadDataObjectOptions = vi.fn()
+
+    await DatasourceList.created.call(ctx)
+
+    expect(ctx.contextProjectId).toBe(7)
+    expect(ctx.loadProjects).toHaveBeenCalled()
+    expect(ctx.loadDatasources).not.toHaveBeenCalled()
+    expect(ctx.loadApiConfigs).not.toHaveBeenCalled()
+    expect(ctx.$message.error).toHaveBeenCalled()
   })
 
   test('normalizeApi rejects invalid JSON fields', () => {

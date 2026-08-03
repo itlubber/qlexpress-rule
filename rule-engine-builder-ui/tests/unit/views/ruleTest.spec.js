@@ -143,6 +143,43 @@ describe('RuleTest — 初始化与数据加载', () => {
     expect(wrapper.vm.rules.length).toBe(2)
   })
 
+  test('项目上下文直接进入项目规则测试范围', async () => {
+    definitionApi.listProjectDefinitions.mockResolvedValueOnce({
+      data: { records: mockRules() }
+    })
+
+    await wrapper.vm.applyProjectContext(1)
+
+    expect(wrapper.vm.ruleScope).toBe('PROJECT')
+    expect(wrapper.vm.selectedProjectId).toBe(1)
+    expect(definitionApi.listProjectDefinitions).toHaveBeenCalledWith(1, {
+      pageNum: 1,
+      pageSize: 1000
+    })
+  })
+
+  test('项目上下文切换全局规则时保留项目并只加载已绑定规则', async () => {
+    definitionApi.listProjectDefinitions.mockResolvedValue({
+      data: { records: mockRules() }
+    })
+    await wrapper.vm.applyProjectContext(1)
+    definitionApi.listProjectDefinitions.mockClear()
+    wrapper.vm.ruleScope = 'GLOBAL'
+
+    await wrapper.vm.onScopeChange()
+
+    expect(wrapper.vm.contextProjectId).toBe(1)
+    expect(wrapper.vm.selectedProjectId).toBe(1)
+    expect(definitionApi.listProjectDefinitions).toHaveBeenCalledWith(1, {
+      pageNum: 1,
+      pageSize: 1000,
+      scope: 'GLOBAL'
+    })
+    expect(definitionApi.listDefinitions).not.toHaveBeenCalledWith(
+      expect.objectContaining({ scope: 'GLOBAL' })
+    )
+  })
+
   test('result 初始为 null（注意：字段名是 result 不是 testResult）', () => {
     expect(wrapper.vm.result).toBeNull()
   })
@@ -327,13 +364,13 @@ describe('RuleTest — 加载变量（loadVariables）', () => {
     wrapper.vm.selectedRule = mockRules().find(r => r.id === 4)
 
     definitionApi.getRuleTestSchema.mockResolvedValueOnce({ data: { inputs: [], sampleParams: {} } })
-    definitionApi.refreshFields.mockResolvedValueOnce({ data: null })
     definitionApi.listInputFields.mockResolvedValueOnce({ data: [] })
 
     await wrapper.vm.loadVariables()
     await nextTick()
 
     expect(wrapper.vm.params).toEqual([])
+    expect(definitionApi.refreshFields).not.toHaveBeenCalled()
     expect(variableApi.listVariablesByProject).not.toHaveBeenCalled()
   })
 
@@ -475,6 +512,20 @@ describe('RuleTest — 执行与结果展示', () => {
     }, 180000)
   })
 
+  test('project-scoped execution sends the effective project ID', async () => {
+    definitionApi.executeRule.mockResolvedValueOnce({ data: mockExecutionResult() })
+    wrapper.vm.selectedRuleId = 4
+    wrapper.vm.selectedProjectId = 7
+
+    await wrapper.vm.handleExecute()
+
+    expect(definitionApi.executeRule).toHaveBeenCalledWith({
+      definitionId: 4,
+      projectId: 7,
+      params: {}
+    }, 180000)
+  })
+
   test('handleExecute 保留 false 输出', async () => {
     definitionApi.executeRule.mockResolvedValueOnce({ data: { success: true, result: false } })
     wrapper.vm.selectedRuleId = 4
@@ -520,6 +571,7 @@ describe('RuleTest — 执行与结果展示', () => {
       }
     ]
     wrapper.vm.selectedRuleId = 4
+    wrapper.vm.selectedProjectId = 7
     definitionApi.listApiScenarios.mockResolvedValueOnce({ data: cases })
     await wrapper.vm.loadTestCases()
     wrapper.vm.selectedTestCaseIds = [11, 12]
@@ -530,6 +582,7 @@ describe('RuleTest — 执行与结果展示', () => {
     await wrapper.vm.executeSelectedTestCases()
 
     expect(definitionApi.executeApiScenario).toHaveBeenCalledTimes(2)
+    expect(definitionApi.executeApiScenario.mock.calls[0][1].projectId).toBe(7)
     expect(wrapper.vm.batchResults[0].diffs).toEqual([])
     expect(wrapper.vm.batchResults[1].diffs[0]).toMatchObject({ path: '$.result.level', expected: 'A', actual: 'B' })
   })

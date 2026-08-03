@@ -2,7 +2,7 @@
   <div class="uiue-list-page">
     <div class="uiue-search-container">
       <el-form :inline="true" size="small" @keyup.enter="handleQuery">
-        <el-form-item label="作用范围">
+        <el-form-item label="作用范围" prop="scope">
           <el-select
             v-model="queryParams.scope"
             clearable
@@ -346,6 +346,7 @@ import { markRaw } from 'vue'
 import { Search as ElIconSearch, Plus as ElIconPlus } from '@element-plus/icons-vue'
 import {
   listDefinitions,
+  listProjectDefinitions,
   createDefinition,
   deleteDefinition,
 } from '@/api/definition'
@@ -357,6 +358,7 @@ import {
 } from '@/utils/pageStateCache'
 import RemoteFilterSelect from '@/components/RemoteFilterSelect.vue'
 import ProjectFilterSelect from '@/components/ProjectFilterSelect.vue'
+import { routeProjectId } from '@/utils/projectContext'
 
 export default {
   data() {
@@ -364,6 +366,7 @@ export default {
       loading: false,
       tableData: [],
       total: 0,
+      contextProjectId: null,
       projectList: [],
       filteredProjectCodes: [],
       filteredProjectNames: [],
@@ -381,7 +384,7 @@ export default {
       },
       dialogVisible: false,
       form: {
-        scope: 'GLOBAL',
+        scope: '',
         projectId: null,
         ruleCode: '',
         ruleName: '',
@@ -390,6 +393,9 @@ export default {
         status: 0,
       },
       rules: {
+        scope: [
+          { required: true, message: '请选择作用范围', trigger: 'change' },
+        ],
         ruleCode: [
           { required: true, message: '请输入规则编码', trigger: 'blur' },
         ],
@@ -408,6 +414,13 @@ export default {
   components: { RemoteFilterSelect, ProjectFilterSelect },
   created() {
     this.restoreCachedState()
+    this.contextProjectId = routeProjectId(
+      this.$route,
+      this.$store && this.$store.state.currentProject
+    )
+    if (this.contextProjectId) {
+      this.queryParams.projectId = this.contextProjectId
+    }
     this.loadData()
     this.loadProjectList()
   },
@@ -447,20 +460,26 @@ export default {
       }
     },
     fetchRuleCodeOptions({ query, pageNum, pageSize }) {
-      return listDefinitions({
+      const params = {
         ...this.queryParams,
         pageNum,
         pageSize,
         ruleCode: query || '',
-      })
+      }
+      return this.contextProjectId
+        ? listProjectDefinitions(this.contextProjectId, params)
+        : listDefinitions(params)
     },
     fetchRuleNameOptions({ query, pageNum, pageSize }) {
-      return listDefinitions({
+      const params = {
         ...this.queryParams,
         pageNum,
         pageSize,
         ruleName: query || '',
-      })
+      }
+      return this.contextProjectId
+        ? listProjectDefinitions(this.contextProjectId, params)
+        : listDefinitions(params)
     },
     queryProjectCode(query) {
       const q = (query || '').toLowerCase()
@@ -496,7 +515,9 @@ export default {
             delete params[key]
           }
         })
-        const res = await listDefinitions(params)
+        const res = this.contextProjectId
+          ? await listProjectDefinitions(this.contextProjectId, params)
+          : await listDefinitions(params)
 
         // 兼容后端返回 IPage（{ records, total }）和直接返回数组两种格式
         if (res.data) {
@@ -547,6 +568,9 @@ export default {
         ruleCode: '',
         ruleName: '',
         publishedVersion: '',
+        ...(this.contextProjectId
+          ? { projectId: this.contextProjectId }
+          : {}),
       }
       clearPageState('RuleList')
       this.loadData()
@@ -558,8 +582,8 @@ export default {
     },
     handleCreate() {
       this.form = {
-        scope: 'GLOBAL',
-        projectId: null,
+        scope: this.contextProjectId ? 'PROJECT' : '',
+        projectId: this.contextProjectId,
         ruleCode: '',
         ruleName: '',
         modelType: 'TABLE',
@@ -574,6 +598,10 @@ export default {
     async handleSubmit() {
       this.$refs.formRef.validate(async (valid) => {
         if (!valid) return
+        if (!this.form.scope) {
+          this.$message.warning('请选择作用范围')
+          return
+        }
         if (this.form.scope === 'PROJECT' && !this.form.projectId) {
           this.$message.warning('请选择项目')
           return

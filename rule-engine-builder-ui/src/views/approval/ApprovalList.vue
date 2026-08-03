@@ -123,6 +123,7 @@
 <script>
 import router from '@/router'
 import { listGovernanceRequests } from '@/api/governance'
+import { routeProjectId } from '@/utils/projectContext'
 
 const STATUS_OPTIONS = [
   { value: 'EDITING', label: '编辑中' },
@@ -168,10 +169,15 @@ export default {
       pageNum: 1,
       pageSize: 20,
       total: 0,
-      loading: false
+      loading: false,
+      contextProjectId: null
     }
   },
   created() {
+    this.contextProjectId = routeProjectId(
+      this.$route || router.currentRoute.value,
+      this.$store && this.$store.state.currentProject
+    )
     this.loadRequests()
   },
   methods: {
@@ -183,6 +189,7 @@ export default {
           keyword: this.filters.keyword || undefined,
           status: this.filters.status || undefined,
           action: this.filters.action || undefined,
+          projectId: this.contextProjectId || undefined,
           pageNum: this.pageNum,
           pageSize: this.pageSize
         })

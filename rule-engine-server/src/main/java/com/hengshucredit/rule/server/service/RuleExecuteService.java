@@ -72,12 +72,21 @@ public class RuleExecuteService {
     private ArtifactRuntimeSnapshotService artifactRuntimeSnapshotService;
 
     public RuleResult testExecute(Long definitionId, Map<String, Object> params) {
+        return testExecute(definitionId, params, null);
+    }
+
+    public RuleResult testExecute(Long definitionId, Map<String, Object> params,
+                                  Long executionProjectId) {
         RuleDefinition definition = definitionService.getById(definitionId);
         if (definition == null) {
             RuleResult r = new RuleResult();
             r.setSuccess(false);
             r.setErrorMessage("规则定义不存在");
             return r;
+        }
+
+        if (!isValidTestProject(definition, executionProjectId)) {
+            return failedResult("当前规则未关联到所选项目，无法按该项目执行测试");
         }
 
         RuleDefinitionContent content = definitionService.getContent(definitionId);
@@ -89,46 +98,62 @@ public class RuleExecuteService {
         }
 
         return executeTest(definition, content.getCompiledScript(), content.getModelJson(),
-                definitionService.listInputFields(definitionId), params);
+                definitionService.listInputFields(definitionId), params,
+                effectiveProjectId(definition, executionProjectId));
     }
 
     public RuleResult testExecutePreview(Long definitionId, String modelJson, String modelType,
                                          Map<String, Object> params) {
+        return testExecutePreview(definitionId, modelJson, modelType, params,
+                null);
+    }
+
+    public RuleResult testExecutePreview(Long definitionId, String modelJson, String modelType,
+                                         Map<String, Object> params,
+                                         Long executionProjectId) {
         RuleDefinition definition = definitionService.getById(definitionId);
         if (definition == null) {
             return failedResult("规则定义不存在");
         }
+        if (!isValidTestProject(definition, executionProjectId)) {
+            return failedResult("当前规则未关联到所选项目，无法按该项目执行测试");
+        }
+        Long effectiveProjectId = effectiveProjectId(
+                definition, executionProjectId);
         CompileResult compileResult = compileService.compilePreview(definitionId, modelJson, modelType);
         if (!compileResult.isSuccess()) {
             return failedResult(compileResult.getErrorMessage());
         }
         RuleFieldAnalyzer.ResolvedFields fields = ruleFieldAnalyzer.resolveFields(
-                definitionId, modelJson, modelType, definition.getProjectId());
+                definitionId, modelJson, modelType, effectiveProjectId);
         return executeTest(definition, compileResult.getCompiledScript(), modelJson,
-                fields.getInputFields(), params);
+                fields.getInputFields(), params, effectiveProjectId);
     }
 
     private RuleResult executeTest(RuleDefinition definition, String compiledScript, String modelJson,
                                    List<RuleDefinitionInputField> inputFields,
-                                   Map<String, Object> params) {
-        String funcPrefix = prepareProjectFunctions(definition.getProjectId(), true);
+                                   Map<String, Object> params,
+                                   Long executionProjectId) {
+        String funcPrefix = prepareProjectFunctions(executionProjectId, true);
         String fullScript = funcPrefix.isEmpty() ? compiledScript : funcPrefix + "\n" + compiledScript;
         VariableResolveOptions resolveOptions = withInputFields(
                 VariableResolveOptions.defaults(), inputFields, modelJson, definition.getModelType());
         Map<String, Object> executeParams = bindInputs(inputFields, params, resolveOptions);
         Map<String, Object> originalInput = snapshotMap(executeParams);
         String projectCode = null;
-        if (definition.getProjectId() != null) {
-            RuleProject project = projectService.getById(definition.getProjectId());
+        if (executionProjectId != null) {
+            RuleProject project = projectService.getById(executionProjectId);
             if (project != null) {
                 projectCode = project.getProjectCode();
             }
         }
-        runtimeRuleInvoker.enter(definition, projectCode, executeParams, originalInput, true, modelJson);
+        runtimeRuleInvoker.enter(definition, executionProjectId, projectCode,
+                executeParams, originalInput, true, modelJson);
         long executionStart = System.currentTimeMillis();
         RuleResult result = new RuleResult();
         try {
-            variableSourceResolver.resolveInto(definition.getProjectId(), executeParams, resolveOptions);
+            variableSourceResolver.resolveInto(executionProjectId, executeParams,
+                    resolveOptions);
             RuntimeContextBridge.replaceSourceStates(resolveOptions.getSourceStates());
             result = qlExpressEngine.execute(fullScript, executeParams, true);
         } catch (RuleTerminationSignal e) {
@@ -160,7 +185,12 @@ public class RuleExecuteService {
             log.setTraceInfo(toJsonSafely(result.getTraces()));
         }
         logService.save(log);
-        billingService.recordEngineExecution(definition, result.isSuccess(), result.getExecuteTimeMs(), result.getErrorMessage());
+        ProjectAuthContext billingContext = executionProjectId == null
+                ? null : ProjectAuthContext.direct(
+                executionProjectId, projectCode, null, null, null);
+        billingService.recordEngineExecution(definition, result.isSuccess(),
+                result.getExecuteTimeMs(), result.getErrorMessage(),
+                billingContext);
 
         return result;
     }
@@ -170,6 +200,19 @@ public class RuleExecuteService {
         result.setSuccess(false);
         result.setErrorMessage(message);
         return result;
+    }
+
+    private boolean isValidTestProject(RuleDefinition definition,
+                                       Long executionProjectId) {
+        return executionProjectId == null
+                || definitionService.isDefinitionAvailableInProject(
+                definition.getId(), executionProjectId);
+    }
+
+    private Long effectiveProjectId(RuleDefinition definition,
+                                    Long executionProjectId) {
+        return executionProjectId == null
+                ? definition.getProjectId() : executionProjectId;
     }
 
     private void collectDeclaredOutputsIfNeeded(RuleResult result, String modelType) {

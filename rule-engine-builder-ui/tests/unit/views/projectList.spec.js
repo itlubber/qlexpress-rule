@@ -422,19 +422,10 @@ describe('ProjectList — 边界情况', () => {
     w.unmount()
   })
 
-  test('workflowSteps 覆盖从项目到发布的完整路径', async () => {
+  test('项目列表不再展示无法反映真实状态的固定步骤', async () => {
     const w = await mountAndWait()
-    expect(w.vm.workflowSteps.map(item => item.title)).toEqual([
-      '创建项目',
-      '定义变量/对象',
-      '设计规则',
-      '编译',
-      '测试',
-      '发布',
-      'SDK 接入',
-      '查看日志/账单'
-    ])
-    expect(w.vm.workflowSteps[6].text).toContain('X-Rule-Token')
+    expect(w.find('.workflow-guide').exists()).toBe(false)
+    expect(w.vm.workflowSteps).toBeUndefined()
     w.unmount()
   })
 })

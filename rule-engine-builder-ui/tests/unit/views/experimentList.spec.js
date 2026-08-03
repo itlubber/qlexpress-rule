@@ -61,7 +61,25 @@ describe('ExperimentList', () => {
 
     expect(ExperimentList.components.ProjectFilterSelect).toBe(ProjectFilterSelect)
     expect(query).toEqual(expect.objectContaining({ projectCode: '', projectName: '' }))
-    expect(query.projectId).toBeUndefined()
+    expect(query.projectId).toBe('')
+  })
+
+  test('项目上下文限定实验列表并传递给新建页面', async () => {
+    const push = vi.fn()
+    const ctx = createContext({ $router: { push }, contextProjectId: 9 })
+    ctx.query.projectId = 9
+    listExperiments.mockResolvedValue({ data: { records: [], total: 0 } })
+
+    await ctx.loadExperiments()
+    await ctx.handleCreate()
+
+    expect(listExperiments).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: 9 })
+    )
+    expect(push).toHaveBeenCalledWith({
+      path: '/experiment/new',
+      query: { projectId: 9 }
+    })
   })
 
   test('validateGroups rejects production ratio that is not 100 percent', () => {

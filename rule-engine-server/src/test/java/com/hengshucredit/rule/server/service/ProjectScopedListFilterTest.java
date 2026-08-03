@@ -123,7 +123,7 @@ public class ProjectScopedListFilterTest {
         ReflectionTestUtils.setField(service, "datasourceMapper", datasourceMapper);
         ReflectionTestUtils.setField(service, "projectFilterService", projectFilter(project(7L, "RISK_A")));
 
-        service.pageList(1, 10, null, "RISK", "风控", null, null, null, null, null);
+        service.pageList(1, 10, null, null, "RISK", "风控", null, null, null, null, null);
 
         assertTrue(recording.wrapper.getSqlSegment(), recording.wrapper.getSqlSegment().contains("datasourceId"));
         assertTrue(recording.wrapper.getParamNameValuePairs().containsValue(31L));

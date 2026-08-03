@@ -813,6 +813,7 @@ import MonacoEditor from '@/components/MonacoEditor'
 import RemoteFilterSelect from '@/components/RemoteFilterSelect.vue'
 import ProjectFilterSelect from '@/components/ProjectFilterSelect.vue'
 import ModelImpactDialog from '@/components/model/ModelImpactDialog.vue'
+import { routeProjectId } from '@/utils/projectContext'
 import {
   ONNX_TASKS,
   createOnnxConfig,
@@ -877,12 +878,14 @@ export default {
       total: 0,
       projects: [],
       projectList: [],
+      contextProjectId: null,
       supportedModelAccept: '.onnx,.pmml',
       filteredProjectCodes: [],
       filteredProjectNames: [],
       qp: {
         pageNum: 1,
         pageSize: 10,
+        projectId: '',
         scope: '',
         modelType: '',
         modelFormat: '',
@@ -1076,6 +1079,11 @@ export default {
   },
   created() {
     this.restoreCachedState()
+    this.contextProjectId = routeProjectId(
+      this.$route,
+      this.$store && this.$store.state.currentProject
+    )
+    if (this.contextProjectId) this.qp.projectId = this.contextProjectId
     this.loadProjects()
     this.loadRuntimeCapabilities()
   },
@@ -1191,6 +1199,7 @@ export default {
       this.qp = {
         pageNum: 1,
         pageSize: this.qp.pageSize,
+        projectId: this.contextProjectId || '',
         scope: '',
         modelType: '',
         modelFormat: '',
@@ -1233,6 +1242,10 @@ export default {
 
     handleUpload() {
       this.uploadForm = createUploadForm()
+      if (this.contextProjectId) {
+        this.uploadForm.scope = 'PROJECT'
+        this.uploadForm.projectId = this.contextProjectId
+      }
       this.uploadProgress = 0
       this.fileList = []
       this.selectedFile = null

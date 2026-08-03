@@ -91,7 +91,7 @@ test('变量管理四类业务页签的数据、复制、按钮和弹框均可�
       tab: '字段校验',
       text: 'mobile_required',
       button: '新建校验规则',
-      dialogTitle: '新建字段校验'
+      dialogTitle: '新建字段校验审批'
     }
   ]
 

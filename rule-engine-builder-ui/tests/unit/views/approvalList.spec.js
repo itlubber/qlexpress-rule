@@ -19,6 +19,7 @@ vi.mock('@/api/governance', () => ({
 import { flushPromises, shallowMount } from '@test-utils'
 import ApprovalList from '@/views/approval/ApprovalList.vue'
 import router from '@/router'
+import * as governanceApi from '@/api/governance'
 
 describe('统一审批列表', () => {
   test('提供字段到项目共八个生命周期标签页', async() => {
@@ -56,6 +57,19 @@ describe('统一审批列表', () => {
     )
     expect(wrapper.vm.resourceTitle(request)).toBe(
       '将规则“共享评分规则”加入项目“风控项目”'
+    )
+  })
+
+  test('项目上下文只查询当前项目审批', async() => {
+    const wrapper = shallowMount(ApprovalList)
+    await flushPromises()
+    governanceApi.listGovernanceRequests.mockClear()
+    wrapper.vm.contextProjectId = 9
+
+    await wrapper.vm.loadRequests()
+
+    expect(governanceApi.listGovernanceRequests).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: 9 })
     )
   })
 })

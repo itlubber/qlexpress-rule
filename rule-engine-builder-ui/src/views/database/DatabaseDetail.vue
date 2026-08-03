@@ -11,7 +11,7 @@
         </div>
       </div>
       <div class="detail-actions">
-        <el-button size="small" @click="$router.push('/database')"
+        <el-button size="small" @click="goBack"
           >返回</el-button
         >
         <el-button size="small" @click="handleTestDraft">测试连接</el-button>
@@ -337,6 +337,7 @@ import {
 } from '@/api/database'
 import { listProjects } from '@/api/project'
 import MonacoEditor from '@/components/MonacoEditor'
+import { normalizeProjectId } from '@/utils/projectContext'
 
 export default {
   name: 'DatabaseDetail',
@@ -456,6 +457,14 @@ export default {
         description: '',
         status: 1,
       }
+    },
+    goBack() {
+      const projectId = normalizeProjectId(this.$route.query.projectId)
+      if (!projectId) {
+        this.$router.push('/database')
+        return
+      }
+      this.$router.push({ path: '/database', query: { projectId } })
     },
     async loadProjects() {
       try {

@@ -82,4 +82,23 @@ describe('DatabaseDetail — 项目选择', () => {
 
     expect(wrapper.vm.form.projectId).toBeNull()
   })
+
+  test('项目内新建数据库返回列表时保留显式项目范围', async () => {
+    projectApi.listProjects.mockResolvedValue({
+      data: { records: [{ id: 3, projectName: '综合风控示例项目' }] }
+    })
+    const wrapper = mountPage({
+      path: '/database/new',
+      params: { id: 'new' },
+      query: { projectId: '3' }
+    })
+    await flushPromises()
+
+    wrapper.vm.goBack()
+
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith({
+      path: '/database',
+      query: { projectId: 3 }
+    })
+  })
 })

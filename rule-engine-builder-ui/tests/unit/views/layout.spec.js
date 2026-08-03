@@ -10,6 +10,7 @@ import { nextTick } from 'vue'
 import { createStore } from 'vuex'
 import { shallowMount } from '@test-utils'
 import * as authApi from '@/api/auth'
+import * as projectApi from '@/api/project'
 import Layout from '@/layout/index.vue'
 import LayoutSidebar from '@/layout/components/LayoutSidebar.vue'
 import WorkspaceTabs from '@/layout/components/WorkspaceTabs.vue'
@@ -249,11 +250,13 @@ describe('Layout — 页签快捷键', () => {
 })
 
 function createRoute(fullPath, title = '规则管理') {
-  const path = fullPath.split('?')[0]
+  const [path, queryText = ''] = fullPath.split('?')
+  const query = Object.fromEntries(new URLSearchParams(queryText).entries())
   const expressionMatch = path.match(/^\/designer\/expression\/([^/]+)\/([^/]+)$/)
   return {
     fullPath,
     path,
+    query,
     name: expressionMatch ? 'ExpressionEditor' : (path === '/project' ? 'ProjectList' : 'RuleList'),
     params: expressionMatch ? { ruleId: expressionMatch[1], sessionId: expressionMatch[2] } : {},
     meta: { title },
@@ -262,7 +265,19 @@ function createRoute(fullPath, title = '规则管理') {
 }
 
 function mountLayout(route = createRoute('/rule')) {
-  const store = createStore({ modules: { expressionSessions, workspaceTabs } })
+  const store = createStore({
+    state: { currentProject: null, projectContextGeneration: 0 },
+    mutations: {
+      INVALIDATE_PROJECT_CONTEXT_REQUESTS(state) {
+        state.projectContextGeneration += 1
+      },
+      SET_CURRENT_PROJECT(state, project) {
+        state.projectContextGeneration += 1
+        state.currentProject = project
+      }
+    },
+    modules: { expressionSessions, workspaceTabs }
+  })
   const router = {
     push: vi.fn().mockResolvedValue(undefined),
     replace: vi.fn().mockResolvedValue(undefined),
@@ -353,6 +368,58 @@ describe('Layout — 全局布局集成', () => {
     wrapper.unmount()
   })
 
+  test('项目上下文变化会重建支持项目范围的业务页面', async() => {
+    const { wrapper, store } = mountLayout(createRoute('/experiment', '分流实验'))
+    await nextTick()
+    expect(wrapper.vm.currentViewKey).toBe('/experiment::0')
+
+    store.commit('SET_CURRENT_PROJECT', { id: 3, projectName: '风险项目' })
+    await nextTick()
+    expect(wrapper.vm.currentViewKey).toBe('/experiment::0::project:3')
+
+    store.commit('SET_CURRENT_PROJECT', null)
+    await nextTick()
+    expect(wrapper.vm.currentViewKey).toBe('/experiment::0')
+    wrapper.unmount()
+  })
+
+  test('退出项目范围会使尚未完成的项目加载请求失效', async() => {
+    let resolveProject
+    projectApi.getProject.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveProject = resolve })
+    )
+    const { wrapper, store } = mountLayout(
+      createRoute('/rule?projectId=9', '规则管理')
+    )
+    const loading = wrapper.vm.syncProjectContext()
+    store.commit('SET_CURRENT_PROJECT', null)
+    resolveProject({ data: { id: 9, projectCode: 'STALE' } })
+    await loading
+
+    expect(store.state.currentProject).toBeNull()
+    wrapper.unmount()
+  })
+
+  test('缓存中的同 ID 项目仍会从后端重新校验并刷新展示信息', async() => {
+    projectApi.getProject.mockResolvedValueOnce({
+      data: { id: 9, projectCode: 'RISK', projectName: '新名称', status: 1 }
+    })
+    const { wrapper, store } = mountLayout(
+      createRoute('/rule?projectId=9', '规则管理')
+    )
+    store.commit('SET_CURRENT_PROJECT', {
+      id: 9,
+      projectCode: 'RISK',
+      projectName: '旧名称'
+    })
+
+    await wrapper.vm.syncProjectContext()
+
+    expect(projectApi.getProject).toHaveBeenCalledWith(9)
+    expect(store.state.currentProject.projectName).toBe('新名称')
+    wrapper.unmount()
+  })
+
   test('全局快捷键阻止默认行为并刷新当前业务页签', async() => {
     const { wrapper } = mountLayout()
     await nextTick()
@@ -419,9 +486,11 @@ describe('Layout — 全局布局集成', () => {
 
   test('退出接口失败仍跳转登录页', async() => {
     authApi.consoleLogout.mockRejectedValue(new Error('logout failed'))
-    const { wrapper, router } = mountLayout()
+    const { wrapper, router, store } = mountLayout()
+    store.commit('SET_CURRENT_PROJECT', { id: 9, projectCode: 'RISK' })
 
     await expect(wrapper.vm.doLogout()).rejects.toThrow('logout failed')
+    expect(store.state.currentProject).toBeNull()
     expect(router.replace).toHaveBeenCalledWith({ path: '/login' })
     wrapper.unmount()
   })

@@ -374,6 +374,7 @@ import {
 } from '@/api/datasource'
 import { listProjects } from '@/api/project'
 import MonacoEditor from '@/components/MonacoEditor'
+import { routeProjectId } from '@/utils/projectContext'
 
 export default {
   name: 'DatasourceDetail',
@@ -447,9 +448,19 @@ export default {
     await this.loadProjects()
     if (!this.isCreateMode) {
       await this.loadDetail()
+    } else {
+      const projectId = routeProjectId(
+        this.$route,
+        this.$store && this.$store.state.currentProject
+      )
+      if (projectId) this.applyProjectContext(projectId)
     }
   },
   methods: {
+    applyProjectContext(projectId) {
+      this.form.scope = 'PROJECT'
+      this.form.projectId = Number(projectId)
+    },
     emptyForm() {
       return {
         id: null,

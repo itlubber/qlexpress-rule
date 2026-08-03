@@ -69,6 +69,24 @@ describe('ExperimentDetail', () => {
     vi.clearAllMocks()
   })
 
+  test('新建实验只采用显式项目上下文，不默认第一个项目', async () => {
+    const ctx = createContext({
+      projects: [
+        { id: 1, projectCode: 'FIRST' },
+        { id: 9, projectCode: 'RISK' }
+      ]
+    })
+    ctx.loadRules = vi.fn().mockResolvedValue()
+    ctx.loadExperimentRefs = vi.fn().mockResolvedValue()
+
+    expect(ctx.form.projectId).toBeNull()
+    await ctx.applyProjectContext(9)
+
+    expect(ctx.form.projectId).toBe(9)
+    expect(ctx.form.projectCode).toBe('RISK')
+    expect(ctx.loadRules).toHaveBeenCalledWith(9)
+  })
+
   test('允许调整冠军组类型，但保存前必须只有一个冠军组', () => {
     const ctx = createContext()
     ctx.form.groups[0].ruleCode = 'rule_challenger'

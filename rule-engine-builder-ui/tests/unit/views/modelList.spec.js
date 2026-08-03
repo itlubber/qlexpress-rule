@@ -67,7 +67,7 @@ describe('ModelList 项目筛选交互', () => {
 // ─── 测试用例 ─────────────────────────────────────────────
 
 
-async function mountAndWait() {
+async function mountAndWait(routeQuery = {}) {
   projectApi.listProjects.mockResolvedValue({ data: { records: mockProjects() } })
   modelApi.listModels.mockResolvedValue({ data: { records: mockModels(), total: 3 } })
   modelApi.getRuntimeCapabilities.mockResolvedValue({
@@ -76,7 +76,7 @@ async function mountAndWait() {
 
   const wrapper = mount(ModelList, {
     mocks: {
-      $route: { params: {} },
+      $route: { params: {}, query: routeQuery },
       $router: { push: vi.fn(), replace: vi.fn() }
     },
     stubs: {
@@ -295,6 +295,18 @@ describe('ModelList — 上传模型', () => {
     expect(wrapper.vm.uploadForm.cudaDeviceId).toBe(0)
     expect(wrapper.vm.fileList).toEqual([])
     expect(wrapper.vm.selectedFile).toBeNull()
+  })
+
+  test('项目上下文限定模型列表并默认选择当前项目', async () => {
+    const contextWrapper = await mountAndWait({ projectId: '2' })
+    contextWrapper.vm.handleUpload()
+
+    expect(modelApi.listModels).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: 2 })
+    )
+    expect(contextWrapper.vm.uploadForm.scope).toBe('PROJECT')
+    expect(contextWrapper.vm.uploadForm.projectId).toBe(2)
+    contextWrapper.unmount()
   })
 
   test('handleFileChange 保存选中的文件', () => {

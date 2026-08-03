@@ -13,14 +13,33 @@ async function mountPage() {
   projectApi.getProject.mockResolvedValue({
     data: { id: 9, projectCode: 'risk', projectName: '风控项目' },
   })
+  projectApi.getProjectWorkbench.mockResolvedValue({
+    data: {
+      metrics: { fieldCount: 3, publishedRuleCount: 1 },
+      checks: [
+        {
+          code: 'FIELD',
+          status: 'READY',
+          title: '定义业务字段',
+          actionCode: 'CONFIGURE_FIELDS',
+          actionLabel: '查看字段',
+        },
+      ],
+    },
+  })
   request.mockResolvedValue({
     data: { records: [], total: 0 },
   })
   const router = { push: vi.fn(), replace: vi.fn() }
+  const store = {
+    state: { currentProject: null },
+    commit: vi.fn(),
+  }
   const wrapper = shallowMount(ProjectDetail, {
     mocks: {
       $route: { params: { id: 9 }, query: {} },
       $router: router,
+      $store: store,
       $confirm: vi.fn().mockResolvedValue('confirm'),
       $message: {
         success: vi.fn(),
@@ -32,7 +51,7 @@ async function mountPage() {
   await flushPromises()
   request.mockClear()
   router.push.mockClear()
-  return { wrapper, router }
+  return { wrapper, router, store }
 }
 
 describe('ProjectDetail 规则生命周期入口', () => {
@@ -64,6 +83,44 @@ describe('ProjectDetail 规则生命周期入口', () => {
       name: 'RuleDetail',
       params: { id: 30 },
       query: { focus: 'lifecycle', action: 'offline' },
+    })
+    wrapper.unmount()
+  })
+
+  test('加载项目工作台并写入稳定项目上下文', async () => {
+    const { wrapper, store } = await mountPage()
+
+    expect(projectApi.getProjectWorkbench).toHaveBeenCalledWith(9)
+    expect(wrapper.vm.workbench.metrics.fieldCount).toBe(3)
+    expect(store.commit).toHaveBeenCalledWith(
+      'SET_CURRENT_PROJECT',
+      expect.objectContaining({ id: 9, projectCode: 'risk' })
+    )
+    wrapper.unmount()
+  })
+
+  test('工作台动作通过项目 ID 进入对应模块', async () => {
+    const { wrapper, router } = await mountPage()
+
+    wrapper.vm.openWorkbenchAction({ actionCode: 'CONFIGURE_FIELDS' })
+
+    expect(router.push).toHaveBeenCalledWith({
+      path: '/variable',
+      query: { projectId: 9 },
+    })
+    wrapper.unmount()
+  })
+
+  test('数据库数据源异常会进入数据库管理而不是外数管理', async () => {
+    const { wrapper, router } = await mountPage()
+
+    wrapper.vm.openWorkbenchAction({
+      actionCode: 'CONFIGURE_DATABASE_SOURCES',
+    })
+
+    expect(router.push).toHaveBeenCalledWith({
+      path: '/database',
+      query: { projectId: 9 },
     })
     wrapper.unmount()
   })

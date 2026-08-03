@@ -21,6 +21,7 @@
         @activate="activateTab"
         @operate="handleTabOperation"
       />
+      <project-context-bar />
       <main class="layout-main">
         <router-view v-slot="{ Component }">
           <keep-alive :max="12">
@@ -45,6 +46,7 @@
 import { isNavigationFailure } from 'vue-router'
 import LayoutSidebar from '@/layout/components/LayoutSidebar.vue'
 import WorkspaceTabs from '@/layout/components/WorkspaceTabs.vue'
+import ProjectContextBar from '@/components/ProjectContextBar.vue'
 import {
   SIDEBAR_COMPACT_THRESHOLD,
   SIDEBAR_MENUS,
@@ -60,6 +62,12 @@ import {
 } from '@/layout/layoutState'
 import { readWorkspaceTabs } from '@/store/modules/workspaceTabs'
 import { getConsoleAuthConfig, consoleLogout, getConsoleMe } from '@/api/auth'
+import { getProject } from '@/api/project'
+import {
+  normalizeProjectId,
+  routeSupportsProjectContext,
+  withProjectContext,
+} from '@/utils/projectContext'
 import {
   clearCurrentUser,
   filterMenus,
@@ -76,7 +84,7 @@ function browserSessionStorage() {
 
 export default {
   name: 'Layout',
-  components: { LayoutSidebar, WorkspaceTabs },
+  components: { LayoutSidebar, WorkspaceTabs, ProjectContextBar },
   data() {
     const sidebarState = readSidebarState(browserSessionStorage())
     return {
@@ -102,7 +110,14 @@ export default {
     },
     currentViewKey() {
       const viewKey = this.$store.getters['workspaceTabs/viewKey']
-      return viewKey ? viewKey(this.$route.fullPath) : this.$route.fullPath
+      const baseKey = viewKey
+        ? viewKey(this.$route.fullPath)
+        : this.$route.fullPath
+      const current = this.$store.state.currentProject
+      const projectId = normalizeProjectId(current && current.id)
+      return routeSupportsProjectContext(this.$route.path) && projectId
+        ? `${baseKey}::project:${projectId}`
+        : baseKey
     },
     avatarInitial() {
       return getAvatarInitial(this.username)
@@ -111,6 +126,7 @@ export default {
   watch: {
     '$route.fullPath'() {
       this.openCurrentRoute()
+      this.syncProjectContext()
     },
   },
   created() {
@@ -119,6 +135,7 @@ export default {
   async mounted() {
     window.addEventListener('keydown', this.handleWorkspaceShortcut, true)
     await this.refreshAuthBar()
+    await this.syncProjectContext()
   },
   beforeUnmount() {
     window.removeEventListener('keydown', this.handleWorkspaceShortcut, true)
@@ -159,10 +176,42 @@ export default {
     },
     navigateTo(fullPath) {
       if (!fullPath || fullPath === this.$route.fullPath) return
-      return this.$router.push(fullPath).catch((error) => {
+      const target = withProjectContext(
+        fullPath,
+        this.$store.state.currentProject && this.$store.state.currentProject.id
+      )
+      return this.$router.push(target).catch((error) => {
         if (isNavigationFailure(error)) return
         throw error
       })
+    },
+    async syncProjectContext() {
+      this.$store.commit('INVALIDATE_PROJECT_CONTEXT_REQUESTS')
+      const generation = this.$store.state.projectContextGeneration
+      if (this.$route.path === '/project') {
+        if (this.$store.state.currentProject) {
+          this.$store.commit('SET_CURRENT_PROJECT', null)
+        }
+        return
+      }
+      if (!routeSupportsProjectContext(this.$route.path)) return
+      const explicitProjectId = normalizeProjectId(
+        this.$route && this.$route.query && this.$route.query.projectId
+      )
+      const current = this.$store.state.currentProject
+      const projectId =
+        explicitProjectId || normalizeProjectId(current && current.id)
+      if (!projectId) return
+      try {
+        const response = await getProject(projectId)
+        if (generation !== this.$store.state.projectContextGeneration) return
+        if (!response.data) throw new Error('项目不存在')
+        this.$store.commit('SET_CURRENT_PROJECT', response.data)
+      } catch (e) {
+        if (generation !== this.$store.state.projectContextGeneration) return
+        this.$store.commit('SET_CURRENT_PROJECT', null)
+        this.$message.error(e.message || '加载项目上下文失败')
+      }
     },
     activateTab(fullPath) {
       if (!fullPath) return
@@ -251,6 +300,7 @@ export default {
         this.loginEnabled = false
         this.username = ''
         clearCurrentUser()
+        this.$store.commit('SET_CURRENT_PROJECT', null)
         this.sidebarMenus = filterMenus(SIDEBAR_MENUS)
       }
     },
@@ -259,6 +309,7 @@ export default {
         await consoleLogout()
       } finally {
         clearCurrentUser()
+        this.$store.commit('SET_CURRENT_PROJECT', null)
         this.$router.replace({ path: '/login' })
       }
     },

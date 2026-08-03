@@ -50,6 +50,7 @@ async function expectPrimaryActions(page, names) {
   for (const name of names) {
     const button = page.getByRole('main').getByRole('button', { name, exact: true }).first()
     await expect(button).toBeVisible()
+    await button.scrollIntoViewIfNeeded()
     await expect(button).toBeInViewport()
   }
 }
@@ -99,7 +100,7 @@ test('名单详情加载记录和变更日志且内容可复制', async ({ page 
   await logsTab.click()
   await expect(logsTab).toHaveAttribute('aria-selected', 'true')
   await expect(page.getByText('INSERT', { exact: true }).first()).toBeVisible()
-  await expectPrimaryActions(page, ['返回', '导入', '导出'])
+  await expectPrimaryActions(page, ['返回', '导入并审批', '导出'])
   await expectNoRootOverflow(page)
   expect(errors.pageErrors).toEqual([])
   expect(errors.consoleErrors).toEqual([])

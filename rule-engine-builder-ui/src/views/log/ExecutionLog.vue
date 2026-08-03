@@ -1,5 +1,14 @@
 <template>
   <div class="uiue-list-page">
+    <el-alert
+      v-if="contextError"
+      class="context-error"
+      title="无法加载当前项目"
+      :description="contextError"
+      type="error"
+      show-icon
+      :closable="false"
+    />
     <el-tabs
       v-model="activeView"
       class="log-view-tabs"
@@ -563,7 +572,7 @@ import request from '@/api/request'
 import { listVariables } from '@/api/variable'
 import { getVariableTree } from '@/api/dataObject'
 import { listDefinitions as listRules, getContent } from '@/api/definition'
-import { listProjects } from '@/api/project'
+import { getProject, listProjects } from '@/api/project'
 import { listAllFunctionsByProject } from '@/api/function'
 import { listAllModelsByProject } from '@/api/model'
 import { getRuleSetStats } from '@/api/runtimeLog'
@@ -575,6 +584,7 @@ import {
   restorePageState,
   savePageState,
 } from '@/utils/pageStateCache'
+import { routeProjectId } from '@/utils/projectContext'
 
 export default {
   components: {
@@ -668,6 +678,9 @@ projectOptionsLoading: false,
 ruleOptionsLoading: false,
 projectOptionsLoaded: false,
 ruleOptionsLoaded: false,
+contextProjectId: null,
+contextProjectCode: '',
+contextError: '',
 ruleSetStatsLoading: false,
 ruleSetStatsError: '',
 ruleSetStats: {
@@ -722,12 +735,43 @@ detailVis: function (val) {
 if (val) this.detailTab = 'basic'
 },
 },
-created: function () {
+created: async function () {
 this.initDefaultTimeRange()
 this.restoreCachedState()
+var contextId = routeProjectId(
+  this.$route,
+  this.$store && this.$store.state.currentProject
+)
+if (contextId) {
+  var currentProject = this.$store && this.$store.state.currentProject
+  if (currentProject && Number(currentProject.id) === contextId && currentProject.projectCode) {
+    this.applyProjectContext(currentProject)
+  } else {
+    try {
+      var response = await getProject(contextId)
+      if (!response.data) throw new Error('项目不存在')
+      this.applyProjectContext(response.data)
+    } catch (e) {
+      this.contextProjectId = contextId
+      this.contextError = '无法确认当前项目，已停止加载日志，避免显示其他项目的数据。'
+      this.list = []
+      this.total = 0
+      this.$message.error(e.message || '加载项目范围失败')
+      return
+    }
+  }
+}
 this.load()
 },
 methods: {
+applyProjectContext: function (project) {
+if (!project || !project.id) return
+this.contextProjectId = Number(project.id)
+this.contextProjectCode = project.projectCode || ''
+this.qp.projectCode = this.contextProjectCode
+this.qp.projectName = ''
+this.mergeProjects([project])
+},
 async handleViewChange(tab) {
 var paneName = tab && (tab.paneName ?? tab.name ?? (tab.props && tab.props.name))
 this.activeView = paneName && paneName.value !== undefined ? paneName.value : (paneName || this.activeView)
@@ -1080,7 +1124,7 @@ sourceTagType: function (source) {
 return source === 'SERVER' ? undefined : 'success'
 },
 onSourceChange: function () {
-this.qp.projectCode = ''
+this.qp.projectCode = this.contextProjectCode || ''
 this.qp.projectName = ''
 this.qp.ruleCode = ''
 },
@@ -1096,7 +1140,7 @@ this.load()
 },
 resetQuery: function () {
 this.qp.source = ''
-this.qp.projectCode = ''
+this.qp.projectCode = this.contextProjectCode || ''
 this.qp.projectName = ''
 this.qp.ruleCode = ''
 this.qp.modelType = ''

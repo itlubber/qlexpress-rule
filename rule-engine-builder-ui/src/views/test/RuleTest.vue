@@ -23,6 +23,7 @@
                 v-model="selectedProjectId"
                 placeholder="请选择项目"
                 clearable
+                :disabled="!!contextProjectId"
                 style="width: 100%"
                 @change="onProjectChange"
               >
@@ -421,10 +422,10 @@ import {
 import { listProjects } from '@/api/project'
 import {
   listDefinitions,
+  listProjectDefinitions,
   executeRule,
   getContent,
   listInputFields,
-  refreshFields,
   getRuleTestSchema,
   listApiScenarios,
   createApiScenario,
@@ -438,6 +439,7 @@ import TraceTree from '@/components/common/TraceTree.vue'
 import AsyncState from '@/components/common/AsyncState.vue'
 import { sampleValueForVarType } from '@/utils/testParamTemplate'
 import { normalizeTestResult } from '@/utils/testResult'
+import { routeProjectId } from '@/utils/projectContext'
 import {
   normalizeTestSchema,
   schemaFieldsToTestFields,
@@ -467,6 +469,7 @@ export default {
       projects: [],
       rules: [],
       ruleScope: 'ALL',
+      contextProjectId: null,
       selectedProjectId: null,
       selectedRuleId: null,
       selectedRule: null,
@@ -492,7 +495,13 @@ export default {
   },
   created() {
     this.loadProjects()
-    this.loadRulesByScope()
+    const projectId = routeProjectId(
+      this.$route,
+      this.$store && this.$store.state.currentProject
+    )
+    this.contextProjectId = projectId
+    if (projectId) this.applyProjectContext(projectId)
+    else this.loadRulesByScope()
     this.loadVarMap()
     this.loadFunctionNameMap()
   },
@@ -520,6 +529,12 @@ export default {
     },
   },
   methods: {
+    async applyProjectContext(projectId) {
+      this.contextProjectId = Number(projectId)
+      this.ruleScope = 'PROJECT'
+      this.selectedProjectId = Number(projectId)
+      await this.onProjectChange()
+    },
     async loadRulesByScope() {
       // 页面加载时根据当前 ruleScope 自动加载规则列表
       if (this.ruleScope === 'ALL') {
@@ -531,12 +546,7 @@ export default {
         }
       } else if (this.ruleScope === 'GLOBAL') {
         try {
-          const res = await listDefinitions({
-            pageNum: 1,
-            pageSize: 1000,
-            scope: 'GLOBAL',
-          })
-          this.rules = res.data.records || []
+          await this.loadGlobalRules()
         } catch (e) {
           /* ignore */
         }
@@ -617,7 +627,7 @@ export default {
       this.params = []
       this.result = null
       this.resetTestCases()
-      this.selectedProjectId = null
+      this.selectedProjectId = this.contextProjectId
 
       if (this.ruleScope === 'ALL') {
         try {
@@ -628,18 +638,24 @@ export default {
         }
       } else if (this.ruleScope === 'GLOBAL') {
         try {
-          const res = await listDefinitions({
-            pageNum: 1,
-            pageSize: 1000,
-            scope: 'GLOBAL',
-          })
-          this.rules = res.data.records || []
+          await this.loadGlobalRules()
         } catch (e) {
           /* ignore */
         }
       } else if (this.ruleScope === 'PROJECT') {
-        // 项目级规则由 onProjectChange 处理，此处不加载
+        if (this.selectedProjectId) await this.onProjectChange()
       }
+    },
+    async loadGlobalRules() {
+      const params = {
+        pageNum: 1,
+        pageSize: 1000,
+        scope: 'GLOBAL',
+      }
+      const res = this.contextProjectId
+        ? await listProjectDefinitions(this.contextProjectId, params)
+        : await listDefinitions(params)
+      this.rules = res.data.records || []
     },
     async onProjectChange() {
       this.selectedRuleId = null
@@ -650,10 +666,9 @@ export default {
       this.resetTestCases()
       if (!this.selectedProjectId) return
       try {
-        const res = await listDefinitions({
+        const res = await listProjectDefinitions(this.selectedProjectId, {
           pageNum: 1,
           pageSize: 1000,
-          projectId: this.selectedProjectId,
         })
         this.rules = res.data.records || []
       } catch (e) {
@@ -764,6 +779,9 @@ export default {
         for (const testCase of selected) {
           try {
             const request = JSON.parse(testCase.requestJson || '{}')
+            if (this.selectedProjectId) {
+              request.projectId = this.selectedProjectId
+            }
             const actual = await executeApiScenario(
               this.selectedRuleId,
               request,
@@ -856,11 +874,6 @@ export default {
       }
     },
     async loadInputFieldsFromServer() {
-      try {
-        await refreshFields(this.selectedRuleId)
-      } catch (e) {
-        // 保存中状态下可能刷新失败，继续读取服务端已有结构化字段；不按编码回退关联。
-      }
       try {
         var res = await listInputFields(this.selectedRuleId)
         var fields = this.unwrapResponse(res)
@@ -1114,8 +1127,12 @@ export default {
       this.executing = true
       this.result = null
       try {
+        const request = { definitionId: this.selectedRuleId, params: paramMap }
+        if (this.selectedProjectId) {
+          request.projectId = this.selectedProjectId
+        }
         const res = await executeRule(
-          { definitionId: this.selectedRuleId, params: paramMap },
+          request,
           this.requestTimeoutMs
         )
         this.lastRawResponse = res

@@ -7,12 +7,16 @@ import DatabaseList from '@/views/database/DatabaseList.vue'
 
 
 
-async function mountPage() {
+async function mountPage(route) {
   projectApi.listProjects.mockResolvedValue({ data: { records: [{ id: 1, projectName: '项目A' }] } })
   databaseApi.listDbDatasources.mockResolvedValue({ data: { records: [], total: 0 } })
+  const router = { push: vi.fn() }
 
   const wrapper = mount(DatabaseList, {
     mocks: {
+      $route: route || { path: '/database', query: {}, params: {} },
+      $router: router,
+      $store: { state: { currentProject: null } },
       $message: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
       $confirm: vi.fn().mockResolvedValue(true)
     },
@@ -57,6 +61,28 @@ describe('DatabaseList — JDBC URL 生成', () => {
   test('uses unified fuzzy filters for project code and name', () => {
     expect(DatabaseList.components.ProjectFilterSelect).toBe(ProjectFilterSelect)
     expect(wrapper.vm.qp).toEqual(expect.objectContaining({ projectCode: '', projectName: '' }))
+  })
+
+  test('项目工作台进入时限定数据库列表并让新建页继承项目', async () => {
+    wrapper.unmount()
+    wrapper = await mountPage({
+      path: '/database',
+      query: { projectId: '2' },
+      params: {},
+    })
+
+    expect(databaseApi.listDbDatasources).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: 2 })
+    )
+
+    wrapper.vm.resetQuery()
+    expect(wrapper.vm.qp.projectId).toBe(2)
+
+    wrapper.vm.handleCreate()
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith({
+      path: '/database/new',
+      query: { projectId: 2 },
+    })
   })
 
   test('MySQL 表单字段能生成 JDBC URL 并追加扩展参数', () => {

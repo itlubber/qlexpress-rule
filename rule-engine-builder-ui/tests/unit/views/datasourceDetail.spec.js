@@ -11,6 +11,16 @@ function createContext() {
 }
 
 describe('DatasourceDetail token config', () => {
+  test('new datasource inherits explicit project context', () => {
+    const ctx = createContext()
+    ctx.form = DatasourceDetail.methods.emptyForm()
+
+    ctx.applyProjectContext(7)
+
+    expect(ctx.form.scope).toBe('PROJECT')
+    expect(ctx.form.projectId).toBe(7)
+  })
+
   test('token api serializes custom header name and empty prefix', () => {
     const ctx = createContext()
     ctx.authConfig.tokenHeaderName = 'token_id'

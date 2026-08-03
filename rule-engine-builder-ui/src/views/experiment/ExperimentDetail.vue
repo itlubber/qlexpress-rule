@@ -827,6 +827,7 @@ import {
 } from '@/utils/operand'
 import { getExpressionContext } from '@/constants/expressionContexts'
 import { normalizeRuleOptions } from '@/utils/ruleCallConfig'
+import { routeProjectId } from '@/utils/projectContext'
 
 export default {
   data() {
@@ -1005,18 +1006,27 @@ export default {
     await this.loadProjects()
     if (this.isCreateMode) {
       this.form = this.emptyForm()
-      if (this.projects.length > 0) {
-        this.form.projectId = this.projects[0].id
-        this.form.projectCode = this.projects[0].projectCode || ''
-        await this.loadRules(this.form.projectId)
-        await this.loadExperimentRefs(this.form.projectId)
-      }
+      const projectId = routeProjectId(
+        this.$route,
+        this.$store && this.$store.state.currentProject
+      )
+      if (projectId) await this.applyProjectContext(projectId)
       return
     }
     await this.loadDetail()
     await this.loadLogs()
   },
   methods: {
+    async applyProjectContext(projectId) {
+      const id = Number(projectId)
+      const project = this.projects.find(
+        (item) => Number(item.id) === id
+      )
+      this.form.projectId = id
+      this.form.projectCode = project ? project.projectCode || '' : ''
+      await this.loadRules(id)
+      await this.loadExperimentRefs(id)
+    },
     emptyForm() {
       return {
         id: null,

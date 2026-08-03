@@ -221,6 +221,7 @@ vi.mock('@/api/artifact', () => ({
 vi.mock('@/api/project', () => ({
   listProjects: vi.fn(),
   getProject: vi.fn(),
+  getProjectWorkbench: vi.fn(),
   createProject: vi.fn(),
   updateProject: vi.fn(),
   deleteProject: vi.fn(),

@@ -76,6 +76,7 @@ public class ExternalDatasourceController {
             @RequestParam(value = "pageNum", defaultValue = "1") int pageNum,
             @RequestParam(value = "pageSize", defaultValue = "10") int pageSize,
             @RequestParam(required = false) Long datasourceId,
+            @RequestParam(required = false) Long projectId,
             @RequestParam(required = false) String projectCode,
             @RequestParam(required = false) String projectName,
             @RequestParam(required = false) String datasourceCode,
@@ -83,7 +84,7 @@ public class ExternalDatasourceController {
             @RequestParam(required = false) String apiName,
             @RequestParam(required = false) String requestMode,
             @RequestParam(required = false) Integer status) {
-        return R.ok(apiConfigService.pageList(pageNum, pageSize, datasourceId, projectCode, projectName,
+        return R.ok(apiConfigService.pageList(pageNum, pageSize, datasourceId, projectId, projectCode, projectName,
                 datasourceCode, apiCode, apiName, requestMode, status));
     }
 

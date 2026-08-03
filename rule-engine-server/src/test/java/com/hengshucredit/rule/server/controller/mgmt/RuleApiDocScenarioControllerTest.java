@@ -76,6 +76,7 @@ public class RuleApiDocScenarioControllerTest {
     public void executeReturnsFullPlatformEnvelope() {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("clientAppName", "api-doc-example");
+        body.put("projectId", 7L);
         body.put("params", Collections.singletonMap("age", 17));
         RuleResult ruleResult = new RuleResult();
         ruleResult.setSuccess(true);
@@ -87,6 +88,7 @@ public class RuleApiDocScenarioControllerTest {
         assertEquals("success", response.getMessage());
         assertSame(ruleResult, response.getData());
         assertEquals(Long.valueOf(9L), executeService.definitionId);
+        assertEquals(Long.valueOf(7L), executeService.projectId);
         assertEquals(17, executeService.params.get("age"));
         assertEquals(1, executeService.params.size());
     }
@@ -167,13 +169,16 @@ public class RuleApiDocScenarioControllerTest {
 
     private static class FakeExecuteService extends RuleExecuteService {
         private Long definitionId;
+        private Long projectId;
         private Map<String, Object> params;
         private RuleResult result;
 
         @Override
-        public RuleResult testExecute(Long definitionId, Map<String, Object> params) {
+        public RuleResult testExecute(Long definitionId, Map<String, Object> params,
+                                      Long projectId) {
             this.definitionId = definitionId;
             this.params = params;
+            this.projectId = projectId;
             return result;
         }
     }

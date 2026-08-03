@@ -1769,11 +1769,13 @@ import {
   sampleValueForVarType,
   setPathValue,
 } from '@/utils/testParamTemplate'
+import { routeProjectId } from '@/utils/projectContext'
 
 export default {
   data() {
     return {
       datasourceOptions: [],
+      contextProjectId: null,
       dataObjectOptions: [],
       dataObjectTree: [],
       saving: false,
@@ -1997,6 +1999,10 @@ export default {
     },
   },
   async created() {
+    this.contextProjectId = routeProjectId(
+      this.$route,
+      this.$store && this.$store.state.currentProject
+    )
     await this.loadDatasourceOptions()
     await this.initializeRoute()
   },
@@ -2203,7 +2209,13 @@ export default {
       }
     },
     async loadDatasourceOptions() {
-      const res = await listDatasources({ pageNum: 1, pageSize: 500 })
+      const res = await listDatasources({
+        pageNum: 1,
+        pageSize: 500,
+        ...(this.contextProjectId
+          ? { projectId: this.contextProjectId }
+          : {}),
+      })
       this.datasourceOptions = (res.data && res.data.records) || []
     },
     async loadDataObjectOptions(projectId) {
