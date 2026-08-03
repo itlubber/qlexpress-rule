@@ -1,4 +1,5 @@
 import ExperimentList from '@/views/experiment/ExperimentList.vue'
+import experimentListTemplate from '@/views/experiment/ExperimentList.vue?raw'
 import ProjectFilterSelect from '@/components/ProjectFilterSelect.vue'
 import { executeExperiment, listExperiments, saveExperiment } from '@/api/experiment'
 import { getRuleTestSchema, listProjectDefinitions } from '@/api/definition'
@@ -79,6 +80,15 @@ describe('ExperimentList', () => {
     expect(ExperimentList.components.ProjectFilterSelect).toBe(ProjectFilterSelect)
     expect(query).toEqual(expect.objectContaining({ projectCode: '', projectName: '' }))
     expect(query.projectId).toBe('')
+  })
+
+  test('验证执行弹窗提供业务状态、字段入参和高级 JSON 入口', () => {
+    expect(experimentListTemplate).toContain('>验证执行</el-button')
+    expect(experimentListTemplate).toContain('执行准备状态')
+    expect(experimentListTemplate).toContain('字段化入参')
+    expect(experimentListTemplate).toContain('JSON 高级模式')
+    expect(experimentListTemplate).toContain('分流上下文')
+    expect(experimentListTemplate).toContain('原始执行结果')
   })
 
   test('项目上下文限定实验列表并传递给新建页面', async () => {
@@ -294,7 +304,7 @@ describe('ExperimentList', () => {
     expect(JSON.parse(ctx.testJson)).toEqual({ profile: { age: 36, active: true } })
   })
 
-  test('JSON editor changes after Schema loading are submitted to the experiment API', async () => {
+  test('JSON advanced mode changes after Schema loading are submitted to the experiment API', async () => {
     getRuleTestSchema.mockResolvedValueOnce({ data: {
       inputs: [{ refId: 1, scriptName: 'profile.age', valueType: 'INTEGER' }],
       sampleParams: { profile: { age: 36 } }
@@ -303,6 +313,8 @@ describe('ExperimentList', () => {
     const ctx = createContext()
 
     await ctx.handleTest({ id: 9, experimentCode: 'EXP_JSON_EDIT' })
+    expect(ctx.testMode).toBe('manual')
+    ctx.switchToJsonMode()
     ctx.testJson = '{"profile":{"age":37}}'
     ctx.onJsonInput()
     await ctx.doExecute()
@@ -431,6 +443,33 @@ describe('ExperimentList', () => {
     request.resolve({ data: { success: true, tags: ['champion'] } })
     await Promise.all([first, repeated])
     expect(ctx.testResult.tags).toEqual(['champion'])
+  })
+
+  test('field form keeps complex ARRAY values typed and blocks malformed JSON', async () => {
+    executeExperiment.mockResolvedValueOnce({ data: { success: true } })
+    const ctx = createContext({
+      testVisible: true,
+      testReady: true,
+      testMode: 'manual',
+      testFields: [{ fieldName: 'profile.tags', fieldType: 'ARRAY' }],
+      testParams: { 'profile.tags': [] },
+      testExperiment: { experimentCode: 'EXP_COMPLEX' }
+    })
+
+    ctx.updateComplexTestField(ctx.testFields[0], '["new","priority"]')
+    await ctx.doExecute()
+
+    expect(executeExperiment).toHaveBeenCalledWith('EXP_COMPLEX', {
+      params: { profile: { tags: ['new', 'priority'] } },
+      requestKey: '',
+      requestTime: null
+    })
+
+    ctx.updateComplexTestField(ctx.testFields[0], '{invalid json')
+    await ctx.doExecute()
+
+    expect(ctx.jsonError).toContain('JSON 格式错误')
+    expect(executeExperiment).toHaveBeenCalledTimes(1)
   })
 
   test('closing the dialog invalidates an in-flight execution so its late response cannot write state', async () => {

@@ -141,7 +141,7 @@
             size="small"
             type="success"
             @click="handleTest(row)"
-            >执行</el-button
+            >验证执行</el-button
           >
           <el-button
             v-permission="'experiment:edit'"
@@ -487,43 +487,237 @@
     </el-dialog>
 
     <el-dialog
-      title="执行分流实验"
+      class="experiment-execution-dialog"
+      title="验证执行分流实验"
       v-model="testVisible"
-      width="840px"
+      width="900px"
       append-to-body
       @closed="closeTestDialog"
     >
-      <el-form size="small" label-width="100px">
-        <el-form-item label="请求唯一键">
-          <el-input
-            v-model="testRequest.requestKey"
-            placeholder="可选；为空时使用入参 requestId/orderNo"
-          />
-        </el-form-item>
-        <el-form-item label="进件时间">
-          <el-date-picker
-            v-model="testRequest.requestTime"
-            type="datetime"
-            value-format="YYYY-MM-DDTHH:mm:ss"
-            placeholder="用于测试组名单时点"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <el-form-item label="入参JSON">
-          <monaco-editor
-            v-model:value="testJson"
-            language="json"
-            height="240px"
-            @change="onJsonInput"
-          />
-        </el-form-item>
-      </el-form>
-      <div v-if="testResult" class="result-panel">
-        <div class="section-title">执行结果</div>
-        <pre>{{ formatJson(testResult) }}</pre>
-      </div>
-      <template v-slot:footer>
+      <div class="execution-identity">
         <div>
+          <span class="execution-kicker">实验验证</span>
+          <strong>{{ testExperiment && testExperiment.experimentName }}</strong>
+          <span>{{ testExperiment && testExperiment.experimentCode }}</span>
+        </div>
+        <span>本次仅验证分流结果，不会改变线上流量配置。</span>
+      </div>
+
+      <div v-if="testLoadStatus === 'LOADING'" class="execution-load-state">
+        <strong>正在准备验证执行</strong>
+        <span>正在加载实验输入字段和推荐样例，请稍候。</span>
+      </div>
+
+      <template v-else-if="testReady">
+        <section
+          class="execution-readiness"
+          :class="{ 'is-degraded': testLoadStatus === 'DEGRADED' }"
+        >
+          <div>
+            <strong>执行准备状态</strong>
+            <span v-if="testLoadStatus === 'DEGRADED'"
+              >Schema 未完整加载，已降级为 JSON 高级模式。</span
+            >
+            <span v-else
+              >已加载 {{ testFields.length }} 个输入字段，参数来源：{{
+                testParamSource === 'SCHEMA_SAMPLE' ? 'Schema 样例' : '字段默认值'
+              }}。</span
+            >
+          </div>
+          <el-button
+            v-if="testLoadStatus === 'DEGRADED'"
+            link
+            size="small"
+            type="primary"
+            @click="handleTest(testExperiment)"
+            >重试加载</el-button
+          >
+        </section>
+        <ul v-if="testLoadWarnings.length" class="execution-warnings">
+          <li v-for="warning in testLoadWarnings" :key="warning">{{ warning }}</li>
+        </ul>
+
+        <section class="execution-section">
+          <div class="execution-section-head">
+            <div>
+              <strong>分流上下文</strong>
+              <span>用于稳定命中比例分流，并校验测试组名单的进件时点。</span>
+            </div>
+          </div>
+          <el-form size="small" label-width="88px" class="execution-context-form">
+            <el-form-item label="请求唯一键">
+              <el-input
+                v-model="testRequest.requestKey"
+                placeholder="可选；为空时使用入参 requestId/orderNo"
+              />
+            </el-form-item>
+            <el-form-item label="进件时间">
+              <el-date-picker
+                v-model="testRequest.requestTime"
+                type="datetime"
+                value-format="YYYY-MM-DDTHH:mm:ss"
+                placeholder="用于测试组名单时点"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-form>
+        </section>
+
+        <section class="execution-section">
+          <div class="execution-section-head execution-params-head">
+            <div>
+              <strong>{{ testMode === 'manual' ? '字段化入参' : 'JSON 高级模式' }}</strong>
+              <span>字段表单适合常规验证；复杂数组、对象可使用 JSON 文本编辑。</span>
+            </div>
+            <div class="execution-mode-actions">
+              <el-button
+                size="small"
+                :type="testMode === 'manual' ? 'primary' : ''"
+                :disabled="testFields.length === 0"
+                @click="switchToManualMode"
+                >字段化入参</el-button
+              >
+              <el-button
+                size="small"
+                :type="testMode === 'json' ? 'primary' : ''"
+                @click="switchToJsonMode"
+                >JSON 高级模式</el-button
+              >
+            </div>
+          </div>
+
+          <div v-if="testMode === 'manual'" class="execution-param-panel">
+            <div v-if="testFields.length" class="execution-field-grid">
+              <div
+                v-for="field in testFields"
+                :key="field.fieldName"
+                class="execution-field-cell"
+              >
+                <div class="execution-field-label">{{ field.fieldLabel || field.fieldName }}</div>
+                <el-input-number
+                  v-if="isNumberTestField(field)"
+                  v-model="testParams[field.fieldName]"
+                  controls-position="right"
+                  :precision="isIntegerTestField(field) ? 0 : undefined"
+                  :step="isIntegerTestField(field) ? 1 : 0.01"
+                  style="width: 100%"
+                />
+                <el-select
+                  v-else-if="isBooleanTestField(field)"
+                  v-model="testParams[field.fieldName]"
+                  style="width: 100%"
+                >
+                  <el-option label="true" :value="true" />
+                  <el-option label="false" :value="false" />
+                </el-select>
+                <el-date-picker
+                  v-else-if="isDateTestField(field)"
+                  v-model="testParams[field.fieldName]"
+                  type="date"
+                  value-format="YYYY-MM-DD"
+                  style="width: 100%"
+                />
+                <el-input
+                  v-else-if="isComplexTestField(field)"
+                  :model-value="formatComplexTestField(field)"
+                  type="textarea"
+                  :rows="3"
+                  placeholder="请输入合法 JSON"
+                  @update:model-value="updateComplexTestField(field, $event)"
+                />
+                <el-select
+                  v-else-if="field.validValues && field.validValues.length"
+                  v-model="testParams[field.fieldName]"
+                  clearable
+                  filterable
+                  style="width: 100%"
+                >
+                  <el-option
+                    v-for="value in field.validValues"
+                    :key="value"
+                    :label="value"
+                    :value="value"
+                  />
+                </el-select>
+                <el-input v-else v-model="testParams[field.fieldName]" placeholder="输入值" />
+                <div class="execution-field-hint">{{ field.fieldName }}</div>
+              </div>
+            </div>
+            <div v-else class="execution-empty-fields">
+              暂无可字段化的输入项，请使用 JSON 高级模式录入参数。
+            </div>
+          </div>
+
+          <div v-else class="execution-param-panel execution-json-panel">
+            <monaco-editor
+              v-model:value="testJson"
+              language="json"
+              height="260px"
+              @change="onJsonInput"
+            />
+          </div>
+          <div v-if="jsonError" class="execution-json-error">{{ jsonError }}</div>
+        </section>
+      </template>
+
+      <div v-if="testing" class="execution-running-state">
+        <strong>正在验证执行</strong>
+        <span>正在依次计算生产组与测试组结果，请等待本次请求完成。</span>
+      </div>
+
+      <section v-if="testResult" class="execution-result">
+        <div class="execution-section-head">
+          <div>
+            <strong>验证执行结果</strong>
+            <span>生产组为主路径；测试组按配置进行空跑，不影响线上流量。</span>
+          </div>
+        </div>
+        <el-alert
+          :title="testResult.success === false ? '验证执行失败' : '验证执行完成'"
+          :type="testResult.success === false ? 'error' : 'success'"
+          :closable="false"
+          show-icon
+        >
+          <span v-if="testResult.errorMessage">{{ testResult.errorMessage }}</span>
+          <span v-else-if="testResult.executeTimeMs">耗时 {{ testResult.executeTimeMs }} ms</span>
+        </el-alert>
+        <div class="execution-trace">
+          <span v-if="testResult.experimentTraceId">追踪 ID：{{ testResult.experimentTraceId }}</span>
+          <span v-if="testResult.requestKey">请求唯一键：{{ testResult.requestKey }}</span>
+          <span v-if="testResult.executeTimeMs">耗时：{{ testResult.executeTimeMs }} ms</span>
+          <span v-if="testResult.tags && testResult.tags.length">实验标签：{{ testResult.tags.join('、') }}</span>
+        </div>
+        <div v-if="testResult.productionGroup" class="execution-production-card">
+          <div>
+            <span>生产组</span>
+            <strong>{{ testResult.productionGroup.groupName || testResult.productionGroup.groupCode }}</strong>
+          </div>
+          <el-tag
+            size="small"
+            :type="testResult.productionGroup.success === false ? 'danger' : testResult.productionGroup.skipped ? 'info' : 'success'"
+          >{{ testResult.productionGroup.success === false ? '执行失败' : testResult.productionGroup.skipped ? '未执行' : '执行成功' }}</el-tag>
+          <p v-if="testResult.productionGroup.errorMessage">{{ testResult.productionGroup.errorMessage }}</p>
+        </div>
+        <div v-if="testResult.testGroups && testResult.testGroups.length" class="execution-test-groups">
+          <div class="execution-group-title">测试组空跑结果</div>
+          <div
+            v-for="group in buildExecutionResultSummary(testResult).groups.filter((item) => item.stage === 'TEST')"
+            :key="group.groupCode"
+            class="execution-test-group"
+          >
+            <strong>{{ group.groupCode }}</strong>
+            <el-tag size="small" :type="group.status === 'FAILED' ? 'danger' : group.status === 'SKIPPED' || group.status === 'NOT_MATCHED' ? 'info' : 'success'">{{ group.status === 'MATCHED' ? '命中并执行' : group.status === 'NOT_MATCHED' ? '未命中' : group.status === 'SKIPPED' ? '未执行' : group.status === 'FAILED' ? '执行失败' : '执行成功' }}</el-tag>
+            <span v-if="group.errorMessage">{{ group.errorMessage }}</span>
+          </div>
+        </div>
+        <el-collapse class="execution-raw-result">
+          <el-collapse-item title="原始执行结果" name="raw-result">
+            <pre>{{ formatJson(testResult) }}</pre>
+          </el-collapse-item>
+        </el-collapse>
+      </section>
+      <template v-slot:footer>
+        <div class="execution-dialog-footer">
           <el-button size="small" @click="closeTestDialog">关闭</el-button>
           <el-button
             size="small"
@@ -531,7 +725,7 @@
             :loading="testing"
             :disabled="!testReady || testing"
             @click="doExecute"
-            >执行</el-button
+            >验证执行</el-button
           >
         </div>
       </template>
@@ -1117,7 +1311,7 @@ export default {
         this.testParamSource = Object.keys(schema.sampleParams).length
           ? 'SCHEMA_SAMPLE'
           : 'FIELD_DEFAULTS'
-        this.testMode = 'json'
+        this.testMode = 'manual'
         this.testLoadStatus = 'READY'
         this.testReady = true
       } catch (e) {
@@ -1152,6 +1346,41 @@ export default {
     },
     testErrorMessage(error, fallback) {
       return (error && error.message) || fallback
+    },
+    testFieldType(field) {
+      return String((field && (field.fieldType || field.valueType)) || 'STRING').toUpperCase()
+    },
+    isNumberTestField(field) {
+      return ['INTEGER', 'INT', 'LONG', 'NUMBER', 'DOUBLE', 'FLOAT', 'DECIMAL', 'PROBABILITY'].includes(this.testFieldType(field))
+    },
+    isIntegerTestField(field) {
+      return ['INTEGER', 'INT', 'LONG'].includes(this.testFieldType(field))
+    },
+    isBooleanTestField(field) {
+      return ['BOOLEAN', 'BOOL'].includes(this.testFieldType(field))
+    },
+    isDateTestField(field) {
+      return ['DATE', 'DATETIME', 'TIMESTAMP'].includes(this.testFieldType(field))
+    },
+    isComplexTestField(field) {
+      return ['ARRAY', 'LIST', 'VECTOR', 'OBJECT', 'MAP'].includes(this.testFieldType(field))
+    },
+    formatComplexTestField(field) {
+      const value = this.testParams[field.fieldName]
+      if (typeof value === 'string') return value
+      return JSON.stringify(value === undefined ? (this.testFieldType(field) === 'OBJECT' || this.testFieldType(field) === 'MAP' ? {} : []) : value, null, 2)
+    },
+    updateComplexTestField(field, value) {
+      try {
+        const parsed = JSON.parse(value)
+        const shouldBeArray = ['ARRAY', 'LIST', 'VECTOR'].includes(this.testFieldType(field))
+        if (shouldBeArray && !Array.isArray(parsed)) throw new Error('请输入 JSON 数组')
+        if (!shouldBeArray && (!parsed || Array.isArray(parsed) || typeof parsed !== 'object')) throw new Error('请输入 JSON 对象')
+        this.testParams[field.fieldName] = parsed
+        this.jsonError = ''
+      } catch (e) {
+        this.jsonError = 'JSON 格式错误: ' + this.testErrorMessage(e, '请输入合法 JSON')
+      }
     },
     switchToJsonMode() {
       if (this.testMode === 'json') return
@@ -1206,6 +1435,10 @@ export default {
       if (!this.testReady || this.testing) return
       let params
       if (this.testMode === 'manual' && this.testFields.length > 0) {
+        if (this.jsonError) {
+          this.$message.error(this.jsonError)
+          return
+        }
         params = buildNestedSchemaParams(this.testFields, this.testParams)
       } else {
         try {
@@ -1368,6 +1601,358 @@ export default {
     border-radius: 4px;
     font-size: 12px;
     line-height: 1.5;
+  }
+
+  .execution-identity {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    border: 1px solid #dbeafe;
+    border-radius: 8px;
+    background: #f8fbff;
+
+    > div {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    strong {
+      color: #1e3a5f;
+      font-size: 15px;
+    }
+
+    > span,
+    div > span:last-child {
+      color: #64748b;
+      font-size: 12px;
+    }
+  }
+
+  .execution-kicker {
+    color: #2563eb;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .execution-load-state {
+    display: flex;
+    min-height: 180px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: #475569;
+    text-align: center;
+
+    strong {
+      color: #0f172a;
+      font-size: 15px;
+    }
+
+    span {
+      color: #64748b;
+      font-size: 12px;
+    }
+  }
+
+  .execution-readiness,
+  .execution-section,
+  .execution-result,
+  .execution-running-state {
+    margin-bottom: 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+  }
+
+  .execution-readiness {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    border-color: #bbf7d0;
+    background: #f0fdf4;
+
+    > div {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    strong {
+      color: #166534;
+      font-size: 13px;
+    }
+
+    span {
+      color: #64748b;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    &.is-degraded {
+      border-color: #fde68a;
+      background: #fffbeb;
+
+      strong {
+        color: #92400e;
+      }
+    }
+  }
+
+  .execution-warnings {
+    margin: -8px 0 16px;
+    padding: 8px 16px 8px 34px;
+    color: #92400e;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .execution-section,
+  .execution-result {
+    padding: 16px;
+  }
+
+  .execution-section-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+
+    > div:first-child {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    strong,
+    .execution-group-title {
+      color: #1f2937;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    span {
+      color: #64748b;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+  }
+
+  .execution-context-form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 16px;
+
+    :deep(.el-form-item) {
+      margin-bottom: 0;
+    }
+  }
+
+  .execution-mode-actions {
+    display: flex;
+    flex-shrink: 0;
+    gap: 8px;
+  }
+
+  .execution-param-panel {
+    max-height: 320px;
+    overflow-y: auto;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #fff;
+  }
+
+  .execution-field-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .execution-field-cell {
+    min-width: 0;
+    padding: 8px;
+    border-radius: 4px;
+
+    &:hover {
+      background: #f8fafc;
+    }
+  }
+
+  .execution-field-label {
+    margin-bottom: 4px;
+    overflow: hidden;
+    color: #374151;
+    font-size: 13px;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .execution-field-hint {
+    margin-top: 4px;
+    overflow: hidden;
+    color: #94a3b8;
+    font-family: Consolas, monospace;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .execution-empty-fields {
+    padding: 24px;
+    color: #64748b;
+    font-size: 13px;
+    text-align: center;
+  }
+
+  .execution-json-panel {
+    padding: 8px;
+  }
+
+  .execution-json-error {
+    margin-top: 8px;
+    color: #dc2626;
+    font-size: 12px;
+  }
+
+  .execution-running-state {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 16px;
+    border-color: #bfdbfe;
+    background: #eff6ff;
+
+    strong {
+      color: #1d4ed8;
+      font-size: 13px;
+    }
+
+    span {
+      color: #64748b;
+      font-size: 12px;
+    }
+  }
+
+  .execution-result :deep(.el-alert) {
+    margin-bottom: 12px;
+  }
+
+  .execution-trace {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    margin-bottom: 12px;
+    color: #64748b;
+    font-size: 12px;
+  }
+
+  .execution-production-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+    padding: 12px;
+    margin-bottom: 12px;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    background: #f8fbff;
+
+    > div {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    span,
+    p {
+      color: #64748b;
+      font-size: 12px;
+    }
+
+    strong {
+      color: #1e3a5f;
+      font-size: 14px;
+    }
+
+    p {
+      grid-column: 1 / -1;
+      margin: 0;
+      color: #b91c1c;
+    }
+  }
+
+  .execution-test-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .execution-test-group {
+    display: grid;
+    grid-template-columns: minmax(120px, 1fr) auto minmax(0, 2fr);
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    background: #f8fafc;
+
+    strong {
+      overflow: hidden;
+      color: #334155;
+      font-size: 13px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    span {
+      color: #b91c1c;
+      font-size: 12px;
+    }
+  }
+
+  .execution-raw-result pre {
+    max-height: 220px;
+  }
+
+  .execution-dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  :deep(.experiment-execution-dialog .el-dialog__body) {
+    max-height: calc(100vh - 150px);
+    overflow-y: auto;
+  }
+
+  @media (max-width: 720px) {
+    .execution-identity,
+    .execution-readiness,
+    .execution-section-head {
+      flex-direction: column;
+    }
+
+    .execution-context-form,
+    .execution-field-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .execution-test-group {
+      grid-template-columns: minmax(0, 1fr) auto;
+
+      span {
+        grid-column: 1 / -1;
+      }
+    }
   }
 }
 </style>
