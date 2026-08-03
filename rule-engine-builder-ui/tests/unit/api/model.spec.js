@@ -48,7 +48,11 @@ describe('model API', () => {
 
   test('模型测试参数作为模型草稿提交，不直接修改生效模型', async () => {
     request.mockResolvedValueOnce({
-      data: { id: 10, modelCode: 'risk_model', testParams: '{}' }
+      data: {
+        id: 10,
+        modelCode: 'risk_model',
+        modelConfig: '{"executionProvider":"CPU","testParams":"{}"}'
+      }
     })
 
     await saveTestParams(10, '{"score":720}')
@@ -57,13 +61,30 @@ describe('model API', () => {
       url: '/rule/model/10',
       method: 'get'
     })
-    expect(request).toHaveBeenNthCalledWith(2, '/rule/governance/drafts',
-      expect.objectContaining({
-        resourceType: 'MODEL',
-        resourceId: 10,
-        action: 'UPDATE',
-        snapshotJson: expect.stringContaining('"testParams":"{\\"score\\":720}"')
-      })
+    const draft = request.mock.calls[1][1]
+    const snapshot = JSON.parse(draft.snapshotJson)
+    expect(draft).toMatchObject({
+      resourceType: 'MODEL',
+      resourceId: 10,
+      action: 'UPDATE'
+    })
+    expect(snapshot).not.toHaveProperty('testParams')
+    expect(JSON.parse(snapshot.modelConfig)).toEqual({
+      executionProvider: 'CPU',
+      testParams: '{"score":720}',
+      testParamsSource: 'SAVED'
+    })
+  })
+
+  test('模型配置损坏时拒绝覆盖并且不创建审批草稿', async () => {
+    request.mockResolvedValueOnce({
+      data: { id: 10, modelCode: 'risk_model', modelConfig: '{invalid json' }
+    })
+
+    await expect(saveTestParams(10, '{"score":720}')).rejects.toThrow(
+      '模型配置格式异常'
     )
+
+    expect(request).toHaveBeenCalledTimes(1)
   })
 })

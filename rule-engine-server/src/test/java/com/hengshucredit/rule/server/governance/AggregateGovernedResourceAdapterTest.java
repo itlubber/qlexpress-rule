@@ -158,6 +158,9 @@ public class AggregateGovernedResourceAdapterTest {
         model.setModelType("XGBOOST");
         model.setModelFormat("ONNX");
         model.setModelContent("binary-content");
+        model.setModelConfig("{\"executionProvider\":\"CPU\","
+                + "\"testParams\":\"{}\","
+                + "\"testParamsSource\":\"UPLOAD_SAMPLE\"}");
         model.setStatus(1);
         RuleModelInputField input = new RuleModelInputField();
         input.setId(10L);
@@ -192,6 +195,23 @@ public class AggregateGovernedResourceAdapterTest {
                         ref.targetResourceType())
                         && Long.valueOf(5L).equals(
                         ref.targetResourceId())));
+
+        publicValue.put("modelConfig",
+                "{\"executionProvider\":\"CPU\","
+                        + "\"testParams\":\"{\\\"age\\\":35}\","
+                        + "\"testParamsSource\":\"SAVED\"}");
+        adapter.apply(new ApprovalApplyContext(
+                18L, 5L, 2, "UPDATE",
+                ResourceSnapshot.ofJson(CanonicalJson.write(publicValue)),
+                "tester", null));
+        Map<String, Object> applied = CanonicalJson.readMap(
+                adapter.loadEffective(5L).snapshotJson());
+
+        Assert.assertEquals(
+                "{\"executionProvider\":\"CPU\","
+                        + "\"testParams\":\"{\\\"age\\\":35}\","
+                        + "\"testParamsSource\":\"SAVED\"}",
+                applied.get("modelConfig"));
     }
 
     @Test

@@ -106,9 +106,30 @@ export function executeModel(id, params, timeoutMs) {
 /** 保存模型测试参数（JSON） */
 export async function saveTestParams(id, testParams) {
   const response = await getModel(id)
+  const model = { ...(response.data || {}) }
+  let modelConfig = {}
+  if (model.modelConfig) {
+    try {
+      modelConfig =
+        typeof model.modelConfig === 'string'
+          ? JSON.parse(model.modelConfig)
+          : { ...model.modelConfig }
+    } catch (error) {
+      throw new Error('模型配置格式异常，无法安全保存测试参数')
+    }
+  }
+  if (!modelConfig || typeof modelConfig !== 'object' || Array.isArray(modelConfig)) {
+    throw new Error('模型配置格式异常，无法安全保存测试参数')
+  }
+  delete model.testParams
+  model.modelConfig = JSON.stringify({
+    ...modelConfig,
+    testParams,
+    testParamsSource: 'SAVED',
+  })
   return createResourceDraft(
     'MODEL',
-    { ...(response.data || {}), testParams },
+    model,
     'UPDATE',
     { changeSummary: '修改模型测试参数' }
   )

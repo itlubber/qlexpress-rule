@@ -47,6 +47,24 @@ public class ExecutionParameterBinderTest {
     }
 
     @Test
+    public void projectsNestedBusinessPathsToExactNativeModelFields() {
+        RuleModelInputField score = new RuleModelInputField();
+        score.setFieldName(" HYBASE_X115 ");
+        score.setScriptName("score_f1_fields.HYBASE_X115");
+        score.setFieldType("DOUBLE");
+        Map<String, Object> resolved = JSON.parseObject(
+                "{\"score_f1_fields\":{\"HYBASE_X115\":\"8.5\"},"
+                        + "\" HYBASE_X115 \":\"8.5\",\"unused\":1}");
+
+        Map<String, Object> projected = binder.projectModelInputs(
+                Arrays.asList(score), resolved);
+
+        assertEquals(Collections.singleton(" HYBASE_X115 "), projected.keySet());
+        assertEquals(8.5d,
+                ((Number) projected.get(" HYBASE_X115 ")).doubleValue(), 0d);
+    }
+
+    @Test
     public void rejectsInvalidNumbersWithFieldPath() {
         try {
             binder.bindRuleInputs(Arrays.asList(ruleField("age", "INTEGER")),

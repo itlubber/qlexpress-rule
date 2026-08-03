@@ -570,39 +570,76 @@
 
     <!-- 模型测试对话框 -->
     <el-dialog
+      class="model-test-dialog"
       title="模型测试"
       v-model="testVisible"
       width="900px"
       :close-on-click-modal="false"
+      @closed="closeTestDialog"
     >
-      <!-- 数据未就绪时显示加载中，防止旧数据闪烁 -->
       <div
-        v-if="!testReady"
-        style="padding: 40px; text-align: center; color: #64748b"
+        v-if="testLoadStatus === 'LOADING'"
+        class="test-load-state"
       >
-        正在加载...
+        <strong>正在准备模型测试</strong>
+        <span>加载最新输入字段、测试 Schema 与已保存参数...</span>
       </div>
-      <template v-else>
+      <div
+        v-else-if="testLoadStatus === 'ERROR'"
+        class="test-load-state is-error"
+      >
+        <strong>模型测试配置加载失败</strong>
+        <span>{{ testLoadError }}</span>
+        <el-button size="small" type="primary" @click="openTestDialog"
+          >重新加载</el-button
+        >
+      </div>
+      <template v-else-if="testReady">
         <div
-          style="
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-          "
+          class="test-readiness"
+          :class="{ 'is-degraded': testLoadStatus === 'DEGRADED' }"
+        >
+          <div class="test-readiness-main">
+            <div>
+              <strong>{{ testLoadStatusTitle }}</strong>
+              <span
+                >已生成 {{ testFields.length }} 个输入项，参数来源：{{
+                  testParamSourceLabel
+                }}</span
+              >
+            </div>
+            <el-button
+              v-if="testLoadStatus === 'DEGRADED'"
+              link
+              type="primary"
+              @click="openTestDialog"
+              >重新加载测试配置</el-button
+            >
+          </div>
+          <ul v-if="testLoadWarnings.length" class="test-load-warnings">
+            <li v-for="warning in testLoadWarnings" :key="warning">
+              {{ warning }}
+            </li>
+          </ul>
+        </div>
+
+        <div
+          class="test-toolbar"
         >
           <el-button
             size="small"
             type="primary"
             :icon="ElIconVideoPlay"
             :loading="testExecuting"
+            :disabled="!supportsOnlineExecution"
             @click="doTest"
             >执行测试</el-button
           >
           <el-button
             size="small"
             :icon="ElIconDocument"
+            :loading="testSaving"
+            :disabled="testSaving"
             @click="handleSaveParams"
             >保存测试参数</el-button
           >
@@ -629,7 +666,10 @@
 
         <el-alert
           v-if="model.modelFormat && !supportsOnlineExecution"
-          :title="model.modelFormat + ' 格式暂不支持在线执行'"
+          :title="
+            model.modelFormat +
+            ' 格式暂不支持在线执行；当前仅支持 PMML 和 ONNX'
+          "
           type="warning"
           :closable="false"
           style="margin-bottom: 12px"
@@ -738,6 +778,11 @@
           >
             {{ jsonError }}
           </div>
+        </div>
+
+        <div v-if="testExecuting" class="test-execution-state">
+          <strong>模型正在执行</strong>
+          <span>请等待当前模型返回结果，参数可在完成后继续修改。</span>
         </div>
 
         <div v-if="testResult" style="margin-top: 16px">
@@ -890,6 +935,11 @@ export default {
       // 测试相关
       testVisible: false,
       testReady: false,
+      testLoadStatus: 'IDLE',
+      testLoadError: '',
+      testLoadWarnings: [],
+      testParamSource: 'DEFAULTS',
+      testSetupRequestId: 0,
       testMode: 'manual',
       testFields: [],
       testParams: {},
@@ -898,6 +948,9 @@ export default {
       jsonEdited: false,
       jsonError: '',
       testExecuting: false,
+      testExecutionRequestId: 0,
+      testSaveRequestId: 0,
+      testSaving: false,
       testResult: null,
       testDialogKey: 1,
       fieldPageSize: 100,
@@ -995,6 +1048,21 @@ export default {
     },
     modelRequestTimeoutMs() {
       return (this.model.executionTimeoutMs || 120000) + 5000
+    },
+    testLoadStatusTitle() {
+      return this.testLoadStatus === 'DEGRADED'
+        ? '测试配置已降级加载'
+        : '测试配置已就绪'
+    },
+    testParamSourceLabel() {
+      const labels = {
+        SAVED: '已保存测试参数',
+        UPLOAD_SAMPLE: '模型上传样例',
+        CONFIG_SAMPLE: '模型配置样例（来源未标记）',
+        SCHEMA_SAMPLE: '测试 Schema 样例',
+        DEFAULTS: '字段默认值',
+      }
+      return labels[this.testParamSource] || labels.DEFAULTS
     },
     inputFieldsTotal() {
       return this.model && this.model.inputFields
@@ -1843,107 +1911,179 @@ export default {
 
     // ========== 模型测试 ==========
     async openTestDialog() {
-      // 1. 先打开弹窗，此时 testReady=false，内容显示"正在加载..."，旧数据被隐藏
+      const requestId = ++this.testSetupRequestId
+      const modelId = this.model.id
+      this.testExecutionRequestId++
+      this.testSaveRequestId++
       this.testVisible = true
       this.testReady = false
+      this.testLoadStatus = 'LOADING'
+      this.testLoadError = ''
+      this.testLoadWarnings = []
+      this.testParamSource = 'DEFAULTS'
+      this.testFields = []
+      this.testParams = {}
+      this.testJsonStr = '{}'
       this.testResult = null
+      this.testExecuting = false
+      this.testSaving = false
       this.testMode = 'manual'
       this.jsonEdited = false
       this.jsonError = ''
-      this.testDialogKey++ // 递增 key 强制重新挂载 MonacoEditor
+      this.testDialogKey++
 
-      // 2. 异步获取最新模型数据（不阻塞弹窗打开）
-      let freshModel = this.model
       try {
-        const res = await api.getModel(this.model.id)
-        if (res.data) freshModel = res.data
-      } catch (e) {
-        /* fallback to cached */
-      }
-
-      let schema = null
-      try {
-        schema = normalizeTestSchema(
-          await getRuleTestSchema({
-            targetType: 'MODEL',
-            targetId: this.model.id,
-          })
-        )
-      } catch (e) {
-        /* compatibility fallback for older servers */
-      }
-      const hasSchema =
-        schema &&
-        (schema.inputs.length || Object.keys(schema.sampleParams).length)
-
-      // 3. 初始化字段列表（解析 validValues）
-      const testFields = hasSchema
-        ? schemaFieldsToTestFields(schema.inputs)
-        : (freshModel.inputFields || [])
-            .filter((f) => f.status !== 0)
-            .map((f) => {
-              if (f.validValues && typeof f.validValues === 'string') {
-                try {
-                  f.validValues = JSON.parse(f.validValues)
-                } catch {
-                  f.validValues = []
-                }
-              }
-              if (!f.validValues) f.validValues = []
-              return f
-            })
-
-      // 4. 从服务端获取已保存的测试参数（最高优先级）
-      let savedParams = null
-      try {
-        const res = await api.getTestParams(this.model.id)
-        if (res.data) {
-          savedParams =
-            typeof res.data === 'string' ? JSON.parse(res.data) : res.data
+        const warnings = []
+        let freshModel = this.model
+        try {
+          const res = await api.getModel(modelId)
+          if (res.data) freshModel = res.data
+        } catch (error) {
+          warnings.push(
+            '最新模型信息加载失败，当前使用页面缓存：' +
+              this.testRequestErrorMessage(error, '服务暂不可用')
+          )
         }
-      } catch (e) {
-        /* ignore */
-      }
+        if (!this.isActiveTestSetup(requestId, modelId)) return
 
-      // 5. 从上传时设置的样例初始化（modelConfig.testParams，次优先级）
-      let configParams = null
-      if (!savedParams) {
+        let schema = null
+        try {
+          schema = normalizeTestSchema(
+            await getRuleTestSchema({
+              targetType: 'MODEL',
+              targetId: modelId,
+            })
+          )
+        } catch (error) {
+          warnings.push(
+            '测试 Schema 加载失败，当前使用模型输入字段：' +
+              this.testRequestErrorMessage(error, '服务暂不可用')
+          )
+        }
+        if (!this.isActiveTestSetup(requestId, modelId)) return
+        const hasSchema =
+          schema &&
+          (schema.inputs.length || Object.keys(schema.sampleParams).length)
+
+        const testFields = hasSchema
+          ? schemaFieldsToTestFields(schema.inputs)
+          : (freshModel.inputFields || [])
+              .filter((field) => field.status !== 0)
+              .map((field) => {
+                let validValues = field.validValues || []
+                if (typeof validValues === 'string') {
+                  try {
+                    const parsed = JSON.parse(validValues)
+                    validValues = Array.isArray(parsed) ? parsed : []
+                  } catch {
+                    validValues = []
+                  }
+                }
+                return { ...field, validValues }
+              })
+
+        let configParams = null
+        let configParamSource = 'CONFIG_SAMPLE'
         try {
           const rawConfig = freshModel.modelConfig
           const config =
             typeof rawConfig === 'string'
               ? JSON.parse(rawConfig)
               : rawConfig || {}
-          if (config && config.testParams) {
-            configParams =
+          if (!config || typeof config !== 'object' || Array.isArray(config)) {
+            throw new Error('模型配置不是 JSON 对象')
+          }
+          if (
+            config.testParams !== null &&
+            config.testParams !== undefined &&
+            config.testParams !== ''
+          ) {
+            const parsed =
               typeof config.testParams === 'string'
                 ? JSON.parse(config.testParams)
                 : config.testParams
+            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+              throw new Error('参数内容不是 JSON 对象')
+            }
+            configParams = parsed
+            if (['SAVED', 'UPLOAD_SAMPLE'].includes(config.testParamsSource)) {
+              configParamSource = config.testParamsSource
+            }
           }
-        } catch (e) {
-          /* ignore */
+        } catch (error) {
+          warnings.push(
+            '模型配置样例解析失败，当前改用 Schema 样例或字段默认值：' +
+              this.testRequestErrorMessage(error, '样例格式错误')
+          )
         }
+        if (!this.isActiveTestSetup(requestId, modelId)) return
+
+        let initObj = {}
+        let paramSource = 'DEFAULTS'
+        if (configParams !== null) {
+          initObj = configParams
+          paramSource = configParamSource
+        } else if (
+          hasSchema &&
+          schema.sampleParams &&
+          Object.keys(schema.sampleParams).length
+        ) {
+          initObj = schema.sampleParams
+          paramSource = 'SCHEMA_SAMPLE'
+        }
+
+        const testParams = flattenSchemaSample(testFields, initObj)
+        const jsonObj = buildNestedSchemaParams(testFields, testParams)
+        if (!this.isActiveTestSetup(requestId, modelId)) return
+
+        this.testFields = testFields
+        this.testParams = testParams
+        this.testJsonStr = JSON.stringify(jsonObj, null, 2)
+        this.testJsonSkeleton = JSON.stringify({}, null, 2)
+        this.testParamSource = paramSource
+        this.testLoadWarnings = warnings
+        this.testLoadStatus = warnings.length ? 'DEGRADED' : 'READY'
+        this.testReady = true
+      } catch (error) {
+        if (!this.isActiveTestSetup(requestId, modelId)) return
+        this.testLoadStatus = 'ERROR'
+        this.testLoadError = this.testRequestErrorMessage(
+          error,
+          '模型测试配置加载失败'
+        )
+        this.testReady = false
       }
-
-      // 6. 优先级：已保存参数 > 上传样例 > 空对象
-      const initObj =
-        savedParams || configParams || (hasSchema ? schema.sampleParams : {})
-
-      // 7. 构建 testParams 和 testJsonStr
-      //    数字字段默认 0（而非 null），避免 el-input-number 显示 0.000000
-      const testParams = flattenSchemaSample(testFields, initObj)
-
-      // 8. 构建初始 JSON（包含所有字段的当前值）
-      const jsonObj = buildNestedSchemaParams(testFields, testParams)
-      const testJsonStr = JSON.stringify(jsonObj, null, 2)
-      const testJsonSkeleton = JSON.stringify({}, null, 2)
-
-      // 9. 一次性设置所有数据，然后标记为就绪，触发重新渲染
-      this.testFields = testFields
-      this.testParams = testParams
-      this.testJsonStr = testJsonStr
-      this.testJsonSkeleton = testJsonSkeleton
-      this.testReady = true // ✅ 内容切换：隐藏加载中，显示实际表单/JSON编辑器
+    },
+    closeTestDialog() {
+      this.testVisible = false
+      this.testSetupRequestId++
+      this.testExecutionRequestId++
+      this.testSaveRequestId++
+      this.testReady = false
+      this.testLoadStatus = 'IDLE'
+      this.testLoadError = ''
+      this.testLoadWarnings = []
+      this.testFields = []
+      this.testParams = {}
+      this.testExecuting = false
+      this.testSaving = false
+      this.testResult = null
+    },
+    isActiveTestSetup(requestId, modelId) {
+      return (
+        requestId === this.testSetupRequestId &&
+        this.testVisible &&
+        String(modelId) === String(this.model.id)
+      )
+    },
+    testRequestErrorMessage(error, fallback) {
+      const responseMessage =
+        error &&
+        error.response &&
+        error.response.data &&
+        error.response.data.message
+      const message = responseMessage || (error && error.message)
+      return message && String(message).trim() ? String(message) : fallback
     },
     /**
      * 切换到 JSON 编辑模式：同步 testParams → testJsonStr
@@ -2014,38 +2154,62 @@ export default {
       }
     },
     async doTest() {
+      const requestId = ++this.testExecutionRequestId
+      const modelId = this.model.id
       this.testResult = null
-      this.testExecuting = true
+      if (!this.supportsOnlineExecution) {
+        this.testResult = {
+          success: false,
+          error: '当前仅支持 PMML 和 ONNX 模型在线执行',
+        }
+        return
+      }
       let params
       if (this.testMode === 'json') {
         try {
           params = JSON.parse(this.testJsonStr)
         } catch (e) {
           this.$message.error('JSON 格式错误: ' + e.message)
-          this.testExecuting = false
           return
         }
       } else {
         params = buildNestedSchemaParams(this.testFields, this.testParams)
       }
+      this.testExecuting = true
       try {
         const res = await api.executeModel(
-          this.model.id,
+          modelId,
           params,
           this.modelRequestTimeoutMs
         )
+        if (!this.isActiveTestExecution(requestId, modelId)) return
         this.testResult = normalizeTestResult(res)
         if (this.testResult.success) {
           this.testJsonStr = JSON.stringify(params, null, 2)
           this.jsonEdited = true
         }
       } catch (e) {
-        this.testResult = { success: false, error: e.message || '测试执行失败' }
+        if (!this.isActiveTestExecution(requestId, modelId)) return
+        this.testResult = {
+          success: false,
+          error: this.testRequestErrorMessage(e, '测试执行失败'),
+        }
       } finally {
-        this.testExecuting = false
+        if (this.isActiveTestExecution(requestId, modelId)) {
+          this.testExecuting = false
+        }
       }
     },
+    isActiveTestExecution(requestId, modelId) {
+      return (
+        requestId === this.testExecutionRequestId &&
+        String(modelId) === String(this.model.id)
+      )
+    },
     async handleSaveParams() {
+      if (this.testSaving) return
+      const requestId = ++this.testSaveRequestId
+      const modelId = this.model.id
       let params
       if (this.testMode === 'json') {
         try {
@@ -2057,12 +2221,33 @@ export default {
       } else {
         params = buildNestedSchemaParams(this.testFields, this.testParams)
       }
+      this.testSaving = true
       try {
-        await api.saveTestParams(this.model.id, JSON.stringify(params))
-        this.$message.success('测试参数已保存')
+        const response = await api.saveTestParams(
+          modelId,
+          JSON.stringify(params)
+        )
+        if (!this.isActiveTestSave(requestId, modelId)) return
+        this.$message.success('测试参数变更已创建审批草稿')
+        if (response.data && response.data.id) {
+          this.$router.push('/approval/' + response.data.id)
+        }
       } catch (e) {
-        this.$message.error('保存失败: ' + (e.message || e))
+        if (this.isActiveTestSave(requestId, modelId)) {
+          this.$message.error('保存失败: ' + (e.message || e))
+        }
+      } finally {
+        if (requestId === this.testSaveRequestId) {
+          this.testSaving = false
+        }
       }
+    },
+    isActiveTestSave(requestId, modelId) {
+      return (
+        requestId === this.testSaveRequestId &&
+        this.testVisible &&
+        String(modelId) === String(this.model.id)
+      )
     },
     /**
      * 清空参数：数字字段重置为 0，布尔重置为 false，字符串重置为空
@@ -2217,6 +2402,95 @@ export default {
   border-radius: 4px;
   padding: 4px 0;
 }
+.test-load-state {
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #475569;
+  text-align: center;
+}
+.test-load-state strong {
+  color: #0f172a;
+  font-size: 15px;
+}
+.test-load-state span {
+  max-width: 560px;
+  color: #64748b;
+  font-size: 12px;
+}
+.test-load-state.is-error strong,
+.test-load-state.is-error span {
+  color: #b91c1c;
+}
+.test-readiness {
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border: 1px solid #bbf7d0;
+  border-radius: 4px;
+  background: #f0fdf4;
+}
+.test-readiness.is-degraded {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+.test-readiness-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.test-readiness-main > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.test-readiness-main strong {
+  color: #166534;
+  font-size: 13px;
+}
+.test-readiness.is-degraded .test-readiness-main strong {
+  color: #92400e;
+}
+.test-readiness-main span,
+.test-load-warnings {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.test-load-warnings {
+  padding-left: 18px;
+  margin: 8px 0 0;
+  color: #92400e;
+}
+.test-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.test-execution-state {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  margin-top: 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.test-execution-state span {
+  color: #64748b;
+  font-size: 12px;
+}
+:deep(.model-test-dialog .el-dialog__body) {
+  max-height: calc(100vh - 150px);
+  overflow-y: auto;
+}
 .test-form-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -2254,5 +2528,10 @@ export default {
   color: #475569;
   font-size: 12px;
   overflow-wrap: anywhere;
+}
+@media (max-width: 960px) {
+  .test-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 </style>

@@ -188,3 +188,58 @@ test('数据库只读查询按 SQL 占位符引导填写参数并区分结果状
   })
   assertClean()
 })
+
+test('模型测试明确参数来源、降级原因并只发送当前表单参数', async ({
+  page
+}) => {
+  let executePayload
+  const fixtures = workflowFixtures()
+  fixtures.set('POST /api/rule/test-schema', {
+    inputs: [{
+      refId: 1,
+      refType: 'VARIABLE',
+      scriptName: 'age',
+      label: '年龄',
+      valueType: 'INTEGER'
+    }],
+    sampleParams: { age: 28 }
+  })
+  fixtures.set('/api/rule/model/41', {
+    ...fixtures.get('/api/rule/model/41'),
+    modelConfig: '{invalid json'
+  })
+  fixtures.set('POST /api/rule/model/execute/41', async ({ request }) => {
+    executePayload = request.postDataJSON()
+    return {
+      success: true,
+      outputs: { riskScore: executePayload.age * 2 },
+      executeTimeMs: 12
+    }
+  })
+  const { assertClean } = await installDistRoutes(page, { apiData: fixtures })
+
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await page.goto('http://tianshu.local/index.html#/model/41')
+  await page.getByRole('button', { name: '模型测试', exact: true }).click()
+
+  const dialog = page.getByRole('dialog', { name: '模型测试' })
+  await expect(dialog.getByText('测试配置已降级加载', { exact: true }))
+    .toBeVisible()
+  await expect(dialog.getByText(/参数来源：测试 Schema 样例/)).toBeVisible()
+  await expect(dialog.getByText(/模型配置样例解析失败/)).toBeVisible()
+
+  const ageField = dialog.locator('.test-field-cell').filter({ hasText: '年龄' })
+  await ageField.locator('input').fill('35')
+  await dialog.getByRole('button', { name: '执行测试', exact: true }).click()
+
+  await expect(dialog.getByText('执行成功', { exact: true })).toBeVisible()
+  await expect(dialog.locator('pre')).toContainText('70')
+  expect(executePayload).toEqual({ age: 35 })
+  const dialogBox = await dialog.boundingBox()
+  const viewport = page.viewportSize()
+  expect(dialogBox.x).toBeGreaterThanOrEqual(0)
+  expect(dialogBox.y).toBeGreaterThanOrEqual(0)
+  expect(dialogBox.x + dialogBox.width).toBeLessThanOrEqual(viewport.width)
+  expect(dialogBox.y + dialogBox.height).toBeLessThanOrEqual(viewport.height)
+  assertClean()
+})

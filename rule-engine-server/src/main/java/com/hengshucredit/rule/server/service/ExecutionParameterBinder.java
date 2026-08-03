@@ -42,6 +42,30 @@ public class ExecutionParameterBinder {
         return result;
     }
 
+    /**
+     * 只保留模型文件声明的原生输入名。业务脚本路径可以是嵌套对象，
+     * 但 PMML/ONNX 执行器必须接收精确的模型字段集合，不能混入容器键。
+     */
+    public Map<String, Object> projectModelInputs(List<RuleModelInputField> fields,
+                                                   Map<String, Object> params) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (RuleModelInputField field : fields == null
+                ? Collections.<RuleModelInputField>emptyList() : fields) {
+            String nativeName = firstOriginalText(
+                    field.getFieldName(), field.getScriptName());
+            if (nativeName == null) continue;
+            PathValue value = readPath(params, nativeName);
+            String scriptPath = firstText(field.getScriptName(), field.getFieldName());
+            if (!value.present && scriptPath != null && !scriptPath.equals(nativeName)) {
+                value = readPath(params, scriptPath);
+            }
+            if (value.present) {
+                result.put(nativeName, coerce(nativeName, field.getFieldType(), value.value));
+            }
+        }
+        return result;
+    }
+
     private void bindOne(Map<String, Object> params, String path, String type) {
         if (path == null) return;
         PathValue pathValue = readPath(params, path);
@@ -217,6 +241,13 @@ public class ExecutionParameterBinder {
     private String firstText(String... values) {
         for (String value : values) {
             if (value != null && !value.trim().isEmpty()) return value.trim();
+        }
+        return null;
+    }
+
+    private String firstOriginalText(String... values) {
+        for (String value : values) {
+            if (value != null && !value.trim().isEmpty()) return value;
         }
         return null;
     }

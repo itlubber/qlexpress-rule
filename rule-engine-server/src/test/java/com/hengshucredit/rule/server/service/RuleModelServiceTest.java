@@ -48,6 +48,31 @@ import static org.junit.Assert.assertTrue;
 public class RuleModelServiceTest {
 
     @Test
+    public void savedTestParamsAreMarkedAsApprovedUserInput() {
+        AtomicReference<RuleModel> updated = new AtomicReference<>();
+        RuleModel existing = model();
+        existing.setModelConfig("{\"testParams\":\"{\\\"age\\\":28}\","
+                + "\"testParamsSource\":\"UPLOAD_SAMPLE\"}");
+        RuleModelService service = new RuleModelService();
+        ReflectionTestUtils.setField(service, "modelMapper",
+                mapper(RuleModelMapper.class, (proxy, method, args) -> {
+                    if ("selectById".equals(method.getName())) return existing;
+                    if ("updateById".equals(method.getName())) {
+                        updated.set((RuleModel) args[0]);
+                        return 1;
+                    }
+                    return defaultValue(method.getReturnType());
+                }));
+
+        service.saveTestParams(1L, "{\"age\":35}");
+
+        Map<String, Object> config = com.alibaba.fastjson.JSON.parseObject(
+                updated.get().getModelConfig());
+        assertEquals("{\"age\":35}", config.get("testParams"));
+        assertEquals("SAVED", config.get("testParamsSource"));
+    }
+
+    @Test
     public void toGlobalRejectsProjectVariableDependencyWithoutUpdating() {
         RuleModelInputField input = inputField("age", "INTEGER", 10L, "VARIABLE", "age");
         AtomicReference<String> updateMethod = new AtomicReference<>();

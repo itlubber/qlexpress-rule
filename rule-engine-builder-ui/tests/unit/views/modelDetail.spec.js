@@ -602,8 +602,92 @@ describe('ModelDetail — 模型测试弹窗', () => {
     expect(wrapper.vm.testReady).toBe(true)
     expect(wrapper.vm.testResult).toBeNull()
     expect(wrapper.vm.testMode).toBe('manual')
+    expect(wrapper.vm.testLoadStatus).toBe('READY')
+    expect(wrapper.vm.testParamSource).toBe('SCHEMA_SAMPLE')
+    expect(wrapper.vm.testLoadWarnings).toEqual([])
     expect(definitionApi.getRuleTestSchema).toHaveBeenCalledWith({ targetType: 'MODEL', targetId: 1 })
     expect(JSON.parse(wrapper.vm.testJsonStr)).toEqual({ TaxRequest: { amount: 100 } })
+  })
+
+  test('Schema 加载失败时使用模型字段降级并展示告警', async () => {
+    modelApi.getModel.mockResolvedValue({ data: mockModel() })
+    modelApi.getTestParams.mockResolvedValue({ data: null })
+    definitionApi.getRuleTestSchema.mockRejectedValue(new Error('Schema 服务暂不可用'))
+
+    await wrapper.vm.openTestDialog()
+
+    expect(wrapper.vm.testReady).toBe(true)
+    expect(wrapper.vm.testLoadStatus).toBe('DEGRADED')
+    expect(wrapper.vm.testFields.map(field => field.fieldName)).toEqual(['age', 'income'])
+    expect(wrapper.vm.testLoadWarnings).toEqual([
+      expect.stringContaining('Schema 服务暂不可用')
+    ])
+  })
+
+  test('模型配置样例按持久化来源标记为上传样例', async () => {
+    modelApi.getModel.mockResolvedValue({ data: {
+      ...mockModel(),
+      modelConfig: JSON.stringify({
+        testParams: '{"age":35}',
+        testParamsSource: 'UPLOAD_SAMPLE'
+      })
+    } })
+    definitionApi.getRuleTestSchema.mockResolvedValue({ data: {
+      inputs: [{ refId: 10, refType: 'VARIABLE', scriptName: 'age', label: '年龄', valueType: 'INTEGER' }],
+      sampleParams: { age: 28 }
+    } })
+
+    await wrapper.vm.openTestDialog()
+
+    expect(wrapper.vm.testLoadStatus).toBe('READY')
+    expect(wrapper.vm.testParamSource).toBe('UPLOAD_SAMPLE')
+    expect(wrapper.vm.testParams.age).toBe(35)
+    expect(modelApi.getTestParams).not.toHaveBeenCalled()
+  })
+
+  test('模型配置样例损坏时回退到 Schema 样例并说明参数来源', async () => {
+    modelApi.getModel.mockResolvedValue({ data: {
+      ...mockModel(),
+      modelConfig: '{invalid json'
+    } })
+    definitionApi.getRuleTestSchema.mockResolvedValue({ data: {
+      inputs: [{ refId: 10, refType: 'VARIABLE', scriptName: 'age', label: '年龄', valueType: 'INTEGER' }],
+      sampleParams: { age: 28 }
+    } })
+
+    await wrapper.vm.openTestDialog()
+
+    expect(wrapper.vm.testLoadStatus).toBe('DEGRADED')
+    expect(wrapper.vm.testParamSource).toBe('SCHEMA_SAMPLE')
+    expect(wrapper.vm.testParamSourceLabel).toBe('测试 Schema 样例')
+    expect(wrapper.vm.testParams.age).toBe(28)
+    expect(wrapper.vm.testLoadWarnings.join(' ')).toContain('模型配置样例')
+  })
+
+  test('重复打开弹窗时迟到的旧配置不能覆盖当前配置', async () => {
+    let resolveOldModel
+    modelApi.getModel
+      .mockReturnValueOnce(new Promise(resolve => { resolveOldModel = resolve }))
+      .mockResolvedValueOnce({ data: { ...mockModel(), inputFields: [
+        { id: 3, fieldName: 'currentValue', fieldLabel: '当前值', fieldType: 'NUMBER' }
+      ] } })
+    definitionApi.getRuleTestSchema
+      .mockResolvedValueOnce({ data: { inputs: [
+        { refId: 3, refType: 'VARIABLE', scriptName: 'currentValue', label: '当前值', valueType: 'NUMBER' }
+      ], sampleParams: { currentValue: 2 } } })
+      .mockResolvedValueOnce({ data: { inputs: [
+        { refId: 1, refType: 'VARIABLE', scriptName: 'oldValue', label: '旧值', valueType: 'NUMBER' }
+      ], sampleParams: { oldValue: 1 } } })
+    modelApi.getTestParams.mockResolvedValue({ data: null })
+
+    const oldOpen = wrapper.vm.openTestDialog()
+    const currentOpen = wrapper.vm.openTestDialog()
+    await currentOpen
+    resolveOldModel({ data: mockModel() })
+    await oldOpen
+
+    expect(wrapper.vm.testFields.map(field => field.fieldName)).toEqual(['currentValue'])
+    expect(wrapper.vm.testParams).toEqual({ currentValue: 2 })
   })
 
   test('switchToJsonMode 切换到 JSON 模式', () => {
@@ -682,6 +766,25 @@ describe('ModelDetail — 模型测试弹窗', () => {
     expect(wrapper.vm.testParams.active).toBe(false)
     expect(wrapper.vm.testParams.name).toBe('')
     expect(wrapper.vm.testResult).toBeNull()
+  })
+
+  test('关闭弹窗会使正在加载的配置失效', async () => {
+    let resolveModel
+    modelApi.getModel.mockReturnValueOnce(new Promise(resolve => { resolveModel = resolve }))
+    definitionApi.getRuleTestSchema.mockResolvedValue({ data: {
+      inputs: [{ refId: 1, refType: 'VARIABLE', scriptName: 'oldValue', valueType: 'NUMBER' }],
+      sampleParams: { oldValue: 1 }
+    } })
+    modelApi.getTestParams.mockResolvedValue({ data: null })
+
+    const opening = wrapper.vm.openTestDialog()
+    wrapper.vm.closeTestDialog()
+    resolveModel({ data: mockModel() })
+    await opening
+
+    expect(wrapper.vm.testVisible).toBe(false)
+    expect(wrapper.vm.testReady).toBe(false)
+    expect(wrapper.vm.testFields).toEqual([])
   })
 
   test('formatResult 格式化对象输出', () => {
@@ -774,16 +877,60 @@ describe('ModelDetail — 模型测试执行', () => {
     expect(wrapper.vm.testResult.error).toContain('模型执行失败')
   })
 
+  test('连续执行时只保留最后一次测试结果和加载状态', async () => {
+    let resolveFirst
+    let resolveSecond
+    modelApi.executeModel
+      .mockReturnValueOnce(new Promise(resolve => { resolveFirst = resolve }))
+      .mockReturnValueOnce(new Promise(resolve => { resolveSecond = resolve }))
+
+    const first = wrapper.vm.doTest()
+    wrapper.vm.testParams.age = 40
+    const second = wrapper.vm.doTest()
+    resolveSecond({ data: { success: true, outputs: { result: 'current' } } })
+    await second
+    resolveFirst({ data: { success: true, outputs: { result: 'old' } } })
+    await first
+
+    expect(wrapper.vm.testResult.output).toEqual({ result: 'current' })
+    expect(wrapper.vm.testExecuting).toBe(false)
+  })
+
   test('handleSaveParams 保存测试参数', async () => {
-    modelApi.saveTestParams.mockResolvedValue({ data: true })
+    modelApi.saveTestParams.mockResolvedValue({ data: { id: 77 } })
+    wrapper.vm.testVisible = true
     wrapper.vm.testMode = 'manual'
     wrapper.vm.testParams = { age: 30 }
     await wrapper.vm.handleSaveParams()
     expect(modelApi.saveTestParams).toHaveBeenCalled()
+    expect(wrapper.vm.testSaving).toBe(false)
+    expect(wrapper.vm.$message.success).toHaveBeenCalledWith('测试参数变更已创建审批草稿')
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith('/approval/77')
+  })
+
+  test('弹窗已隐藏但关闭动画未结束时迟到保存不能提示或跳转', async () => {
+    let resolveSave
+    modelApi.saveTestParams.mockReturnValueOnce(new Promise(resolve => {
+      resolveSave = resolve
+    }))
+    wrapper.vm.testVisible = true
+    wrapper.vm.testMode = 'manual'
+    wrapper.vm.testParams = { age: 30 }
+
+    const saving = wrapper.vm.handleSaveParams()
+    expect(wrapper.vm.testSaving).toBe(true)
+    wrapper.vm.testVisible = false
+    resolveSave({ data: { id: 77 } })
+    await saving
+
+    expect(wrapper.vm.$message.success).not.toHaveBeenCalled()
+    expect(wrapper.vm.$router.push).not.toHaveBeenCalled()
+    expect(wrapper.vm.testSaving).toBe(false)
   })
 
   test('handleSaveParams JSON 模式保存 JSON 字符串', async () => {
     modelApi.saveTestParams.mockResolvedValue({ data: true })
+    wrapper.vm.testVisible = true
     wrapper.vm.testMode = 'json'
     wrapper.vm.testJsonStr = '{"age": 30}'
     await wrapper.vm.handleSaveParams()

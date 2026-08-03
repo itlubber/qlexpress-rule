@@ -345,7 +345,10 @@ public class RuleModelService {
             inputFields = buildOnnxInputFields(taskConfig.getTaskType());
             outputFields = buildOnnxOutputFields(taskConfig.getTaskType());
         }
-        if (testParams != null && !testParams.isEmpty()) modelConfig.put("testParams", testParams);
+        if (testParams != null && !testParams.isEmpty()) {
+            modelConfig.put("testParams", testParams);
+            modelConfig.put("testParamsSource", "UPLOAD_SAMPLE");
+        }
 
         Map<String, Object> sample = parseOptionalSample(testParams);
         List<String> declaredInputs = fieldNames(inputFields);
@@ -1352,12 +1355,15 @@ public class RuleModelService {
                 inputFields, params, referenceValues,
                 (functionId, functionCode, args) -> invokeOperandFunction(
                         functionId, functionCode, args, functions));
-        Map<String, Object> boundParams = executionParameterBinder.bindModelInputs(inputFields, resolvedParams);
+        Map<String, Object> boundContext = executionParameterBinder.bindModelInputs(inputFields, resolvedParams);
+        Map<String, Object> executionParams = executionParameterBinder.projectModelInputs(
+                inputFields, boundContext);
+        boundContext.putAll(executionParams);
         if ("PMML".equals(model.getModelFormat())) {
-            return executePmml(model, boundParams, functions);
+            return executePmml(model, executionParams, boundContext, functions);
         }
         if ("ONNX".equals(model.getModelFormat())) {
-            return executeOnnx(model, boundParams, functions);
+            return executeOnnx(model, executionParams, boundContext, functions);
         }
 
         Map<String, Object> result = new HashMap<>();
@@ -1365,7 +1371,7 @@ public class RuleModelService {
         result.put("message", model.getModelFormat() + " 格式暂不支持在线执行，仅 PMML 格式支持测试");
         result.put("modelCode", model.getModelCode());
         result.put("modelFormat", model.getModelFormat());
-        result.put("inputParams", boundParams);
+        result.put("inputParams", executionParams);
         return result;
     }
 
@@ -1401,6 +1407,12 @@ public class RuleModelService {
 
     private Map<String, Object> executeOnnx(RuleModel model, Map<String, Object> params,
                                             Map<Long, RuleFunction> functions) {
+        return executeOnnx(model, params, params, functions);
+    }
+
+    private Map<String, Object> executeOnnx(RuleModel model, Map<String, Object> params,
+                                            Map<String, Object> transformContext,
+                                            Map<Long, RuleFunction> functions) {
         long startTime = System.currentTimeMillis();
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("modelCode", model.getModelCode());
@@ -1410,7 +1422,8 @@ public class RuleModelService {
             Map<String, Object> rawOutputs = onnxModelExecutionService.execute(
                     modelBytes, model.getModelConfig(), params);
             result.put("success", true);
-            result.put("outputs", applyOutputTransforms(model, params, rawOutputs, functions));
+            result.put("outputs", applyOutputTransforms(
+                    model, transformContext, rawOutputs, functions));
         } catch (RuntimeException e) {
             String message = e.getMessage();
             result.put("success", false);
@@ -1539,6 +1552,12 @@ public class RuleModelService {
 
     private Map<String, Object> executePmml(RuleModel model, Map<String, Object> params,
                                             Map<Long, RuleFunction> functions) {
+        return executePmml(model, params, params, functions);
+    }
+
+    private Map<String, Object> executePmml(RuleModel model, Map<String, Object> params,
+                                            Map<String, Object> transformContext,
+                                            Map<Long, RuleFunction> functions) {
         long startTime = System.currentTimeMillis();
         Map<String, Object> result = new HashMap<>();
         result.put("modelCode", model.getModelCode());
@@ -1546,7 +1565,8 @@ public class RuleModelService {
 
         try {
             Map<String, Object> rawOutputs = pmmlExecutor.evaluate(model.getModelContent(), params);
-            Map<String, Object> outputs = applyOutputTransforms(model, params, rawOutputs, functions);
+            Map<String, Object> outputs = applyOutputTransforms(
+                    model, transformContext, rawOutputs, functions);
             result.put("success", true);
             result.put("outputs", outputs);
             result.put("inputParams", params);
@@ -1708,6 +1728,7 @@ public class RuleModelService {
             config = new HashMap<>();
         }
         config.put("testParams", testParams);
+        config.put("testParamsSource", "SAVED");
         model.setModelConfig(com.alibaba.fastjson.JSON.toJSONString(config));
         modelMapper.updateById(model);
     }
