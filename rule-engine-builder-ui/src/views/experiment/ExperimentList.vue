@@ -529,6 +529,7 @@
             size="small"
             type="primary"
             :loading="testing"
+            :disabled="!testReady || testing"
             @click="doExecute"
             >执行</el-button
           >
@@ -1116,6 +1117,7 @@ export default {
         this.testParamSource = Object.keys(schema.sampleParams).length
           ? 'SCHEMA_SAMPLE'
           : 'FIELD_DEFAULTS'
+        this.testMode = 'json'
         this.testLoadStatus = 'READY'
         this.testReady = true
       } catch (e) {
@@ -1201,7 +1203,7 @@ export default {
       this.jsonError = ''
     },
     async doExecute() {
-      if (this.testing) return
+      if (!this.testReady || this.testing) return
       let params
       if (this.testMode === 'manual' && this.testFields.length > 0) {
         params = buildNestedSchemaParams(this.testFields, this.testParams)

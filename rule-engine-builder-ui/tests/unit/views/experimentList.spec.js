@@ -250,6 +250,7 @@ describe('ExperimentList', () => {
   test('doExecute submits parsed params and request metadata', async () => {
     executeExperiment.mockResolvedValue({ data: { success: true, tags: ['champion'] } })
     const ctx = createContext({
+      testReady: true,
       testJson: '{"requestId":"REQ001","amount":100}',
       testRequest: { requestKey: 'REQ001', requestTime: '2026-07-01T10:00:00' },
       testExperiment: { experimentCode: 'EXP_A' }
@@ -291,6 +292,42 @@ describe('ExperimentList', () => {
     expect(ctx.testFields.map(field => field.fieldName)).toEqual(['profile.age', 'profile.active'])
     expect(ctx.testParams).toEqual({ 'profile.age': 36, 'profile.active': true })
     expect(JSON.parse(ctx.testJson)).toEqual({ profile: { age: 36, active: true } })
+  })
+
+  test('JSON editor changes after Schema loading are submitted to the experiment API', async () => {
+    getRuleTestSchema.mockResolvedValueOnce({ data: {
+      inputs: [{ refId: 1, scriptName: 'profile.age', valueType: 'INTEGER' }],
+      sampleParams: { profile: { age: 36 } }
+    } })
+    executeExperiment.mockResolvedValueOnce({ data: { success: true } })
+    const ctx = createContext()
+
+    await ctx.handleTest({ id: 9, experimentCode: 'EXP_JSON_EDIT' })
+    ctx.testJson = '{"profile":{"age":37}}'
+    ctx.onJsonInput()
+    await ctx.doExecute()
+
+    expect(ctx.testMode).toBe('json')
+    expect(executeExperiment).toHaveBeenCalledWith('EXP_JSON_EDIT', {
+      params: { profile: { age: 37 } },
+      requestKey: '',
+      requestTime: null
+    })
+  })
+
+  test('doExecute does not send a request while Schema loading has not completed', async () => {
+    const schema = deferred()
+    getRuleTestSchema.mockReturnValueOnce(schema.promise)
+    const ctx = createContext()
+
+    const opening = ctx.handleTest({ id: 9, experimentCode: 'EXP_LOADING' })
+    await ctx.doExecute()
+
+    expect(ctx.testLoadStatus).toBe('LOADING')
+    expect(executeExperiment).not.toHaveBeenCalled()
+
+    schema.resolve({ data: { inputs: [], sampleParams: {} } })
+    await opening
   })
 
   test('handleTest uses typed field defaults and FIELD_DEFAULTS when Schema has no sample', async () => {
@@ -342,6 +379,7 @@ describe('ExperimentList', () => {
   test('form and JSON modes preserve nested Schema fields, while invalid JSON retains an error and blocks execution', async () => {
     const ctx = createContext({
       testVisible: true,
+      testReady: true,
       testMode: 'manual',
       testFields: [
         { fieldName: 'profile.age', fieldType: 'INTEGER' },
@@ -372,6 +410,7 @@ describe('ExperimentList', () => {
     executeExperiment.mockReturnValueOnce(request.promise)
     const ctx = createContext({
       testVisible: true,
+      testReady: true,
       testMode: 'manual',
       testFields: [{ fieldName: 'profile.age', fieldType: 'INTEGER' }],
       testParams: { 'profile.age': 36 },
@@ -399,6 +438,7 @@ describe('ExperimentList', () => {
     executeExperiment.mockReturnValueOnce(request.promise)
     const ctx = createContext({
       testVisible: true,
+      testReady: true,
       testMode: 'manual',
       testFields: [{ fieldName: 'amount', fieldType: 'NUMBER' }],
       testParams: { amount: 100 },
@@ -425,6 +465,7 @@ describe('ExperimentList', () => {
     } })
     const ctx = createContext({
       testVisible: true,
+      testReady: true,
       testMode: 'manual',
       testFields: [{ fieldName: 'amount', fieldType: 'NUMBER' }],
       testParams: { amount: 100 },
