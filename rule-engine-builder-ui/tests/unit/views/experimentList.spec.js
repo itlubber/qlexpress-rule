@@ -95,7 +95,9 @@ describe('ExperimentList', () => {
     expect(experimentListTemplate).toContain("testLoadStatus === 'ERROR'")
     expect(experimentListTemplate).toContain('{{ testLoadError }}')
     expect(experimentListTemplate).toContain('>重新加载</el-button')
-    expect(experimentListTemplate).toContain('<style lang="scss">\n.experiment-execution-dialog')
+    expect(experimentListTemplate).toMatch(
+      /<style lang="scss">\r?\n\.experiment-execution-dialog/
+    )
     expect(experimentListTemplate).toContain('max-width: calc(100vw - 24px)')
     expect(experimentListTemplate).toContain('max-width: 100%')
     expect(experimentListTemplate).toContain('overflow-x: auto')
