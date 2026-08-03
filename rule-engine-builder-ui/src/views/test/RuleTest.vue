@@ -23,6 +23,7 @@
                 v-model="selectedProjectId"
                 placeholder="请选择项目"
                 clearable
+                :loading="projectsLoading"
                 :disabled="!!contextProjectId"
                 style="width: 100%"
                 @change="onProjectChange"
@@ -44,6 +45,7 @@
                     : '请选择规则'
                 "
                 :disabled="ruleScope === 'PROJECT' && !selectedProjectId"
+                :loading="ruleListLoading"
                 style="width: 100%"
                 filterable
                 @change="onRuleChange"
@@ -63,6 +65,41 @@
               </el-select>
             </el-form-item>
           </el-form>
+          <div
+            v-if="ruleScope === 'PROJECT' && projectsError"
+            class="test-setup-state is-error"
+          >
+            <div>
+              <strong>项目列表加载失败</strong>
+              <span>{{ projectsError }}</span>
+            </div>
+            <el-button link size="small" @click="loadProjects">重试</el-button>
+          </div>
+          <div v-if="ruleListError" class="test-setup-state is-error">
+            <div>
+              <strong>规则列表加载失败</strong>
+              <span>{{ ruleListError }}</span>
+            </div>
+            <el-button link size="small" @click="retryRuleOptions"
+              >重试</el-button
+            >
+          </div>
+          <div
+            v-else-if="
+              !ruleListLoading &&
+              ((ruleScope !== 'PROJECT' || selectedProjectId) &&
+                rules.length === 0)
+            "
+            class="test-setup-state is-empty"
+          >
+            <div>
+              <strong>当前范围没有可测试规则</strong>
+              <span>请先创建规则，或确认全局规则已绑定到当前项目。</span>
+            </div>
+            <el-button link size="small" @click="retryRuleOptions"
+              >重新检查</el-button
+            >
+          </div>
           <div v-if="selectedRule" class="rule-info">
             <el-descriptions :column="2" size="small" border>
               <el-descriptions-item label="规则编码">{{
@@ -88,6 +125,11 @@
               </el-descriptions-item>
             </el-descriptions>
           </div>
+          <ul v-if="contextWarnings.length" class="context-load-warnings">
+            <li v-for="warning in contextWarnings" :key="warning">
+              {{ warning }}
+            </li>
+          </ul>
         </div>
 
         <div v-if="selectedRule" class="uiue-card fixed-cases-card">
@@ -181,7 +223,7 @@
               @click="loadVariables"
               v-if="selectedRule"
             >
-              <el-icon><el-icon-refresh /></el-icon> 加载变量
+              <el-icon><el-icon-refresh /></el-icon> 重新加载字段
             </el-button>
             <el-button
               link
@@ -201,10 +243,37 @@
             </el-button>
           </div>
           <div
-            v-if="params.length === 0"
+            v-if="selectedRule && inputLoadState !== 'IDLE'"
+            class="input-load-state"
+            :class="'is-' + inputLoadState.toLowerCase()"
+          >
+            <div>
+              <strong>{{ inputLoadStateTitle }}</strong>
+              <span>{{ inputLoadStateDescription }}</span>
+            </div>
+            <el-button
+              v-if="inputLoadState === 'ERROR' || inputLoadState === 'EMPTY'"
+              link
+              size="small"
+              :loading="inputLoadState === 'LOADING'"
+              @click="loadVariables"
+              >重新加载</el-button
+            >
+          </div>
+          <ul v-if="inputLoadWarnings.length" class="input-load-warnings">
+            <li v-for="warning in inputLoadWarnings" :key="warning">
+              {{ warning }}
+            </li>
+          </ul>
+          <div
+            v-if="params.length === 0 && inputLoadState !== 'LOADING'"
             style="color: #64748b; padding: 12px 0; text-align: center"
           >
-            请选择规则后加载变量，或手动添加参数
+            {{
+              selectedRule
+                ? '该规则暂无结构化输入，可直接执行或手动添加参数'
+                : '请选择规则后加载字段，或手动添加参数'
+            }}
           </div>
           <el-form v-else size="small" label-width="0">
             <div v-for="(p, idx) in params" :key="idx" class="param-row">
@@ -467,13 +536,27 @@ export default {
   data() {
     return {
       projects: [],
+      projectsLoading: false,
+      projectsError: '',
+      projectsRequestId: 0,
       rules: [],
+      ruleListLoading: false,
+      ruleListError: '',
+      ruleListRequestId: 0,
       ruleScope: 'ALL',
       contextProjectId: null,
       selectedProjectId: null,
       selectedRuleId: null,
       selectedRule: null,
       params: [],
+      inputLoadState: 'IDLE',
+      inputLoadError: '',
+      inputLoadSource: '',
+      inputLoadWarnings: [],
+      inputLoadRequestId: 0,
+      ruleContextRequestId: 0,
+      executionRequestId: 0,
+      contextWarnings: [],
       executing: false,
       result: null,
       lastRawResponse: null,
@@ -484,8 +567,10 @@ export default {
       selectedTestCaseIds: [],
       testCasesLoading: false,
       testCasesError: '',
+      testCasesRequestId: 0,
       batchExecuting: false,
       batchResults: [],
+      batchExecutionRequestId: 0,
       varMap: {},
       functionNameMap: {},
       modelData: null,
@@ -527,6 +612,32 @@ export default {
       if (!this.result || !this.result.hasOutput) return ''
       return JSON.stringify(this.result.output)
     },
+    inputLoadStateTitle: function () {
+      return {
+        LOADING: '正在准备测试输入',
+        READY: '测试输入已就绪',
+        EMPTY: '未识别到结构化输入',
+        ERROR: '测试输入加载失败',
+      }[this.inputLoadState] || '尚未加载测试输入'
+    },
+    inputLoadStateDescription: function () {
+      if (this.inputLoadState === 'LOADING') {
+        return '正在读取规则引用和测试样例，请稍候。'
+      }
+      if (this.inputLoadState === 'READY') {
+        const source = this.inputLoadSource === 'FALLBACK'
+          ? '规则引用字段'
+          : '统一测试结构'
+        return `已从${source}加载 ${this.params.length} 个参数；重新加载会保留已填写值。`
+      }
+      if (this.inputLoadState === 'EMPTY') {
+        return '该规则可能无需入参，也可以手动添加脚本所需参数。'
+      }
+      if (this.inputLoadState === 'ERROR') {
+        return this.inputLoadError || '无法确认规则需要哪些输入，可重试或手动添加参数。'
+      }
+      return ''
+    },
   },
   methods: {
     async applyProjectContext(projectId) {
@@ -536,36 +647,49 @@ export default {
       await this.onProjectChange()
     },
     async loadRulesByScope() {
-      // 页面加载时根据当前 ruleScope 自动加载规则列表
       if (this.ruleScope === 'ALL') {
-        try {
-          const res = await listDefinitions({ pageNum: 1, pageSize: 1000 })
-          this.rules = res.data.records || []
-        } catch (e) {
-          /* ignore */
-        }
+        await this.loadRuleOptions(() =>
+          listDefinitions({ pageNum: 1, pageSize: 1000 })
+        )
       } else if (this.ruleScope === 'GLOBAL') {
-        try {
-          await this.loadGlobalRules()
-        } catch (e) {
-          /* ignore */
-        }
+        await this.loadGlobalRules()
+      } else if (this.selectedProjectId) {
+        await this.loadProjectRules(this.selectedProjectId)
+      } else {
+        ++this.ruleListRequestId
+        this.rules = []
+        this.ruleListError = ''
+        this.ruleListLoading = false
       }
-      // PROJECT 模式由用户选择项目后触发，不在此加载
     },
     async loadProjects() {
+      const requestId = ++this.projectsRequestId
+      this.projectsLoading = true
+      this.projectsError = ''
       try {
         const res = await listProjects({ pageNum: 1, pageSize: 1000 })
+        if (requestId !== this.projectsRequestId) return
         this.projects = res.data.records || []
       } catch (e) {
-        /* ignore */
+        if (requestId !== this.projectsRequestId) return
+        this.projects = []
+        this.projectsError = this.requestErrorMessage(
+          e,
+          '请检查网络或权限后重试'
+        )
+      } finally {
+        if (requestId === this.projectsRequestId) {
+          this.projectsLoading = false
+        }
       }
     },
-    async loadVarMap() {
+    async loadVarMap(contextRequestId) {
       this.varMap = {}
       if (!this.selectedRuleId) return
+      const ruleId = this.selectedRuleId
       try {
-        var response = await listInputFields(this.selectedRuleId)
+        var response = await listInputFields(ruleId)
+        if (!this.isActiveRuleContext(contextRequestId, ruleId)) return
         var fields = this.unwrapResponse(response)
         fields = Array.isArray(fields) ? fields : []
         var map = {}
@@ -576,16 +700,22 @@ export default {
         })
         this.varMap = map
       } catch (e) {
-        /* ignore */
+        if (this.isActiveRuleContext(contextRequestId, ruleId)) {
+          this.addContextWarning(
+            '字段中文名称加载失败，追踪树将暂时显示字段编码'
+          )
+        }
       }
     },
-    async loadFunctionNameMap() {
+    async loadFunctionNameMap(contextRequestId) {
       this.functionNameMap = {}
       if (!this.selectedRule) return
+      const ruleId = this.selectedRuleId
       var pid = this.selectedRule.projectId
       if (!pid) return
       try {
         var r = await listAllFunctionsByProject(pid)
+        if (!this.isActiveRuleContext(contextRequestId, ruleId)) return
         var funcData = r && r.data ? r.data : r
         var list = Array.isArray(funcData)
           ? funcData
@@ -599,15 +729,21 @@ export default {
         }
         this.functionNameMap = map
       } catch (e) {
-        /* ignore */
+        if (this.isActiveRuleContext(contextRequestId, ruleId)) {
+          this.addContextWarning(
+            '函数中文名称加载失败，追踪树仍可使用函数编码查看'
+          )
+        }
       }
     },
-    async loadModelJson() {
+    async loadModelJson(contextRequestId) {
       this.modelData = null
       this.definitionModel = null
       if (!this.selectedRuleId || !this.selectedRule) return
+      const ruleId = this.selectedRuleId
       try {
-        var r = await getContent(this.selectedRuleId)
+        var r = await getContent(ruleId)
+        if (!this.isActiveRuleContext(contextRequestId, ruleId)) return
         var content = r && r.data ? r.data : r
         if (content && content.modelJson) {
           var model = JSON.parse(content.modelJson)
@@ -617,34 +753,26 @@ export default {
           }
         }
       } catch (e) {
-        /* ignore */
+        if (this.isActiveRuleContext(contextRequestId, ruleId)) {
+          this.addContextWarning(
+            '规则设计内容加载失败，图形化追踪可能不可用'
+          )
+        }
       }
     },
     async onScopeChange() {
+      ++this.ruleContextRequestId
       this.selectedRuleId = null
       this.selectedRule = null
       this.rules = []
       this.params = []
-      this.result = null
+      this.resetExecutionState()
+      this.contextWarnings = []
+      this.resetInputLoadState()
       this.resetTestCases()
       this.selectedProjectId = this.contextProjectId
 
-      if (this.ruleScope === 'ALL') {
-        try {
-          const res = await listDefinitions({ pageNum: 1, pageSize: 1000 })
-          this.rules = res.data.records || []
-        } catch (e) {
-          /* ignore */
-        }
-      } else if (this.ruleScope === 'GLOBAL') {
-        try {
-          await this.loadGlobalRules()
-        } catch (e) {
-          /* ignore */
-        }
-      } else if (this.ruleScope === 'PROJECT') {
-        if (this.selectedProjectId) await this.onProjectChange()
-      }
+      await this.loadRulesByScope()
     },
     async loadGlobalRules() {
       const params = {
@@ -652,58 +780,110 @@ export default {
         pageSize: 1000,
         scope: 'GLOBAL',
       }
-      const res = this.contextProjectId
-        ? await listProjectDefinitions(this.contextProjectId, params)
-        : await listDefinitions(params)
-      this.rules = res.data.records || []
+      return this.loadRuleOptions(() =>
+        this.contextProjectId
+          ? listProjectDefinitions(this.contextProjectId, params)
+          : listDefinitions(params)
+      )
     },
     async onProjectChange() {
+      ++this.ruleContextRequestId
       this.selectedRuleId = null
       this.selectedRule = null
       this.rules = []
       this.params = []
-      this.result = null
+      this.resetExecutionState()
+      this.contextWarnings = []
+      this.resetInputLoadState()
       this.resetTestCases()
-      if (!this.selectedProjectId) return
-      try {
-        const res = await listProjectDefinitions(this.selectedProjectId, {
-          pageNum: 1,
-          pageSize: 1000,
-        })
-        this.rules = res.data.records || []
-      } catch (e) {
-        /* ignore */
+      if (!this.selectedProjectId) {
+        ++this.ruleListRequestId
+        this.ruleListLoading = false
+        this.ruleListError = ''
+        return
       }
+      await this.loadProjectRules(this.selectedProjectId)
     },
     async onRuleChange() {
+      const contextRequestId = ++this.ruleContextRequestId
       this.selectedRule =
         this.rules.find((r) => r.id === this.selectedRuleId) || null
       this.params = []
-      this.result = null
-      await this.loadModelJson()
-      await this.loadFunctionNameMap()
-      await this.loadVarMap()
-      await this.loadVariables()
-      await this.loadTestCases()
+      this.resetExecutionState()
+      this.contextWarnings = []
+      this.resetInputLoadState()
+      await Promise.all([
+        this.loadModelJson(contextRequestId),
+        this.loadFunctionNameMap(contextRequestId),
+        this.loadVarMap(contextRequestId),
+        this.loadVariables(),
+        this.loadTestCases(),
+      ])
+    },
+    async loadProjectRules(projectId) {
+      const targetProjectId = projectId
+      return this.loadRuleOptions(() =>
+        listProjectDefinitions(targetProjectId, {
+          pageNum: 1,
+          pageSize: 1000,
+        })
+      )
+    },
+    async loadRuleOptions(loader) {
+      const requestId = ++this.ruleListRequestId
+      this.ruleListLoading = true
+      this.ruleListError = ''
+      this.rules = []
+      try {
+        const res = await loader()
+        if (requestId !== this.ruleListRequestId) return
+        this.rules = (res.data && res.data.records) || []
+      } catch (e) {
+        if (requestId !== this.ruleListRequestId) return
+        this.ruleListError = this.requestErrorMessage(
+          e,
+          '请检查网络或权限后重试'
+        )
+      } finally {
+        if (requestId === this.ruleListRequestId) {
+          this.ruleListLoading = false
+        }
+      }
+    },
+    retryRuleOptions() {
+      return this.loadRulesByScope()
     },
     resetTestCases() {
+      ++this.testCasesRequestId
+      ++this.batchExecutionRequestId
       this.testCases = []
       this.selectedTestCaseIds = []
       this.batchResults = []
       this.testCasesError = ''
+      this.testCasesLoading = false
+      this.batchExecuting = false
     },
     async loadTestCases() {
       this.resetTestCases()
       if (!this.selectedRuleId) return
+      const ruleId = this.selectedRuleId
+      const requestId = ++this.testCasesRequestId
       this.testCasesLoading = true
       try {
-        const res = await listApiScenarios(this.selectedRuleId)
+        const res = await listApiScenarios(ruleId)
+        if (!this.isActiveTestCaseRequest(requestId, ruleId)) return
         const data = this.unwrapResponse(res)
         this.testCases = Array.isArray(data) ? data : []
       } catch (e) {
-        this.testCasesError = '固定测试用例加载失败'
+        if (!this.isActiveTestCaseRequest(requestId, ruleId)) return
+        this.testCasesError = this.requestErrorMessage(
+          e,
+          '固定测试用例加载失败，请重试'
+        )
       } finally {
-        this.testCasesLoading = false
+        if (this.isActiveTestCaseRequest(requestId, ruleId)) {
+          this.testCasesLoading = false
+        }
       }
     },
     async saveCurrentTestCase() {
@@ -743,8 +923,10 @@ export default {
       this.notifySuccess('固定测试用例已收藏')
     },
     async applyTestCase(testCase) {
+      const ruleId = this.selectedRuleId
       const values = scenarioParams(testCase && testCase.requestJson)
       await this.loadVariables()
+      if (String(ruleId) !== String(this.selectedRuleId)) return
       const existing = {}
       this.params.forEach((param) => {
         existing[param.key] = param
@@ -765,14 +947,15 @@ export default {
           })
         }
       })
-      this.result = null
-      this.lastRawResponse = null
+      this.resetExecutionState()
     },
     async executeSelectedTestCases() {
       const selected = this.testCases.filter(
         (testCase) => this.selectedTestCaseIds.indexOf(testCase.id) >= 0
       )
       if (selected.length === 0) return
+      const ruleId = this.selectedRuleId
+      const requestId = ++this.batchExecutionRequestId
       this.batchExecuting = true
       this.batchResults = []
       try {
@@ -783,10 +966,11 @@ export default {
               request.projectId = this.selectedProjectId
             }
             const actual = await executeApiScenario(
-              this.selectedRuleId,
+              ruleId,
               request,
               this.requestTimeoutMs
             )
+            if (!this.isActiveBatchExecution(requestId, ruleId)) return
             const expected = JSON.parse(testCase.responseJson || '{}')
             this.batchResults.push({
               scenarioName: testCase.scenarioName,
@@ -794,6 +978,7 @@ export default {
               diffs: diffTestResults(expected, actual),
             })
           } catch (e) {
+            if (!this.isActiveBatchExecution(requestId, ruleId)) return
             this.batchResults.push({
               scenarioName: testCase.scenarioName,
               success: false,
@@ -808,7 +993,9 @@ export default {
           }
         }
       } finally {
-        this.batchExecuting = false
+        if (this.isActiveBatchExecution(requestId, ruleId)) {
+          this.batchExecuting = false
+        }
       }
     },
     flattenCaseParams(value, prefix, target) {
@@ -829,107 +1016,210 @@ export default {
       return 'STRING'
     },
     async loadVariables() {
-      if (!this.selectedRule) return // 未选择规则，提前返回
+      if (!this.selectedRule || !this.selectedRuleId) {
+        this.resetInputLoadState()
+        return
+      }
+      const ruleId = this.selectedRuleId
+      const requestId = ++this.inputLoadRequestId
+      const previousParams = this.params.map((param) => ({ ...param }))
+      const previousValues = new Map(
+        previousParams
+          .filter((param) => param.key)
+          .map((param) => [param.key, param.value])
+      )
+      const manualParams = previousParams.filter((param) => !param.fromVar)
+      const warnings = []
+      let schemaSucceeded = false
+      this.inputLoadState = 'LOADING'
+      this.inputLoadError = ''
+      this.inputLoadSource = ''
+      this.inputLoadWarnings = []
       try {
-        try {
-          var schema = normalizeTestSchema(
-            await getRuleTestSchema({
-              targetType: 'RULE',
-              targetId: this.selectedRuleId,
-            })
+        var schema = normalizeTestSchema(
+          await getRuleTestSchema({
+            targetType: 'RULE',
+            targetId: ruleId,
+          })
+        )
+        if (!this.isActiveInputRequest(requestId, ruleId)) return
+        schemaSucceeded = true
+        this.appendWarnings(warnings, schema.diagnostics)
+        var schemaFields = schemaFieldsToTestFields(schema.inputs)
+        if (schemaFields.length > 0) {
+          var schemaValues = flattenSchemaSample(
+            schemaFields,
+            schema.sampleParams
           )
-          if (schema.inputs.length || Object.keys(schema.sampleParams).length) {
-            var schemaFields = schemaFieldsToTestFields(schema.inputs)
-            var schemaValues = flattenSchemaSample(
-              schemaFields,
-              schema.sampleParams
-            )
-            this.params = schemaFields.map(function (field) {
-              return {
-                key: field.fieldName,
-                label: field.fieldLabel,
-                value: schemaValues[field.fieldName],
-                type: field.fieldType,
-                refType: field.refType || '',
-                example: field.exampleValue || '',
-                fromVar: true,
-                options: field.validValues || [],
-              }
-            })
-            return
-          }
-        } catch (e) {
-          /* 继续读取服务端已解析的结构化输入字段 */
-        }
-        var fields = await this.loadInputFieldsFromServer()
-        if (fields.length > 0) {
-          await this.applyInputFieldsToParams(fields)
+          var schemaParams = schemaFields.map(function (field) {
+            return {
+              key: field.fieldName,
+              label: field.fieldLabel,
+              value: previousValues.has(field.fieldName)
+                ? previousValues.get(field.fieldName)
+                : schemaValues[field.fieldName],
+              type: field.fieldType,
+              refType: field.refType || '',
+              example: field.exampleValue || '',
+              fromVar: true,
+              options: field.validValues || [],
+            }
+          })
+          this.commitInputLoad(
+            requestId,
+            ruleId,
+            this.mergeManualParams(schemaParams, manualParams),
+            'SCHEMA',
+            warnings
+          )
           return
         }
-        this.notifyInfo(
-          '未获取到结构化输入字段，请先执行引用扫描并迁移为 ID + ref_type 后再测试'
+        if (Object.keys(schema.sampleParams).length > 0) {
+          var flattenedSample = this.flattenCaseParams(schema.sampleParams)
+          var sampleParams = Object.keys(flattenedSample).map((key) => ({
+            key: key,
+            label: '',
+            value: previousValues.has(key)
+              ? previousValues.get(key)
+              : flattenedSample[key],
+            type: this.valueType(flattenedSample[key]),
+            refType: '',
+            example: '',
+            fromVar: false,
+            options: [],
+          }))
+          this.commitInputLoad(
+            requestId,
+            ruleId,
+            this.mergeManualParams(sampleParams, manualParams),
+            'SCHEMA',
+            warnings
+          )
+          return
+        }
+      } catch (e) {
+        if (!this.isActiveInputRequest(requestId, ruleId)) return
+        warnings.push(
+          '统一测试结构加载失败：' +
+            this.requestErrorMessage(e, '服务暂时不可用')
         )
-      } catch (e) {
-        this.notifyError('加载变量失败')
       }
-    },
-    async loadInputFieldsFromServer() {
+
       try {
-        var res = await listInputFields(this.selectedRuleId)
-        var fields = this.unwrapResponse(res)
-        return Array.isArray(fields)
-          ? fields.filter(function (f) {
-              return f && f.scriptName
-            })
-          : []
+        var fields = await this.loadInputFieldsFromServer(ruleId)
+        if (!this.isActiveInputRequest(requestId, ruleId)) return
+        if (fields.length > 0) {
+          var fallbackParams = await this.buildInputFieldParams(
+            fields,
+            previousValues,
+            warnings
+          )
+          if (!this.isActiveInputRequest(requestId, ruleId)) return
+          this.commitInputLoad(
+            requestId,
+            ruleId,
+            this.mergeManualParams(fallbackParams, manualParams),
+            'FALLBACK',
+            warnings
+          )
+          return
+        }
+        this.params = manualParams
+        this.inputLoadState = 'EMPTY'
+        this.inputLoadSource = 'FALLBACK'
+        this.inputLoadWarnings = this.uniqueMessages(warnings)
       } catch (e) {
-        return []
+        if (!this.isActiveInputRequest(requestId, ruleId)) return
+        const fallbackMessage = this.requestErrorMessage(
+          e,
+          '规则输入字段服务暂时不可用'
+        )
+        if (schemaSucceeded) {
+          warnings.push('规则输入字段回退加载失败：' + fallbackMessage)
+          this.params = manualParams
+          this.inputLoadState = 'EMPTY'
+          this.inputLoadSource = 'SCHEMA'
+          this.inputLoadWarnings = this.uniqueMessages(warnings)
+          return
+        }
+        this.params = manualParams
+        this.inputLoadState = 'ERROR'
+        this.inputLoadError = '规则输入字段加载失败：' + fallbackMessage
+        this.inputLoadWarnings = this.uniqueMessages(warnings)
       }
     },
-    async applyInputFieldsToParams(fields) {
-      var existingKeys = new Set(
-        this.params.map(function (p) {
-          return p.key
-        })
-      )
-      var loadedCount = 0
+    async loadInputFieldsFromServer(ruleId = this.selectedRuleId) {
+      var res = await listInputFields(ruleId)
+      var fields = this.unwrapResponse(res)
+      return Array.isArray(fields)
+        ? fields.filter(function (field) {
+            return field && (field.scriptName || field.fieldName)
+          })
+        : []
+    },
+    async buildInputFieldParams(fields, previousValues, warnings) {
+      var params = []
+      var seenKeys = new Set()
       for (var i = 0; i < fields.length; i++) {
-        var f = fields[i]
-        var key = f.scriptName || f.fieldName
-        if (!key || existingKeys.has(key)) continue
-        var fieldType = await this.resolveInputFieldType(f)
+        var field = fields[i]
+        var key = field.scriptName || field.fieldName
+        if (!key || seenKeys.has(key)) continue
+        var fieldType = await this.resolveInputFieldType(field, warnings)
         var param = {
           key: key,
-          label: f.fieldLabel || f.fieldName || key,
-          value: this.sampleValueForInputField(f, fieldType),
+          label: field.fieldLabel || field.fieldName || key,
+          value:
+            previousValues && previousValues.has(key)
+              ? previousValues.get(key)
+              : this.sampleValueForInputField(field, fieldType),
           type: fieldType,
-          refType: f.refType || '',
+          refType: field.refType || '',
           example: '',
           fromVar: true,
           options: [],
         }
         if (param.type === 'ENUM') {
           try {
-            if (f.refType === 'DATA_OBJECT') {
-              var objOptRes = await getDataObjectFieldOptions(f.varId)
-              param.options = this.unwrapResponse(objOptRes) || []
-            } else {
-              var optRes = await getVariableOptions(f.varId)
-              param.options = this.unwrapResponse(optRes) || []
-            }
+            var optionResponse =
+              field.refType === 'DATA_OBJECT'
+                ? await getDataObjectFieldOptions(field.varId)
+                : await getVariableOptions(field.varId)
+            param.options = this.unwrapResponse(optionResponse) || []
           } catch (e) {
-            /* ignore */
+            warnings.push(
+              `${param.label}的枚举选项加载失败，可手工输入后继续测试`
+            )
           }
         }
-        this.params.push(param)
-        existingKeys.add(key)
-        loadedCount++
+        params.push(param)
+        seenKeys.add(key)
       }
-      if (loadedCount === 0) {
-        this.notifyInfo('未匹配到规则引用的输入字段')
-      }
+      return params
     },
-    async resolveInputFieldType(field) {
+    async applyInputFieldsToParams(fields) {
+      var previousParams = this.params.map((param) => ({ ...param }))
+      var previousValues = new Map(
+        previousParams
+          .filter((param) => param.key)
+          .map((param) => [param.key, param.value])
+      )
+      var warnings = []
+      var structured = await this.buildInputFieldParams(
+        fields,
+        previousValues,
+        warnings
+      )
+      this.params = this.mergeManualParams(
+        structured,
+        previousParams.filter((param) => !param.fromVar)
+      )
+      this.inputLoadWarnings = this.uniqueMessages([
+        ...this.inputLoadWarnings,
+        ...warnings,
+      ])
+      return structured.length
+    },
+    async resolveInputFieldType(field, warnings = []) {
       var fieldType = field && field.fieldType ? field.fieldType : 'STRING'
       if (!field || field.refType !== 'MODEL' || !field.varId) return fieldType
       try {
@@ -941,7 +1231,9 @@ export default {
           return outputs[0].fieldType
         }
       } catch (e) {
-        /* ignore */
+        warnings.push(
+          `${field.fieldLabel || field.fieldName || '模型字段'}的输出类型加载失败，暂按${fieldType}测试`
+        )
       }
       return fieldType
     },
@@ -1119,27 +1411,33 @@ export default {
         fromVar: false,
         options: [],
       }))
-      this.result = null
+      this.resetExecutionState()
     },
     async handleExecute() {
       if (!this.selectedRuleId) return
+      const ruleId = this.selectedRuleId
+      const projectId = this.selectedProjectId
+      const requestId = ++this.executionRequestId
       const paramMap = this.buildParamMap()
       this.executing = true
       this.result = null
+      this.lastRawResponse = null
       try {
-        const request = { definitionId: this.selectedRuleId, params: paramMap }
-        if (this.selectedProjectId) {
-          request.projectId = this.selectedProjectId
+        const request = { definitionId: ruleId, params: paramMap }
+        if (projectId) {
+          request.projectId = projectId
         }
         const res = await executeRule(
           request,
           this.requestTimeoutMs
         )
+        if (!this.isActiveExecution(requestId, ruleId, projectId)) return
         this.lastRawResponse = res
         this.result = normalizeTestResult(res)
         // 执行完成后切换到追踪树标签页
         this.traceTab = 'tree'
       } catch (e) {
+        if (!this.isActiveExecution(requestId, ruleId, projectId)) return
         this.lastRawResponse = null
         this.result = {
           success: false,
@@ -1147,13 +1445,14 @@ export default {
           executeTimeMs: 0,
         }
       } finally {
-        this.executing = false
+        if (this.isActiveExecution(requestId, ruleId, projectId)) {
+          this.executing = false
+        }
       }
     },
     handleClear() {
       this.params = []
-      this.result = null
-      this.lastRawResponse = null
+      this.resetExecutionState()
     },
     handleClearParams() {
       this.params = []
@@ -1162,6 +1461,98 @@ export default {
       if (res && Object.prototype.hasOwnProperty.call(res, 'data'))
         return res.data
       return res
+    },
+    resetInputLoadState() {
+      ++this.inputLoadRequestId
+      this.inputLoadState = 'IDLE'
+      this.inputLoadError = ''
+      this.inputLoadSource = ''
+      this.inputLoadWarnings = []
+    },
+    resetExecutionState() {
+      ++this.executionRequestId
+      this.executing = false
+      this.result = null
+      this.lastRawResponse = null
+    },
+    isActiveInputRequest(requestId, ruleId) {
+      return (
+        requestId === this.inputLoadRequestId &&
+        String(ruleId) === String(this.selectedRuleId)
+      )
+    },
+    isActiveRuleContext(contextRequestId, ruleId) {
+      return (
+        String(ruleId) === String(this.selectedRuleId) &&
+        (contextRequestId == null ||
+          contextRequestId === this.ruleContextRequestId)
+      )
+    },
+    isActiveTestCaseRequest(requestId, ruleId) {
+      return (
+        requestId === this.testCasesRequestId &&
+        String(ruleId) === String(this.selectedRuleId)
+      )
+    },
+    isActiveBatchExecution(requestId, ruleId) {
+      return (
+        requestId === this.batchExecutionRequestId &&
+        String(ruleId) === String(this.selectedRuleId)
+      )
+    },
+    isActiveExecution(requestId, ruleId, projectId) {
+      return (
+        requestId === this.executionRequestId &&
+        String(ruleId) === String(this.selectedRuleId) &&
+        String(projectId || '') === String(this.selectedProjectId || '')
+      )
+    },
+    commitInputLoad(requestId, ruleId, params, source, warnings) {
+      if (!this.isActiveInputRequest(requestId, ruleId)) return false
+      this.params = params
+      this.inputLoadState = params.length ? 'READY' : 'EMPTY'
+      this.inputLoadError = ''
+      this.inputLoadSource = source
+      this.inputLoadWarnings = this.uniqueMessages(warnings)
+      return true
+    },
+    mergeManualParams(structured, manual) {
+      const result = structured.map((param) => ({ ...param }))
+      const keys = new Set(result.map((param) => param.key).filter(Boolean))
+      manual.forEach((param) => {
+        if (!param.key || keys.has(param.key)) return
+        result.push({ ...param })
+        keys.add(param.key)
+      })
+      return result
+    },
+    appendWarnings(target, warnings) {
+      ;(warnings || []).forEach((warning) => {
+        const message =
+          typeof warning === 'string'
+            ? warning
+            : warning && (warning.message || warning.code)
+        if (message) target.push(message)
+      })
+    },
+    uniqueMessages(messages) {
+      return Array.from(
+        new Set((messages || []).filter((message) => String(message).trim()))
+      )
+    },
+    addContextWarning(message) {
+      if (message && !this.contextWarnings.includes(message)) {
+        this.contextWarnings.push(message)
+      }
+    },
+    requestErrorMessage(error, fallback) {
+      const responseMessage =
+        error &&
+        error.response &&
+        error.response.data &&
+        error.response.data.message
+      const message = responseMessage || (error && error.message)
+      return message && String(message).trim() ? String(message) : fallback
     },
     notifyInfo(message) {
       if (this.$message && this.$message.info) this.$message.info(message)
@@ -1373,6 +1764,66 @@ export default {
 }
 .rule-info {
   margin-top: 12px;
+}
+.test-setup-state,
+.input-load-state {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid #dce5ef;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+.test-setup-state strong,
+.test-setup-state span,
+.input-load-state strong,
+.input-load-state span {
+  display: block;
+}
+.test-setup-state strong,
+.input-load-state strong {
+  color: #334155;
+  font-size: 12px;
+}
+.test-setup-state span,
+.input-load-state span {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.test-setup-state.is-error,
+.input-load-state.is-error {
+  border-color: #f4c7c7;
+  background: #fff7f7;
+}
+.test-setup-state.is-error strong,
+.input-load-state.is-error strong {
+  color: #b42318;
+}
+.input-load-state.is-ready {
+  border-color: #bfe3ce;
+  background: #f4fbf7;
+}
+.input-load-state.is-ready strong {
+  color: #16794b;
+}
+.input-load-state.is-loading {
+  border-color: #c9daf6;
+  background: #f5f8ff;
+}
+.input-load-warnings,
+.context-load-warnings {
+  margin: 8px 0 0;
+  padding: 8px 10px 8px 28px;
+  border-radius: 5px;
+  background: #fff8eb;
+  color: #946200;
+  font-size: 11px;
+  line-height: 1.55;
 }
 .param-row {
   display: flex;

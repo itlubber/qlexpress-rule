@@ -183,6 +183,57 @@ describe('RuleTest — 初始化与数据加载', () => {
   test('result 初始为 null（注意：字段名是 result 不是 testResult）', () => {
     expect(wrapper.vm.result).toBeNull()
   })
+
+  test('规则列表加载失败时保留原因和重试状态', async () => {
+    definitionApi.listDefinitions.mockRejectedValueOnce(
+      new Error('规则服务暂时不可用')
+    )
+    wrapper.vm.ruleScope = 'ALL'
+
+    await wrapper.vm.loadRulesByScope()
+
+    expect(wrapper.vm.rules).toEqual([])
+    expect(wrapper.vm.ruleListError).toContain('规则服务暂时不可用')
+    expect(wrapper.vm.ruleListLoading).toBe(false)
+  })
+
+  test('快速切换项目时只采用最后一次规则列表响应', async () => {
+    let resolveFirst
+    let resolveSecond
+    definitionApi.listProjectDefinitions
+      .mockReturnValueOnce(new Promise(resolve => { resolveFirst = resolve }))
+      .mockReturnValueOnce(new Promise(resolve => { resolveSecond = resolve }))
+
+    wrapper.vm.selectedProjectId = 1
+    const first = wrapper.vm.onProjectChange()
+    wrapper.vm.selectedProjectId = 2
+    const second = wrapper.vm.onProjectChange()
+    resolveSecond({ data: { records: [{ id: 22, ruleName: '项目二规则' }] } })
+    await second
+    resolveFirst({ data: { records: [{ id: 11, ruleName: '项目一规则' }] } })
+    await first
+
+    expect(wrapper.vm.rules).toEqual([{ id: 22, ruleName: '项目二规则' }])
+    expect(wrapper.vm.ruleListLoading).toBe(false)
+  })
+
+  test('项目列表重试时旧请求不能覆盖最新结果', async () => {
+    let resolveFirst
+    let resolveSecond
+    projectApi.listProjects
+      .mockReturnValueOnce(new Promise(resolve => { resolveFirst = resolve }))
+      .mockReturnValueOnce(new Promise(resolve => { resolveSecond = resolve }))
+
+    const first = wrapper.vm.loadProjects()
+    const second = wrapper.vm.loadProjects()
+    resolveSecond({ data: { records: [{ id: 2, projectName: '最新项目' }] } })
+    await second
+    resolveFirst({ data: { records: [{ id: 1, projectName: '旧项目' }] } })
+    await first
+
+    expect(wrapper.vm.projects).toEqual([{ id: 2, projectName: '最新项目' }])
+    expect(wrapper.vm.projectsLoading).toBe(false)
+  })
 })
 
 describe('RuleTest — 辅助方法', () => {
@@ -426,6 +477,129 @@ describe('RuleTest — 加载变量（loadVariables）', () => {
     await wrapper.vm.loadVariables()
     expect(definitionApi.getContent).not.toHaveBeenCalled()
   })
+
+  test('统一测试结构失败后回退到规则输入字段并显示降级说明', async () => {
+    wrapper.vm.selectedRuleId = 1
+    wrapper.vm.selectedRule = mockRules()[0]
+    definitionApi.getRuleTestSchema.mockRejectedValueOnce(
+      new Error('测试结构服务不可用')
+    )
+    definitionApi.listInputFields.mockResolvedValueOnce({ data: [{
+      varId: 1,
+      refType: 'VARIABLE',
+      scriptName: 'taxpayerType',
+      fieldName: 'taxpayerType',
+      fieldLabel: '客商类型',
+      fieldType: 'STRING'
+    }] })
+
+    await wrapper.vm.loadVariables()
+
+    expect(wrapper.vm.inputLoadState).toBe('READY')
+    expect(wrapper.vm.params).toEqual([
+      expect.objectContaining({ key: 'taxpayerType' })
+    ])
+    expect(wrapper.vm.inputLoadWarnings.join(' '))
+      .toContain('测试结构服务不可用')
+  })
+
+  test('测试结构与回退字段都失败时显示可重试错误而非正常空状态', async () => {
+    wrapper.vm.selectedRuleId = 1
+    wrapper.vm.selectedRule = mockRules()[0]
+    definitionApi.getRuleTestSchema.mockRejectedValueOnce(
+      new Error('测试结构加载失败')
+    )
+    definitionApi.listInputFields.mockRejectedValueOnce(
+      new Error('规则字段加载失败')
+    )
+
+    await wrapper.vm.loadVariables()
+
+    expect(wrapper.vm.inputLoadState).toBe('ERROR')
+    expect(wrapper.vm.inputLoadError).toContain('规则字段加载失败')
+    expect(wrapper.vm.params).toEqual([])
+  })
+
+  test('重新加载测试结构时保留用户已填写的同路径参数值', async () => {
+    wrapper.vm.selectedRuleId = 1
+    wrapper.vm.selectedRule = mockRules()[0]
+    wrapper.vm.params = [{
+      key: 'taxpayerType', label: '客商类型', value: '用户已填写',
+      type: 'STRING', fromVar: true, options: []
+    }]
+    definitionApi.getRuleTestSchema.mockResolvedValueOnce(mockCrossTableSchema())
+
+    await wrapper.vm.loadVariables()
+
+    expect(wrapper.vm.params.find(param => param.key === 'taxpayerType').value)
+      .toBe('用户已填写')
+    expect(wrapper.vm.inputLoadState).toBe('READY')
+  })
+
+  test('快速切换规则时旧测试结构响应不能覆盖新规则参数', async () => {
+    let resolveFirst
+    let resolveSecond
+    definitionApi.getRuleTestSchema
+      .mockReturnValueOnce(new Promise(resolve => { resolveFirst = resolve }))
+      .mockReturnValueOnce(new Promise(resolve => { resolveSecond = resolve }))
+
+    wrapper.vm.selectedRuleId = 1
+    wrapper.vm.selectedRule = mockRules()[0]
+    const first = wrapper.vm.loadVariables()
+    wrapper.vm.selectedRuleId = 4
+    wrapper.vm.selectedRule = mockRules()[1]
+    const second = wrapper.vm.loadVariables()
+    resolveSecond({ data: {
+      inputs: [{ refId: 2, refType: 'VARIABLE', scriptName: 'newRuleField', label: '新规则字段', valueType: 'STRING' }],
+      sampleParams: { newRuleField: 'new' }
+    } })
+    await second
+    resolveFirst(mockCrossTableSchema())
+    await first
+
+    expect(wrapper.vm.params).toEqual([
+      expect.objectContaining({ key: 'newRuleField', value: 'new' })
+    ])
+  })
+
+  test('测试结构诊断作为非阻断提示保留', async () => {
+    wrapper.vm.selectedRuleId = 1
+    wrapper.vm.selectedRule = mockRules()[0]
+    definitionApi.getRuleTestSchema.mockResolvedValueOnce({ data: {
+      ...mockCrossTableSchema().data,
+      diagnostics: ['动态脚本引用需要手工补充参数']
+    } })
+
+    await wrapper.vm.loadVariables()
+
+    expect(wrapper.vm.inputLoadState).toBe('READY')
+    expect(wrapper.vm.inputLoadWarnings).toContain(
+      '动态脚本引用需要手工补充参数'
+    )
+  })
+
+  test('枚举选项加载失败不阻断回退字段并给出提示', async () => {
+    wrapper.vm.selectedRuleId = 1
+    wrapper.vm.selectedRule = mockRules()[0]
+    definitionApi.getRuleTestSchema.mockRejectedValueOnce(
+      new Error('测试结构服务不可用')
+    )
+    definitionApi.listInputFields.mockResolvedValueOnce({ data: [{
+      varId: 1, refType: 'VARIABLE', scriptName: 'customerLevel',
+      fieldName: 'customerLevel', fieldLabel: '客户等级', fieldType: 'ENUM'
+    }] })
+    variableApi.getVariableOptions.mockRejectedValueOnce(
+      new Error('枚举服务不可用')
+    )
+
+    await wrapper.vm.loadVariables()
+
+    expect(wrapper.vm.inputLoadState).toBe('READY')
+    expect(wrapper.vm.params[0]).toMatchObject({
+      key: 'customerLevel', type: 'ENUM', options: []
+    })
+    expect(wrapper.vm.inputLoadWarnings.join(' ')).toContain('枚举选项')
+  })
 })
 
 describe('RuleTest — 执行与结果展示', () => {
@@ -547,6 +721,27 @@ describe('RuleTest — 执行与结果展示', () => {
     expect(wrapper.vm.result.errorMessage).toContain('规则编译失败')
   })
 
+  test('执行期间切换规则不会保留旧响应或覆盖新规则结果', async () => {
+    let resolveExecution
+    definitionApi.executeRule.mockReturnValueOnce(
+      new Promise(resolve => { resolveExecution = resolve })
+    )
+    wrapper.vm.selectedRuleId = 1
+    wrapper.vm.selectedRule = mockRules()[0]
+    wrapper.vm.lastRawResponse = { data: { result: '更早的结果' } }
+
+    const executing = wrapper.vm.handleExecute()
+    wrapper.vm.selectedRuleId = 4
+    wrapper.vm.selectedRule = mockRules()[1]
+    await wrapper.vm.onRuleChange()
+    resolveExecution({ data: mockExecutionResult() })
+    await executing
+
+    expect(wrapper.vm.result).toBeNull()
+    expect(wrapper.vm.lastRawResponse).toBeNull()
+    expect(wrapper.vm.executing).toBe(false)
+  })
+
   test('handleClear 清空 params 和 result', () => {
     wrapper.vm.params = [{ key: 'taxpayerType', value: '小规模纳税人' }]
     wrapper.vm.result = { success: true }
@@ -585,6 +780,82 @@ describe('RuleTest — 执行与结果展示', () => {
     expect(definitionApi.executeApiScenario.mock.calls[0][1].projectId).toBe(7)
     expect(wrapper.vm.batchResults[0].diffs).toEqual([])
     expect(wrapper.vm.batchResults[1].diffs[0]).toMatchObject({ path: '$.result.level', expected: 'A', actual: 'B' })
+  })
+
+  test('切换规则时旧固定用例响应不能覆盖当前规则', async () => {
+    let resolveFirst
+    let resolveSecond
+    definitionApi.listApiScenarios
+      .mockReturnValueOnce(new Promise(resolve => { resolveFirst = resolve }))
+      .mockReturnValueOnce(new Promise(resolve => { resolveSecond = resolve }))
+
+    wrapper.vm.selectedRuleId = 1
+    const first = wrapper.vm.loadTestCases()
+    wrapper.vm.selectedRuleId = 4
+    const second = wrapper.vm.loadTestCases()
+    resolveSecond({ data: [{ id: 42, scenarioName: '当前规则用例' }] })
+    await second
+    resolveFirst({ data: [{ id: 11, scenarioName: '旧规则用例' }] })
+    await first
+
+    expect(wrapper.vm.testCases).toEqual([
+      { id: 42, scenarioName: '当前规则用例' }
+    ])
+    expect(wrapper.vm.testCasesLoading).toBe(false)
+  })
+
+  test('应用固定用例期间切换规则不会把旧参数写入新规则', async () => {
+    let resolveSchema
+    definitionApi.getRuleTestSchema.mockReturnValueOnce(
+      new Promise(resolve => { resolveSchema = resolve })
+    )
+    wrapper.vm.selectedRuleId = 1
+    wrapper.vm.selectedRule = mockRules()[0]
+
+    const applying = wrapper.vm.applyTestCase({
+      requestJson: '{"params":{"legacyAmount":99}}'
+    })
+    wrapper.vm.selectedRuleId = 4
+    wrapper.vm.selectedRule = mockRules()[1]
+    wrapper.vm.params = [{
+      key: 'goodsCategory',
+      value: '服务',
+      type: 'STRING',
+      fromVar: true
+    }]
+    resolveSchema(mockCrossTableSchema())
+    await applying
+
+    expect(wrapper.vm.params).toEqual([{
+      key: 'goodsCategory',
+      value: '服务',
+      type: 'STRING',
+      fromVar: true
+    }])
+  })
+
+  test('批量执行期间切换规则不会把旧结果写入新规则', async () => {
+    let resolveExecution
+    wrapper.vm.selectedRuleId = 1
+    wrapper.vm.testCases = [{
+      id: 11,
+      scenarioName: '旧规则用例',
+      requestJson: '{"params":{"age":18}}',
+      responseJson: '{"code":200}'
+    }]
+    wrapper.vm.selectedTestCaseIds = [11]
+    definitionApi.executeApiScenario.mockReturnValueOnce(
+      new Promise(resolve => { resolveExecution = resolve })
+    )
+
+    const executing = wrapper.vm.executeSelectedTestCases()
+    wrapper.vm.selectedRuleId = 4
+    wrapper.vm.resetTestCases()
+    resolveExecution({ code: 200 })
+    await executing
+
+    expect(wrapper.vm.batchResults).toEqual([])
+    expect(wrapper.vm.batchExecuting).toBe(false)
   })
 
   test('追踪树按状态和关键字筛选并保留祖先', () => {

@@ -119,6 +119,11 @@ test('规则测试可选择规则、加载字段并展示执行结果', async ({
   await ruleSelect.click()
   await page.getByRole('option', { name: /age_rule/ }).click()
 
+  await expect(page.getByText('测试输入已就绪', { exact: true })).toBeVisible()
+  await expect(page.getByText(
+    '已从统一测试结构加载 1 个参数；重新加载会保留已填写值。',
+    { exact: true }
+  )).toBeVisible()
   await expect(page.locator('.param-key input')).toHaveValue('age')
   await expect(page.getByText('(年龄)', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '执行测试' }).click()
