@@ -196,6 +196,73 @@ test('分流实验列表、筛选与新建详情页可用', async ({ page }) => 
   assertClean()
 })
 
+test('分流实验验证执行加载 Schema 表单并提交嵌套参数', async ({ page }) => {
+  const pageErrors = []
+  page.on('pageerror', error => pageErrors.push(error.message))
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const { assertClean } = await installDistRoutes(page, {
+    apiData: createOperationsApiData()
+  })
+  await page.goto('http://tianshu.local/index.html#/experiment')
+
+  const experimentRow = page.getByRole('row').filter({ hasText: 'risk_ab' })
+  const schemaRequestPromise = page.waitForRequest(request =>
+    request.method() === 'POST' &&
+    new URL(request.url()).pathname === '/api/rule/test-schema'
+  )
+  await experimentRow.getByRole('button', { name: '验证执行', exact: true }).click()
+  const schemaRequest = await schemaRequestPromise
+  expect(schemaRequest.postDataJSON()).toEqual({
+    targetType: 'EXPERIMENT',
+    targetId: 61
+  })
+
+  const dialog = page.getByRole('dialog', { name: '验证执行分流实验' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByText(/参数来源：Schema 样例/)).toBeVisible()
+  await expect(dialog.locator('.execution-field-grid')).toBeVisible()
+  await expect(dialog.locator('.execution-field-cell').filter({ hasText: '申请年龄' }))
+    .toBeVisible()
+  await expect(dialog.locator('.execution-field-cell').filter({ hasText: '是否会员' }))
+    .toBeVisible()
+
+  await dialog.locator('.execution-field-cell').filter({ hasText: '申请年龄' })
+    .locator('input').fill('35')
+  await dialog.locator('.execution-context-form .el-form-item')
+    .filter({ hasText: '请求唯一键' })
+    .locator('input:visible').fill('REQ-E2E-20260804')
+  await dialog.locator('.execution-context-form .el-form-item')
+    .filter({ hasText: '进件时间' })
+    .locator('input:visible').fill('2026-08-04T10:30:00')
+  await dialog.locator('.execution-identity').click()
+
+  const executeRequestPromise = page.waitForRequest(request =>
+    request.method() === 'POST' &&
+    new URL(request.url()).pathname === '/api/rule/experiment/execute/risk_ab'
+  )
+  await dialog.getByRole('button', { name: '验证执行', exact: true }).click()
+  const executeRequest = await executeRequestPromise
+  expect(executeRequest.postDataJSON()).toEqual({
+    params: {
+      profile: {
+        age: 35,
+        isVip: false,
+        customerType: 'NEW'
+      }
+    },
+    requestKey: 'REQ-E2E-20260804',
+    requestTime: '2026-08-04T10:30:00'
+  })
+
+  await expect(dialog.getByText('冠军组', { exact: true })).toBeVisible()
+  await expect(dialog.getByText('challenger', { exact: true })).toBeVisible()
+  await expect(dialog.locator('.execution-trace')).toContainText('exp_trace_e2e_001')
+  await expect(dialog.locator('.execution-trace')).toContainText('耗时：17 ms')
+  await expectNoRootOverflow(page)
+  expect(pageErrors).toEqual([])
+  assertClean()
+})
+
 test('执行日志详情和规则集命中统计可用', async ({ page }) => {
   const pageErrors = []
   page.on('pageerror', error => pageErrors.push(error.message))

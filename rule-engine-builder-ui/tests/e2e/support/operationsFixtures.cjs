@@ -95,21 +95,67 @@ function createOperationsApiData() {
     }
   ])
   routes.set('POST /api/rule/definition/refreshFields/101', {})
-  routes.set('POST /api/rule/test-schema', {
-    inputs: [
-      {
-        refId: 1,
-        refType: 'VARIABLE',
-        code: 'age',
-        label: '年龄',
-        scriptName: 'age',
-        valueType: 'INTEGER',
-        defaultValue: 18
+  routes.set('POST /api/rule/test-schema', ({ request }) => {
+    const payload = request.postDataJSON()
+    if (payload.targetType === 'EXPERIMENT' && payload.targetId === 61) {
+      return {
+        inputs: [
+          {
+            refId: 1,
+            refType: 'VARIABLE',
+            code: 'profile.age',
+            label: '申请年龄',
+            scriptName: 'profile.age',
+            valueType: 'INTEGER',
+            defaultValue: 18
+          },
+          {
+            refId: 2,
+            refType: 'VARIABLE',
+            code: 'profile.isVip',
+            label: '是否会员',
+            scriptName: 'profile.isVip',
+            valueType: 'BOOLEAN',
+            defaultValue: false
+          },
+          {
+            refId: 3,
+            refType: 'VARIABLE',
+            code: 'profile.customerType',
+            label: '客户类型',
+            scriptName: 'profile.customerType',
+            valueType: 'STRING',
+            validValues: ['NEW', 'EXISTING'],
+            defaultValue: 'NEW'
+          }
+        ],
+        outputs: [],
+        sampleParams: {
+          profile: {
+            age: 28,
+            isVip: false,
+            customerType: 'NEW'
+          }
+        },
+        diagnostics: []
       }
-    ],
-    outputs: [],
-    sampleParams: { age: 18 },
-    diagnostics: []
+    }
+    return {
+      inputs: [
+        {
+          refId: 1,
+          refType: 'VARIABLE',
+          code: 'age',
+          label: '年龄',
+          scriptName: 'age',
+          valueType: 'INTEGER',
+          defaultValue: 18
+        }
+      ],
+      outputs: [],
+      sampleParams: { age: 18 },
+      diagnostics: []
+    }
   })
   routes.set('/api/rule/definition/101/api-scenarios', [])
   routes.set('POST /api/rule/definition/execute', {
@@ -198,6 +244,31 @@ function createOperationsApiData() {
       }
     ],
     total: 1
+  })
+  routes.set('POST /api/rule/experiment/execute/risk_ab', {
+    success: true,
+    experimentTraceId: 'exp_trace_e2e_001',
+    requestKey: 'REQ-E2E-20260804',
+    executeTimeMs: 17,
+    productionGroup: {
+      groupCode: 'champion',
+      groupName: '冠军组',
+      success: true
+    },
+    testGroups: [
+      {
+        groupCode: 'challenger',
+        groupName: '挑战组',
+        matched: true,
+        success: true
+      },
+      {
+        groupCode: 'shadow',
+        groupName: '空跑组',
+        skipped: true
+      }
+    ],
+    tags: ['E2E', 'EXPERIMENT']
   })
 
   routes.set('/api/rule/log/list', {
