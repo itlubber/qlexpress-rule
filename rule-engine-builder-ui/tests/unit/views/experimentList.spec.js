@@ -284,6 +284,7 @@ describe('ExperimentList', () => {
     } })
     await opening
 
+    expect(getRuleTestSchema).toHaveBeenCalledWith({ targetType: 'EXPERIMENT', targetId: 9 })
     expect(ctx.testLoadStatus).toBe('READY')
     expect(ctx.testReady).toBe(true)
     expect(ctx.testParamSource).toBe('SCHEMA_SAMPLE')
@@ -415,41 +416,70 @@ describe('ExperimentList', () => {
     expect(ctx.testing).toBe(false)
   })
 
-  test('an expired execution request cannot overwrite the current dialog state', async () => {
-    const request = deferred()
-    executeExperiment.mockReturnValueOnce(request.promise)
+  test('switching to another experiment keeps the new session intact when the old execution resolves late', async () => {
+    const oldExecution = deferred()
+    executeExperiment.mockReturnValueOnce(oldExecution.promise)
+    getRuleTestSchema.mockResolvedValueOnce({ data: {
+      inputs: [{ refId: 10, scriptName: 'session.version', valueType: 'STRING' }],
+      sampleParams: { session: { version: 'B' } }
+    } })
     const ctx = createContext({
       testVisible: true,
       testMode: 'manual',
       testFields: [{ fieldName: 'amount', fieldType: 'NUMBER' }],
       testParams: { amount: 100 },
-      testExperiment: { experimentCode: 'EXP_EXPIRED' }
+      testExperiment: { id: 9, experimentCode: 'EXP_A' }
     })
+    const experimentB = { id: 10, experimentCode: 'EXP_B' }
 
     const executing = ctx.doExecute()
-    ctx.testExecutionRequestId++
-    request.resolve({ data: { success: true, tags: ['expired-result'] } })
+    await ctx.handleTest(experimentB)
+    oldExecution.resolve({ data: { success: true, tags: ['old-result'] } })
     await executing
 
+    expect(ctx.testVisible).toBe(true)
+    expect(ctx.testExperiment).toEqual(experimentB)
+    expect(ctx.testParams).toEqual({ 'session.version': 'B' })
     expect(ctx.testResult).toBeNull()
   })
 
-  test('buildExecutionResultSummary distinguishes production, matched, skipped, and failed groups', () => {
+  test('buildExecutionResultSummary distinguishes overall success, production outcomes, and test group outcomes', () => {
     const ctx = createContext()
 
     expect(ctx.buildExecutionResultSummary).toBeTypeOf('function')
     expect(ctx.buildExecutionResultSummary({
-      productionGroup: { groupCode: 'champion', success: true },
+      success: true,
+      productionGroup: { groupCode: 'champion', skipped: false, success: true },
       testGroups: [
         { groupCode: 'test_hit', matched: true, skipped: false, success: true },
         { groupCode: 'test_skipped', matched: false, skipped: true, success: true },
         { groupCode: 'test_failed', matched: true, skipped: false, success: false, errorMessage: 'rule failed' }
       ]
-    })).toEqual([
-      { groupCode: 'champion', stage: 'PRODUCTION', status: 'SUCCESS' },
-      { groupCode: 'test_hit', stage: 'TEST', status: 'MATCHED' },
-      { groupCode: 'test_skipped', stage: 'TEST', status: 'SKIPPED' },
-      { groupCode: 'test_failed', stage: 'TEST', status: 'FAILED', errorMessage: 'rule failed' }
-    ])
+    })).toEqual({
+      overall: { status: 'SUCCESS' },
+      groups: [
+        { groupCode: 'champion', stage: 'PRODUCTION', status: 'SUCCESS' },
+        { groupCode: 'test_hit', stage: 'TEST', status: 'MATCHED' },
+        { groupCode: 'test_skipped', stage: 'TEST', status: 'SKIPPED' },
+        { groupCode: 'test_failed', stage: 'TEST', status: 'FAILED', errorMessage: 'rule failed' }
+      ]
+    })
+    expect(ctx.buildExecutionResultSummary({
+      success: false,
+      errorMessage: 'production failed',
+      productionGroup: { groupCode: 'champion', skipped: false, success: false, errorMessage: 'production failed' },
+      testGroups: []
+    })).toEqual({
+      overall: { status: 'FAILED', errorMessage: 'production failed' },
+      groups: [{ groupCode: 'champion', stage: 'PRODUCTION', status: 'FAILED', errorMessage: 'production failed' }]
+    })
+    expect(ctx.buildExecutionResultSummary({
+      success: true,
+      productionGroup: { groupCode: 'champion', skipped: true, success: true },
+      testGroups: []
+    })).toEqual({
+      overall: { status: 'SUCCESS' },
+      groups: [{ groupCode: 'champion', stage: 'PRODUCTION', status: 'SKIPPED' }]
+    })
   })
 })
