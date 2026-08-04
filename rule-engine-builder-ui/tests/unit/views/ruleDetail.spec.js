@@ -649,12 +649,27 @@ describe('RuleDetail — 辅助方法', () => {
 describe('RuleDetail — 开放接口契约', () => {
   test('开放接口字段选项展示业务名称、编码和类型但不暴露内部 ID', async () => {
     const wrapper = await mountAndWait()
-    const option = wrapper.vm.openInputOptions[0]
+    const inputOption = wrapper.vm.openInputOptions[0]
+    const outputOption = wrapper.vm.openOutputOptions[0]
 
-    expect(option.label).toContain('age')
-    expect(option.label).toContain('INTEGER')
-    expect(option.label).not.toContain('VARIABLE:1')
-    expect(option.value).toBe('VARIABLE:1')
+    expect(inputOption).toMatchObject({
+      value: 'VARIABLE:1',
+      fieldType: 'INTEGER',
+      fieldCode: 'age',
+      fieldName: '年龄',
+    })
+    expect(inputOption.label).toContain('age')
+    expect(inputOption.label).toContain('INTEGER')
+    expect(inputOption.label).not.toContain('VARIABLE:1')
+    expect(outputOption).toMatchObject({
+      value: 'VARIABLE:3',
+      fieldType: 'STRING',
+      fieldCode: 'result',
+      fieldName: '结果',
+    })
+    expect(
+      wrapper.vm.openApiFieldOption(wrapper.vm.openInputOptions, 'VARIABLE:1')
+    ).toBe(inputOption)
     wrapper.unmount()
   })
 

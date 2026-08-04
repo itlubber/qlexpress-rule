@@ -31,6 +31,17 @@ public class CredentialCipherTest {
         assertEquals("legacy-secret", new CredentialCipher(rotatedProperties).decrypt(encrypted));
     }
 
+    @Test
+    public void decryptsValueWhenHistoricalAndCurrentMaterialsSharedTheSameKeyId() {
+        ProjectAuthProperties currentProperties = properties("v2", "v2", "current-master-key");
+        String encrypted = new CredentialCipher(currentProperties).encrypt("current-secret");
+
+        ProjectAuthProperties rotatedProperties = properties("v3", "v2", "historical-v2-master-key");
+        rotatedProperties.getMasterKeys().put("v3", "current-master-key");
+
+        assertEquals("current-secret", new CredentialCipher(rotatedProperties).decrypt(encrypted));
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void rejectsTamperedCiphertext() {
         CredentialCipher cipher = new CredentialCipher(properties("v1", "v1", "master-key"));

@@ -647,7 +647,7 @@
               size="small"
               empty-text="尚未配置请求映射"
             >
-              <el-table-column label="规则入参" min-width="210">
+              <el-table-column label="规则入参" min-width="280">
                 <template v-slot="{ row }">
                   <el-select
                     v-model="row.targetKey"
@@ -655,12 +655,22 @@
                     placeholder="选择稳定引用"
                     style="width: 100%"
                   >
+                    <template #label="{ value, label }">
+                      <field-reference-display
+                        v-if="openApiFieldOption(openInputOptions, value)"
+                        :field="openApiFieldOption(openInputOptions, value)"
+                        compact
+                      />
+                      <span v-else>{{ label }}</span>
+                    </template>
                     <el-option
                       v-for="item in openInputOptions"
                       :key="item.value"
                       :label="item.label"
                       :value="item.value"
-                    />
+                    >
+                      <field-reference-display :field="item" />
+                    </el-option>
                   </el-select>
                 </template>
               </el-table-column>
@@ -743,7 +753,7 @@
               size="small"
               empty-text="尚未配置响应映射"
             >
-              <el-table-column label="引擎内部输出字段" min-width="260">
+              <el-table-column label="引擎内部输出字段" min-width="300">
                 <template v-slot="{ row }">
                   <el-select
                     v-model="row.sourceKey"
@@ -752,12 +762,22 @@
                     style="width: 100%"
                     @change="onOpenResponseSourceChange(row)"
                   >
+                    <template #label="{ value, label }">
+                      <field-reference-display
+                        v-if="openApiFieldOption(openOutputOptions, value)"
+                        :field="openApiFieldOption(openOutputOptions, value)"
+                        compact
+                      />
+                      <span v-else>{{ label }}</span>
+                    </template>
                     <el-option
                       v-for="item in openOutputOptions"
                       :key="item.value"
                       :label="item.label"
                       :value="item.value"
-                    />
+                    >
+                      <field-reference-display :field="item" />
+                    </el-option>
                   </el-select>
                 </template>
               </el-table-column>
@@ -1347,6 +1367,7 @@ import RuleVersionDiff from '@/components/rule/versionDiff/RuleVersionDiff.vue'
 import RuleLifecyclePanel from '@/components/rule/RuleLifecyclePanel.vue'
 import RuleValidationReport from '@/components/rule/RuleValidationReport.vue'
 import RuleLifecycleTimeline from '@/components/rule/RuleLifecycleTimeline.vue'
+import FieldReferenceDisplay from '@/components/common/FieldReferenceDisplay.vue'
 import ArtifactDeploymentDialog from '@/components/artifact/ArtifactDeploymentDialog.vue'
 import * as artifactApi from '@/api/artifact'
 
@@ -1607,6 +1628,7 @@ export default {
     RuleLifecyclePanel,
     RuleValidationReport,
     RuleLifecycleTimeline,
+    FieldReferenceDisplay,
     ArtifactDeploymentDialog,
     ElIconArrowDown,
     ElIconEdit,
@@ -1678,6 +1700,7 @@ export default {
           return {
             value: varId ? refType + ':' + varId : '',
             label: this.openApiFieldOptionLabel(field),
+            ...this.openApiFieldDisplay(field),
             scriptName: field.scriptName || '',
             externalName:
               field.fieldName ||
@@ -1697,6 +1720,7 @@ export default {
           return {
             value: varId ? refType + ':' + varId : '',
             label: this.openApiFieldOptionLabel(field),
+            ...this.openApiFieldDisplay(field),
             scriptName: field.scriptName || '',
           }
         })
@@ -1734,12 +1758,23 @@ export default {
       const focus = this.$route && this.$route.query && this.$route.query.focus
       if (focus === 'lifecycle') this.activeDetailTab = 'lifecycle'
     },
+    openApiFieldDisplay(field) {
+      return {
+        fieldName:
+          field.fieldLabel ||
+          field.fieldName ||
+          field.scriptName ||
+          '未命名字段',
+        fieldCode: field.scriptName || field.fieldName || '—',
+        fieldType: field.fieldType || 'OBJECT',
+      }
+    },
     openApiFieldOptionLabel(field) {
-      const label =
-        field.fieldLabel || field.fieldName || field.scriptName || '未命名字段'
-      const code = field.scriptName || field.fieldName || '-'
-      const type = field.fieldType || 'OBJECT'
-      return `${label}（${code}） · ${type}`
+      const display = this.openApiFieldDisplay(field)
+      return `${display.fieldName}（${display.fieldCode}） · ${display.fieldType}`
+    },
+    openApiFieldOption(options, value) {
+      return (options || []).find((item) => item.value === value) || null
     },
     async load() {
       const id = this.$route.params.id

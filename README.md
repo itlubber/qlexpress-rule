@@ -171,6 +171,7 @@ mvn "-Ponnx-gpu" "-Dtianshu.cuda.diagnostic=true" "-Dtest=CudaEnvironmentDiagnos
 | `MYSQL_USERNAME` / `MYSQL_PASSWORD` | 必填；生产使用仅具备 `rule_engine` 所需权限的独立账号 |
 | `REDIS_PASSWORD` | 必填；与 server 和 SDK 实际连接的 Redis 实例一致 |
 | `RULE_AUTH_MASTER_KEY` | 必填；至少 32 位的私有随机密钥，生产通过 Secret/KMS 注入 |
+| `RULE_AUTH_LEGACY_MASTER_KEY` / `RULE_AUTH_LEGACY_V2_MASTER_KEY` | 仅升级旧部署时配置；分别用于读取历史 `v1` 密文和曾复用 `v2` 标识的旧密文 |
 | `CONSOLE_USERNAME` / `CONSOLE_PASSWORD` | 必填；密码默认按 BCrypt 校验 |
 | `CORS_ALLOWED_ORIGIN_PATTERNS` | 生产控制台的精确 HTTPS 来源，不使用任意来源 |
 | `SESSION_COOKIE_SECURE` | HTTPS 生产环境设为 `true` |
@@ -443,7 +444,7 @@ SDK 行为：
 - Spring Boot 自动配置使用任一项目鉴权方式（包括原项目令牌）时，执行日志固定通过受鉴权的 HTTP 接口上报，由服务端写入可信的鉴权及 Token 归因；未配置项目鉴权时才保留外部日志上报器选择。
 - 可异步上报执行日志。
 
-项目鉴权配置、长期凭证和短期 Token 均可在控制台再次查看完整值。长期凭证在数据库中使用 AES-GCM 可逆加密存储；启动服务前必须通过 `RULE_AUTH_MASTER_KEY` 配置至少 32 位的独立主密钥并妥善保管，未配置或使用公开开发密钥时服务会拒绝启动。新密文默认使用 `v2` 密钥；升级前若已有旧 `v1` 密文，还需通过 `RULE_AUTH_LEGACY_MASTER_KEY` 保留原主密钥，待旧凭证全部修改或重置后才能移除。可通过 `RULE_AUTH_ACTIVE_KEY_ID` 显式选择活动密钥版本。访问审计记录所有受保护接口调用；只有实际规则执行进入计费，计费明细可区分 `authCode` 和 `tokenCode`，按日汇总到鉴权配置维度。
+项目鉴权配置、长期凭证和短期 Token 均可在控制台再次查看完整值。长期凭证在数据库中使用 AES-GCM 可逆加密存储；启动服务前必须通过 `RULE_AUTH_MASTER_KEY` 配置至少 32 位的独立主密钥并妥善保管，未配置或使用公开开发密钥时服务会拒绝启动。新密文默认使用 `v2` 密钥；升级前若已有旧 `v1` 密文，需通过 `RULE_AUTH_LEGACY_MASTER_KEY` 保留原主密钥；若历史版本曾在更换密钥材料时继续复用 `v2` 标识，还需通过 `RULE_AUTH_LEGACY_V2_MASTER_KEY` 配置当时的材料。解密会优先使用密文标识对应的密钥，再尝试已配置的历史密钥；待旧凭证全部修改或重置后应移除历史密钥。可通过 `RULE_AUTH_ACTIVE_KEY_ID` 显式选择活动密钥版本，后续轮换必须使用新的 key ID。访问审计记录所有受保护接口调用；只有实际规则执行进入计费，计费明细可区分 `authCode` 和 `tokenCode`，按日汇总到鉴权配置维度。
 
 ## 10. 版本、日志和计费
 

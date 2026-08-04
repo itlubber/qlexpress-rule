@@ -13,6 +13,8 @@ function sourceKey(source) {
   return source ? `${source.sourceType}:${source.sourceId}` : ''
 }
 
+const EDITABLE_BASE_STATES = ['APPROVED', 'PUBLISHED', 'OFFLINE', 'LEGACY']
+
 export default {
   data() {
     return {
@@ -202,6 +204,14 @@ export default {
             modelJson,
           }
         }
+        if (EDITABLE_BASE_STATES.includes(this.viewRevision?.state)) {
+          await this.createEditableEntryDraft(
+            definitionId,
+            requestedSourceKey,
+            refreshToken
+          )
+          if (!this.isCurrentSource(requestedSourceKey, refreshToken)) return null
+        }
         return { refreshToken, sourceKey: requestedSourceKey }
       } catch (error) {
         if (!this.isCurrentSource(requestedSourceKey, refreshToken)) return null
@@ -213,6 +223,26 @@ export default {
           this.draftGuardLoaded = true
         }
       }
+    },
+    async createEditableEntryDraft(
+      definitionId,
+      requestedSourceKey,
+      refreshToken
+    ) {
+      const baseRevisionId =
+        this.viewRevision?.state === 'LEGACY' ? undefined : this.viewRevision?.id
+      const response =
+        baseRevisionId === undefined
+          ? await definitionApi.createDraftRevision(definitionId)
+          : await definitionApi.createDraftRevision(definitionId, baseRevisionId)
+      if (!this.isCurrentSource(requestedSourceKey, refreshToken)) return null
+      const revision = unwrap(response)
+      if (!revision || revision.state !== 'DRAFT') {
+        throw new Error('创建可编辑草稿响应缺少 DRAFT 修订')
+      }
+      this.draftRevision = revision
+      this.viewRevision = revision
+      return revision
     },
     async forkViewRevision() {
       if (!this.canForkViewRevision) {

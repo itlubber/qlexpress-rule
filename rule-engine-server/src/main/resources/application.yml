@@ -59,6 +59,7 @@ rule-engine:
     master-keys:
       v1: ${RULE_AUTH_LEGACY_MASTER_KEY:}
       v2: ${RULE_AUTH_MASTER_KEY:}
+      legacy-v2: ${RULE_AUTH_LEGACY_V2_MASTER_KEY:}
     hmac-time-window-seconds: 300
     token-failure-limit: 10
     token-failure-window-seconds: 300

@@ -157,7 +157,7 @@ describe('ruleDraftMixin', () => {
     wrapper.unmount()
   })
 
-  test('无 DRAFT 时设计器只读且保存不会隐式创建草稿', async () => {
+  test('无 DRAFT 时基于当前已发布修订创建草稿并允许保存', async () => {
     definitionApi.listRuleRevisions.mockResolvedValueOnce({
       data: [
         {
@@ -169,21 +169,50 @@ describe('ruleDraftMixin', () => {
         },
       ],
     })
+    definitionApi.createDraftRevision.mockResolvedValueOnce({
+      data: {
+        id: 6,
+        definitionId: 30,
+        revisionNo: 2,
+        state: 'DRAFT',
+        lockVersion: 0,
+        modelJson: '{}',
+      },
+    })
+    definitionApi.saveContent.mockResolvedValueOnce({
+      data: {
+        revision: {
+          id: 6,
+          definitionId: 30,
+          revisionNo: 2,
+          state: 'DRAFT',
+          lockVersion: 1,
+          modelJson: '{"script":"editable"}',
+        },
+        compileSuccess: true,
+        issues: [],
+      },
+    })
     const wrapper = mountHost()
     await flushPromises()
 
-    expect(wrapper.vm.canEditDraft).toBe(false)
-    expect(wrapper.vm.viewRevision.id).toBe(5)
-    await expect(wrapper.vm.saveDraftModel('{}')).rejects.toThrow(
-      '当前规则没有可编辑草稿'
-    )
-    expect(definitionApi.saveContent).not.toHaveBeenCalled()
-    expect(definitionApi.createDraftRevision).not.toHaveBeenCalled()
+    expect(definitionApi.createDraftRevision).toHaveBeenCalledWith(30, 5)
+    expect(wrapper.vm.canEditDraft).toBe(true)
+    expect(wrapper.vm.viewRevision).toMatchObject({ id: 6, state: 'DRAFT' })
+
+    await wrapper.vm.saveDraftModel('{"script":"editable"}')
+
+    expect(definitionApi.saveContent).toHaveBeenCalledWith({
+      definitionId: 30,
+      revisionId: 6,
+      lockVersion: 0,
+      modelJson: '{"script":"editable"}',
+    })
     expect(definitionApi.ensureDraftRevision).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 
-  test('没有治理修订时回退展示旧版生效内容且保持只读', async () => {
+  test('没有治理修订时根据旧版生效内容初始化可编辑草稿', async () => {
     definitionApi.listRuleRevisions.mockResolvedValueOnce({ data: [] })
     definitionApi.getContent.mockResolvedValueOnce({
       data: {
@@ -192,20 +221,27 @@ describe('ruleDraftMixin', () => {
         modelJson: '{"rules":[{"id":"legacy"}]}',
       },
     })
+    definitionApi.createDraftRevision.mockResolvedValueOnce({
+      data: {
+        id: 6,
+        definitionId: 30,
+        revisionNo: 1,
+        state: 'DRAFT',
+        lockVersion: 0,
+        modelJson: '{"rules":[{"id":"legacy"}]}',
+      },
+    })
     const wrapper = mountHost()
     await flushPromises()
 
     expect(wrapper.vm.viewRevision).toMatchObject({
-      id: 'legacy-content:30',
+      id: 6,
       definitionId: 30,
-      state: 'LEGACY',
-      sourceType: 'LEGACY_CONTENT',
-      sourceId: '30',
+      state: 'DRAFT',
       modelJson: '{"rules":[{"id":"legacy"}]}',
     })
-    expect(wrapper.vm.viewRevisionLabel).toBe('历史生效内容')
-    expect(wrapper.vm.canEditDraft).toBe(false)
-    expect(wrapper.vm.canForkViewRevision).toBe(false)
+    expect(definitionApi.createDraftRevision).toHaveBeenCalledWith(30)
+    expect(wrapper.vm.canEditDraft).toBe(true)
     wrapper.unmount()
   })
 
@@ -457,6 +493,7 @@ describe('ruleDraftMixin', () => {
     expect(definitionApi.listRuleRevisions).toHaveBeenCalledTimes(2)
     expect(wrapper.vm.$refs.host.canEditDraft).toBe(false)
     expect(wrapper.vm.$refs.host.viewRevision.state).toBe('REVIEW')
+    expect(definitionApi.createDraftRevision).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 })
@@ -667,6 +704,46 @@ describe('ruleDraftMixin stable source loading', () => {
       sourceId: '9',
       modelJson: '{"source":"new"}',
     })
+    wrapper.unmount()
+  })
+
+  test('ignores an older automatic draft response after historical view wins', async () => {
+    let resolveDraft
+    definitionApi.listRuleRevisions
+      .mockResolvedValueOnce({
+        data: [{ id: 5, revisionNo: 2, state: 'PUBLISHED' }],
+      })
+      .mockResolvedValueOnce({ data: [] })
+    definitionApi.createDraftRevision.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveDraft = resolve
+      })
+    )
+    definitionApi.getRuleRevision.mockResolvedValueOnce({
+      data: {
+        id: 4,
+        revisionNo: 1,
+        state: 'PUBLISHED',
+        modelJson: '{"source":"historical"}',
+      },
+    })
+    const wrapper = mountWithRoute({})
+    await flushPromises()
+
+    wrapper.vm.$route.query.sourceType = 'REVISION'
+    wrapper.vm.$route.query.sourceId = '4'
+    await wrapper.vm.refreshViewedRevision()
+    resolveDraft({
+      data: { id: 6, revisionNo: 3, state: 'DRAFT', modelJson: '{}' },
+    })
+    await flushPromises()
+
+    expect(wrapper.vm.viewRevision).toMatchObject({
+      id: 4,
+      state: 'PUBLISHED',
+      modelJson: '{"source":"historical"}',
+    })
+    expect(wrapper.vm.canEditDraft).toBe(false)
     wrapper.unmount()
   })
 

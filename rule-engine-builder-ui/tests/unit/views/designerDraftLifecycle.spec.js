@@ -247,7 +247,7 @@ describe('九类设计器草稿保护', () => {
     configureQueryApis()
   })
 
-  test.each(designers)('%s 在无 DRAFT 时渲染真实只读遮罩', async (
+  test.each(designers)('%s 在无 DRAFT 时基于当前修订进入可编辑草稿', async (
     _name,
     component
   ) => {
@@ -263,12 +263,24 @@ describe('九类设计器草稿保护', () => {
         },
       ],
     })
+    definitionApi.createDraftRevision.mockResolvedValueOnce({
+      data: {
+        id: 6,
+        definitionId: 30,
+        revisionNo: 2,
+        state: 'DRAFT',
+        lockVersion: 0,
+        modelJson: '{}',
+      },
+    })
 
     const wrapper = mountDesigner(component)
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="draft-read-only"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('当前规则没有可编辑草稿')
+    expect(definitionApi.createDraftRevision).toHaveBeenCalledWith(30, 5)
+    expect(wrapper.find('[data-testid="draft-read-only"]').exists()).toBe(false)
+    expect(wrapper.vm.canEditDraft).toBe(true)
+    expect(wrapper.vm.draftRevision).toMatchObject({ id: 6, state: 'DRAFT' })
     expect(definitionApi.saveContent).not.toHaveBeenCalled()
     expect(definitionApi.ensureDraftRevision).not.toHaveBeenCalled()
     wrapper.unmount()
@@ -309,7 +321,7 @@ describe('九类设计器草稿保护', () => {
   })
 
   test.each(explicitRevisionSources)(
-    '$name 在没有治理修订时加载旧版生效内容并阻止保存',
+    '$name 在没有治理修订时根据旧版生效内容初始化可编辑草稿',
     async ({ component, model, assertLoaded }) => {
       definitionApi.listRuleRevisions.mockResolvedValueOnce({ data: [] })
       definitionApi.getContent.mockResolvedValueOnce({
@@ -319,26 +331,28 @@ describe('九类设计器草稿保护', () => {
           modelJson: JSON.stringify(model),
         },
       })
+      definitionApi.createDraftRevision.mockResolvedValueOnce({
+        data: {
+          id: 6,
+          definitionId: 30,
+          revisionNo: 1,
+          state: 'DRAFT',
+          lockVersion: 0,
+          modelJson: JSON.stringify(model),
+        },
+      })
 
       const wrapper = mountDesigner(component)
       await flushPromises()
 
       expect(wrapper.vm.viewRevision).toMatchObject({
-        id: 'legacy-content:30',
-        state: 'LEGACY',
-        sourceType: 'LEGACY_CONTENT',
+        id: 6,
+        state: 'DRAFT',
       })
       assertLoaded(wrapper.vm)
-      const readOnly = wrapper.findComponent({ name: 'RuleDraftReadOnly' })
-      expect(readOnly.props()).toMatchObject({
-        visible: true,
-        loading: false,
-        loadError: false,
-        revisionLabel: '历史生效内容',
-        revisionState: 'LEGACY',
-        canFork: false,
-      })
-      await expect(wrapper.vm.handleSave()).rejects.toThrow('没有可编辑草稿')
+      expect(definitionApi.createDraftRevision).toHaveBeenCalledWith(30)
+      expect(wrapper.find('[data-testid="draft-read-only"]').exists()).toBe(false)
+      expect(wrapper.vm.canEditDraft).toBe(true)
       expect(definitionApi.saveContent).not.toHaveBeenCalled()
       wrapper.unmount()
     }
