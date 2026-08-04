@@ -193,39 +193,34 @@
         show-overflow-tooltip
       />
       <el-table-column prop="updateTime" label="更新时间" min-width="160" />
-      <el-table-column label="操作" width="250" align="center" fixed="right">
+      <el-table-column label="操作" width="190" align="center" fixed="right">
         <template v-slot="{ row }">
-          <el-button
-            link
-            size="small"
-            type="primary"
-            @click="handleDetail(row)"
-            >详情</el-button
-          >
-          <el-button
-            v-permission="'rule:edit'"
-            link
-            size="small"
-            type="warning"
-            @click="handleDesign(row)"
-            >设计</el-button
-          >
-          <el-button
-            link
-            size="small"
-            type="info"
-            @click="handleGovernance(row)"
-            >生命周期</el-button
-          >
-          <el-button
-            v-permission="'rule:edit'"
-            link
-            size="small"
-            type="danger"
-            class="btn-delete"
-            @click="handleDelete(row)"
-            >删除</el-button
-          >
+          <div class="table-operation-group">
+            <el-button
+              link
+              size="small"
+              type="primary"
+              @click="handleDetail(row)"
+              >详情</el-button
+            >
+            <el-button
+              v-permission="'rule:edit'"
+              link
+              size="small"
+              type="warning"
+              @click="handleDesign(row)"
+              >设计</el-button
+            >
+            <el-button
+              v-permission="'rule:edit'"
+              link
+              size="small"
+              type="danger"
+              class="btn-delete"
+              @click="handleDelete(row)"
+              >删除</el-button
+            >
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -359,6 +354,7 @@ import {
 import RemoteFilterSelect from '@/components/RemoteFilterSelect.vue'
 import ProjectFilterSelect from '@/components/ProjectFilterSelect.vue'
 import { routeProjectId } from '@/utils/projectContext'
+import { ruleDesignerLocation } from '@/utils/ruleDesignerNavigation'
 
 export default {
   data() {
@@ -617,25 +613,15 @@ export default {
       })
     },
     handleDesign(row) {
-      const routes = {
-        TABLE: '/designer/table',
-        TREE: '/designer/tree',
-        FLOW: '/designer/flow',
-        RULE_SET: '/designer/ruleset',
-        CROSS: '/designer/cross',
-        SCORE: '/designer/score',
-        CROSS_ADV: '/designer/cross-adv',
-        SCORE_ADV: '/designer/score-adv',
-        SCRIPT: '/designer/script',
+      const location = ruleDesignerLocation(row)
+      if (!location) {
+        this.$message.error(`规则模型类型 ${row.modelType || '-'} 暂无可用设计器`)
+        return
       }
-      const path = routes[row.modelType] || '/designer/table'
-      this.$router.push(`${path}/${row.id}`)
+      this.$router.push(location)
     },
     handleDetail(row) {
-      this.$router.push(`/rule/${row.id}`)
-    },
-    handleGovernance(row) {
-      this.$router.push(`/rule/${row.id}`)
+      this.$router.push(`/rule/${row.definitionId || row.id}`)
     },
     handleDelete(row) {
       this.$confirm('确定删除规则「' + row.ruleName + '」？', '确认', {
@@ -705,3 +691,16 @@ export default {
   },
 }
 </script>
+
+<style lang="scss" scoped>
+.table-operation-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+
+  :deep(.el-button + .el-button) {
+    margin-left: 4px;
+  }
+}
+</style>

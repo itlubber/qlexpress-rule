@@ -25,12 +25,12 @@ $font-family-base: "AlimamaFangYuanTiVF", "PingFang SC", "Microsoft YaHei", sans
 }
 
 $--color-primary: $tianshu-color-primary;
-$secondary-color: #C93333;
+$secondary-color: $tianshu-color-secondary;
 
 $primary-color: $--color-primary;
 $success-color: #087A5D;
 $warning-color: #B45309;
-$danger-color: $secondary-color;
+$danger-color: $tianshu-color-danger;
 $info-color: #475569;
 
 /*
@@ -52,6 +52,7 @@ $info-color: #475569;
   --el-color-primary-light-9: #{$tianshu-color-primary-light-9};
   --el-color-primary-dark-1: #{$tianshu-color-primary-dark-1};
   --el-color-primary-dark-2: #{$tianshu-color-primary-dark-2};
+  --tianshu-color-secondary: #{$tianshu-color-secondary};
   --el-color-info: #{$info-color};
   --el-text-color-primary: #1e293b;
   --el-text-color-regular: #475569;
@@ -148,30 +149,30 @@ $info-color: #475569;
 /* ── 删除按钮 ── */
 .el-button.btn-delete,
 .el-button--delete {
-  color: $secondary-color !important;
+  color: $danger-color !important;
   transition: color 0.15s ease, background-color 0.15s ease;
 
   &:hover,
   &:focus {
     color: #d43d3d !important;
-    background-color: rgba($secondary-color, 0.1) !important;
+    background-color: rgba($danger-color, 0.1) !important;
   }
 
   &:active {
     color: #b83030 !important;
-    background-color: rgba($secondary-color, 0.18) !important;
+    background-color: rgba($danger-color, 0.18) !important;
   }
 }
 
 /* ── 全局文字危险色 ── */
 .text-danger {
-  color: $secondary-color;
+  color: $danger-color;
 }
 
-/* ── 危险按钮（副色 #F76E6C） ── */
+/* ── 危险按钮 ── */
 .el-button--danger {
-  background-color: $secondary-color !important;
-  border-color: $secondary-color !important;
+  background-color: $danger-color !important;
+  border-color: $danger-color !important;
 
   &:hover,
   &:focus {
@@ -187,8 +188,8 @@ $info-color: #475569;
 
   &:disabled,
   &.is-disabled {
-    background-color: rgba($secondary-color, 0.5) !important;
-    border-color: rgba($secondary-color, 0.5) !important;
+    background-color: rgba($danger-color, 0.5) !important;
+    border-color: rgba($danger-color, 0.5) !important;
     cursor: not-allowed;
   }
 }
@@ -774,4 +775,62 @@ $info-color: #475569;
 
 .el-message-box__status.el-icon-warning {
   color: $secondary-color !important;
+}
+
+/* 实心操作按钮统一使用清晰的白色文字；链接和朴素按钮保留语义色。 */
+.el-button--primary:not(.is-link):not(.is-text):not(.is-plain),
+.el-button--success:not(.is-link):not(.is-text):not(.is-plain),
+.el-button--warning:not(.is-link):not(.is-text):not(.is-plain),
+.el-button--danger:not(.is-link):not(.is-text):not(.is-plain),
+.el-button--info:not(.is-link):not(.is-text):not(.is-plain) {
+  color: #fff !important;
+}
+
+.el-button.is-link,
+.el-button.is-text {
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.el-button--primary.is-link,
+.el-button--primary.is-text {
+  color: $primary-color !important;
+}
+
+.el-button--success.is-link,
+.el-button--success.is-text {
+  color: $success-color !important;
+}
+
+.el-button--warning.is-link,
+.el-button--warning.is-text {
+  color: $warning-color !important;
+}
+
+.el-button--danger.is-link,
+.el-button--danger.is-text {
+  color: $danger-color !important;
+}
+
+.el-button--info.is-link,
+.el-button--info.is-text {
+  color: $info-color !important;
+}
+
+.el-button--danger.is-plain {
+  border-color: rgba($danger-color, 0.55) !important;
+  background: rgba($danger-color, 0.06) !important;
+  color: $danger-color !important;
+}
+
+.table-operation-group {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.table-operation-group .el-button + .el-button {
+  margin-left: 0;
 }

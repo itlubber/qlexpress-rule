@@ -76,7 +76,7 @@ export default {
 </script>
 
 <style scoped>
-.lifecycle-panel { border-top: 4px solid #315ca8; }
+.lifecycle-panel { border-top: 4px solid var(--el-color-primary); }
 .panel-header, .state-line, .action-row { display: flex; align-items: center; gap: 12px; }
 .panel-header { justify-content: space-between; }
 .eyebrow, .online-artifact span { color: #6b7280; font-size: 12px; font-weight: 600; letter-spacing: .04em; }

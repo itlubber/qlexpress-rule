@@ -75,6 +75,61 @@
       </el-descriptions-item>
     </el-descriptions>
 
+    <!-- 描述 -->
+    <el-card v-if="rule.description" shadow="never" style="margin-bottom: 16px">
+      <template v-slot:header>
+        <div style="font-weight: 600">描述</div>
+      </template>
+      <div style="color: #606266; font-size: 14px; line-height: 1.6">
+        {{ rule.description }}
+      </div>
+    </el-card>
+
+    <el-dialog
+      title="编辑规则基本信息"
+      v-model="baseEditVisible"
+      width="560px"
+      :close-on-click-modal="false"
+    >
+      <el-form :model="baseForm" label-width="90px" size="small">
+        <el-form-item label="规则编码">
+          <el-input :model-value="rule.ruleCode" disabled />
+        </el-form-item>
+        <el-form-item label="规则名称" required>
+          <el-input v-model="baseForm.ruleName" placeholder="请输入规则名称" />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input
+            v-model="baseForm.description"
+            type="textarea"
+            :rows="4"
+            placeholder="请输入规则功能描述"
+          />
+        </el-form-item>
+      </el-form>
+      <template v-slot:footer>
+        <div>
+          <el-button size="small" @click="baseEditVisible = false"
+            >取消</el-button
+          >
+          <el-button
+            size="small"
+            type="primary"
+            :loading="baseSaving"
+            @click="saveBaseInfo"
+            >保存</el-button
+          >
+        </div>
+      </template>
+    </el-dialog>
+
+    <!-- 规则详情 Tab：生命周期是配置完成后的首要下一步 -->
+    <el-tabs v-model="activeDetailTab" type="border-card">
+      <el-tab-pane name="lifecycle">
+        <template v-slot:label>
+          <span><el-icon><el-icon-connection /></el-icon> 生命周期</span>
+        </template>
+
     <div
       v-if="revisions.length"
       class="governance-revision-selector"
@@ -167,59 +222,11 @@
       </template>
       <rule-lifecycle-timeline :events="lifecycleEvents" />
     </el-card>
-
-    <!-- 描述 -->
-    <el-card v-if="rule.description" shadow="never" style="margin-bottom: 16px">
-      <template v-slot:header>
-        <div style="font-weight: 600">描述</div>
-      </template>
-      <div style="color: #606266; font-size: 14px; line-height: 1.6">
-        {{ rule.description }}
-      </div>
-    </el-card>
-
-    <el-dialog
-      title="编辑规则基本信息"
-      v-model="baseEditVisible"
-      width="560px"
-      :close-on-click-modal="false"
-    >
-      <el-form :model="baseForm" label-width="90px" size="small">
-        <el-form-item label="规则编码">
-          <el-input :model-value="rule.ruleCode" disabled />
-        </el-form-item>
-        <el-form-item label="规则名称" required>
-          <el-input v-model="baseForm.ruleName" placeholder="请输入规则名称" />
-        </el-form-item>
-        <el-form-item label="描述">
-          <el-input
-            v-model="baseForm.description"
-            type="textarea"
-            :rows="4"
-            placeholder="请输入规则功能描述"
-          />
-        </el-form-item>
-      </el-form>
-      <template v-slot:footer>
-        <div>
-          <el-button size="small" @click="baseEditVisible = false"
-            >取消</el-button
-          >
-          <el-button
-            size="small"
-            type="primary"
-            :loading="baseSaving"
-            @click="saveBaseInfo"
-            >保存</el-button
-          >
-        </div>
-      </template>
-    </el-dialog>
+      </el-tab-pane>
 
     <!-- 输入输出字段 -->
-    <el-tabs type="border-card">
       <!-- 输入字段 tab -->
-      <el-tab-pane>
+      <el-tab-pane name="inputs">
         <template v-slot:label>
           <span
             ><el-icon><el-icon-arrow-down /></el-icon> 输入字段</span
@@ -426,7 +433,7 @@
       </el-tab-pane>
 
       <!-- 输出字段 tab -->
-      <el-tab-pane>
+      <el-tab-pane name="outputs">
         <template v-slot:label>
           <span
             ><el-icon><el-icon-arrow-up /></el-icon> 输出字段</span
@@ -573,7 +580,7 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane>
+      <el-tab-pane name="open-api">
         <template v-slot:label>
           <span
             ><el-icon><el-icon-connection /></el-icon> 开放接口</span
@@ -884,7 +891,7 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane>
+      <el-tab-pane name="api-scenarios">
         <template v-slot:label>
           <span
             ><el-icon><el-icon-document-checked /></el-icon> API 测试用例</span
@@ -1500,6 +1507,7 @@ export default {
       loading: false,
       rule: {},
       ruleContent: {},
+      activeDetailTab: 'lifecycle',
       revisions: [],
       activeRevision: {},
       lifecycleRevisionId: null,
@@ -1669,15 +1677,7 @@ export default {
           const varId = field.varId
           return {
             value: varId ? refType + ':' + varId : '',
-            label:
-              (field.fieldLabel || field.scriptName || '未命名字段') +
-              ' / ' +
-              (field.scriptName || '-') +
-              ' [' +
-              refType +
-              ':' +
-              (varId || '-') +
-              ']',
+            label: this.openApiFieldOptionLabel(field),
             scriptName: field.scriptName || '',
             externalName:
               field.fieldName ||
@@ -1696,15 +1696,7 @@ export default {
           const varId = field.varId
           return {
             value: varId ? refType + ':' + varId : '',
-            label:
-              (field.fieldLabel || field.scriptName || '未命名字段') +
-              ' / ' +
-              (field.scriptName || '-') +
-              ' [' +
-              refType +
-              ':' +
-              (varId || '-') +
-              ']',
+            label: this.openApiFieldOptionLabel(field),
             scriptName: field.scriptName || '',
           }
         })
@@ -1722,6 +1714,7 @@ export default {
     },
   },
   created() {
+    this.syncDetailTabFromRoute()
     this.load()
   },
   watch: {
@@ -1732,8 +1725,22 @@ export default {
         this.load()
       }
     },
+    '$route.query.focus'() {
+      this.syncDetailTabFromRoute()
+    },
   },
   methods: {
+    syncDetailTabFromRoute() {
+      const focus = this.$route && this.$route.query && this.$route.query.focus
+      if (focus === 'lifecycle') this.activeDetailTab = 'lifecycle'
+    },
+    openApiFieldOptionLabel(field) {
+      const label =
+        field.fieldLabel || field.fieldName || field.scriptName || '未命名字段'
+      const code = field.scriptName || field.fieldName || '-'
+      const type = field.fieldType || 'OBJECT'
+      return `${label}（${code}） · ${type}`
+    },
     async load() {
       const id = this.$route.params.id
       if (!id) return
@@ -3622,7 +3629,7 @@ export default {
   width: 240px;
 }
 .governance-revision-state {
-  color: #315ca8;
+  color: var(--el-color-primary);
   font-weight: 600;
 }
 .action-row {

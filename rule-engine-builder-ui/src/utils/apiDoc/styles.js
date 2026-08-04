@@ -24,4 +24,5 @@ body{overflow:hidden}
 .code-editor-frame{min-height:132px;max-height:70vh;resize:vertical}
 @media(max-width:1000px){.app{grid-template-columns:min(240px,20vw) minmax(0,1fr)}}
 @media(max-width:760px){body{overflow:auto}.app{height:auto;overflow:visible}.nav{max-width:none}.content{height:auto;overflow:visible}.runner{max-width:100vw}}
+.button.primary{background:var(--brand)}
 `

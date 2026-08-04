@@ -44,6 +44,27 @@ describe('ruleDraftMixin', () => {
     vi.clearAllMocks()
   })
 
+  test('保存编译成功后进入规则详情生命周期', async () => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({ data: [] })
+    definitionApi.getContent.mockResolvedValueOnce({
+      data: { modelJson: '{}' },
+    })
+    const wrapper = mountHost()
+    await flushPromises()
+
+    await wrapper.vm.completeRuleCompile(
+      { compileSuccess: true },
+      { successMessage: '编译成功' }
+    )
+
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith({
+      name: 'RuleDetail',
+      params: { id: 30 },
+      query: { focus: 'lifecycle' },
+    })
+    wrapper.unmount()
+  })
+
   test('有 DRAFT 时保存携带 revisionId 和 lockVersion 并更新乐观锁', async () => {
     definitionApi.listRuleRevisions.mockResolvedValueOnce({
       data: [

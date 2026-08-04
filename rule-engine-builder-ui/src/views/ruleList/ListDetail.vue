@@ -730,7 +730,7 @@ export default {
   font-size: 12px;
 }
 .workflow-step.is-current {
-  background: #2563eb;
+  background: var(--el-color-primary);
   color: #fff;
 }
 .workflow-arrow {

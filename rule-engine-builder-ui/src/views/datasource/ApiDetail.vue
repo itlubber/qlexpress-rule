@@ -3789,7 +3789,7 @@ export default {
     padding: 5px 9px;
     border-radius: 999px;
     background: #fff;
-    color: #2763d5;
+    color: var(--el-color-primary);
     font-size: 12px;
     font-weight: 700;
   }

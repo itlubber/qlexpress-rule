@@ -339,7 +339,7 @@ export default {
 }
 
 .section-kicker {
-  color: #2563eb;
+  color: var(--el-color-primary);
   font-size: 12px;
   font-weight: 700;
 }

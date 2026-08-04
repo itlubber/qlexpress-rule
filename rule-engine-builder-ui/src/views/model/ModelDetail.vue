@@ -495,6 +495,32 @@
       width="960px"
       :close-on-click-modal="false"
     >
+      <div class="version-compare-toolbar">
+        <el-select v-model="versionCompareLeft" size="small" placeholder="选择左侧版本">
+          <el-option
+            v-for="item in versionList"
+            :key="`left-${item.version}`"
+            :label="`v${item.version}`"
+            :value="item.version"
+          />
+        </el-select>
+        <span>对比</span>
+        <el-select v-model="versionCompareRight" size="small" placeholder="选择右侧版本">
+          <el-option
+            v-for="item in versionList"
+            :key="`right-${item.version}`"
+            :label="`v${item.version}`"
+            :value="item.version"
+          />
+        </el-select>
+        <el-button
+          size="small"
+          type="primary"
+          :disabled="!versionCompareLeft || !versionCompareRight"
+          @click="compareSelectedVersions"
+          >查看具体差异</el-button
+        >
+      </div>
       <el-table
         :data="versionList"
         border
@@ -555,16 +581,13 @@
           :closable="false"
           show-icon
         />
-        <div class="version-compare-grid">
-          <div>
-            <div class="version-compare-title">左侧模型配置</div>
-            <pre>{{ formatVersionJson(versionCompare.left.modelConfig) }}</pre>
-          </div>
-          <div>
-            <div class="version-compare-title">右侧模型配置</div>
-            <pre>{{ formatVersionJson(versionCompare.right.modelConfig) }}</pre>
-          </div>
-        </div>
+        <json-version-diff
+          :original="modelVersionComparable(versionCompare.left)"
+          :modified="modelVersionComparable(versionCompare.right)"
+          :original-label="`v${versionCompare.left.version}`"
+          :modified-label="`v${versionCompare.right.version}`"
+          height="400px"
+        />
       </div>
     </el-dialog>
 
@@ -873,6 +896,7 @@ import { listAllFunctionsByProject } from '@/api/function'
 import OperandPicker from '@/components/common/OperandPicker.vue'
 import OperandValueDisplay from '@/components/common/OperandValueDisplay.vue'
 import ModelImpactDialog from '@/components/model/ModelImpactDialog.vue'
+import JsonVersionDiff from '@/components/common/JsonVersionDiff.vue'
 import {
   compileOperand,
   createFunctionOperand,
@@ -959,6 +983,8 @@ export default {
       versionVisible: false,
       versionLoading: false,
       versionList: [],
+      versionCompareLeft: null,
+      versionCompareRight: null,
       versionCompare: null,
       ElIconTime: markRaw(ElIconTime),
       ElIconVideoPlay: markRaw(ElIconVideoPlay),
@@ -972,6 +998,7 @@ export default {
     OperandPicker,
     OperandValueDisplay,
     ModelImpactDialog,
+    JsonVersionDiff,
     ElIconArrowDown,
     ElIconInfo,
     ElIconEdit,
@@ -1858,6 +1885,8 @@ export default {
       try {
         const res = await api.listVersions(this.model.id)
         this.versionList = res.data || res || []
+        this.versionCompareLeft = this.versionList[1]?.version || null
+        this.versionCompareRight = this.versionList[0]?.version || null
       } catch (e) {
         this.$message.error(e.message || '加载版本历史失败')
       } finally {
@@ -1867,11 +1896,17 @@ export default {
     async compareWithNext(row, index) {
       const right = this.versionList[index + 1]
       if (!row || !right) return
+      this.versionCompareLeft = row.version
+      this.versionCompareRight = right.version
+      await this.compareSelectedVersions()
+    },
+    async compareSelectedVersions() {
+      if (!this.versionCompareLeft || !this.versionCompareRight) return
       try {
         const res = await api.compareVersions(
           this.model.id,
-          row.version,
-          right.version
+          this.versionCompareLeft,
+          this.versionCompareRight
         )
         this.versionCompare = res.data || res
       } catch (e) {
@@ -2052,6 +2087,30 @@ export default {
           '模型测试配置加载失败'
         )
         this.testReady = false
+      }
+    },
+    modelVersionComparable(snapshot) {
+      if (!snapshot) return {}
+      const parse = (value) => {
+        if (!value) return value
+        try {
+          return JSON.parse(value)
+        } catch {
+          return value
+        }
+      }
+      return {
+        modelFormat: snapshot.modelFormat,
+        modelFileName: snapshot.modelFileName,
+        modelFileSize: snapshot.modelFileSize,
+        modelDigest: snapshot.modelDigest,
+        modelConfig: parse(snapshot.modelConfig),
+        inputSchema: parse(snapshot.inputSchemaJson),
+        outputSchema: parse(snapshot.outputSchemaJson),
+        validationReport: parse(snapshot.validationReportJson),
+        runtimeConstraints: parse(snapshot.runtimeConstraintsJson),
+        sampleStatus: snapshot.sampleStatus,
+        status: snapshot.status,
       }
     },
     closeTestDialog() {
@@ -2361,30 +2420,14 @@ export default {
 .var-switch-btn:hover {
   color: var(--el-color-primary);
 }
-.version-compare-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-top: 12px;
+.version-compare-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
 }
-.version-compare-title {
-  color: #334155;
-  font-weight: 700;
-  font-size: 12px;
-  margin-bottom: 6px;
-}
-.version-compare-grid pre {
-  margin: 0;
-  padding: 10px;
-  min-height: 180px;
-  max-height: 360px;
-  overflow: auto;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 4px;
-  font-size: 12px;
-  line-height: 1.5;
-  font-family: Menlo, Monaco, Consolas, monospace;
+.version-compare-toolbar .el-select {
+  width: 150px;
 }
 :deep(.editing-row) {
   background-color: #f0f9eb;

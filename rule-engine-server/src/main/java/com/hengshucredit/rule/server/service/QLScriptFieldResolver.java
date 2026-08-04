@@ -367,15 +367,20 @@ public class QLScriptFieldResolver {
     }
 
     private ScriptReference findInputBinding(List<ScriptReference> references, String inputPath) {
+        ScriptReference longestPrefix = null;
         for (ScriptReference reference : references) {
             String refType = reference.validated.getRefType();
-            if (inputPath.equals(reference.refCode)
-                    || ("VARIABLE".equals(refType)
-                    && inputPath.startsWith(reference.refCode + "."))) {
+            if (inputPath.equals(reference.refCode)) {
                 return reference;
             }
+            if (("VARIABLE".equals(refType) || "DATA_OBJECT".equals(refType))
+                    && inputPath.startsWith(reference.refCode + ".")
+                    && (longestPrefix == null
+                    || reference.refCode.length() > longestPrefix.refCode.length())) {
+                longestPrefix = reference;
+            }
         }
-        return null;
+        return longestPrefix;
     }
 
     private ScriptReference findExactBinding(List<ScriptReference> references, String path) {

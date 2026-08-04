@@ -418,6 +418,35 @@ public class RuleFieldAnalyzerTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    public void scriptDataObjectParentIdProvesTypedDescendantThroughSchema()
+            throws Exception {
+        ScriptShapeFixture fixture = new ScriptShapeFixture(analyzer);
+        fixture.apiResponseObject(7L, 10L);
+        fixture.fields(
+                apiShapeField(141L, 10L, null, "address", "OBJECT"),
+                apiShapeField(142L, 10L, 141L, "city", "STRING"));
+        fixture.configure();
+        String script = "city = response_10.address.city;"
+                + " _result = {\"city\": city}; _result";
+        String json = "{\"script\":"
+                + com.alibaba.fastjson.JSON.toJSONString(script)
+                + ",\"scriptVarRefs\":[{\"refCode\":\"response_10.address\","
+                + "\"varId\":141,\"refType\":\"DATA_OBJECT\"}]}";
+
+        RuleFieldAnalyzer.ResolvedFields fields =
+                analyzer.resolveFields(null, json, "SCRIPT", 4L);
+
+        RuleDefinitionInputField input = fields.getInputFields().get(0);
+        assertEquals(Long.valueOf(141L), input.getVarId());
+        assertEquals("STRING", input.getFieldType());
+        assertEquals("STRING", ((Map<String, Object>) fields.getInputPropertySchemas()
+                .get("response_10.address.city")).get("x-rule-type"));
+        assertFalse(fields.getDiagnostics().stream()
+                .anyMatch(issue -> "SCRIPT_INPUT_REF_MISSING".equals(issue.getCode())));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     public void scriptInlineListElementLeafTypeUsesNormalizedIndexPath() throws Exception {
         ScriptShapeFixture fixture = new ScriptShapeFixture(analyzer);
         fixture.apiObjectVariable(302L, "api_features", 7L);

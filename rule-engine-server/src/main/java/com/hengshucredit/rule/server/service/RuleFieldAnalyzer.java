@@ -324,11 +324,15 @@ public class RuleFieldAnalyzer {
                 if (dataObjectSchemaResolver == null) {
                     continue;
                 }
-                DataObjectSchemaResolver.ShapeResult shape =
-                        dataObjectSchemaResolver.resolveField(field.getVarId(), projectId);
-                mergeDiagnostics(diagnostics, shape.getDiagnostics());
-                inputPropertySchemas.put(inputPath, shape.getSchema());
-                String type = shapeType(shape.getSchema());
+                Map<String, Object> schema = resolveDataObjectInputSchema(
+                        field, projectId, diagnostics);
+                if (schema == null) {
+                    field.setFieldType(null);
+                    inputPropertySchemas.remove(inputPath);
+                    continue;
+                }
+                inputPropertySchemas.put(inputPath, schema);
+                String type = shapeType(schema);
                 if (type != null) {
                     verifiedTypes.put(normalizeIndexedPath(inputPath), type);
                     field.setFieldType(type);
@@ -577,18 +581,52 @@ public class RuleFieldAnalyzer {
                     || field.getVarId() == null) {
                 continue;
             }
-            DataObjectSchemaResolver.ShapeResult shape =
-                    dataObjectSchemaResolver.resolveField(field.getVarId(), projectId);
-            mergeDiagnostics(diagnostics, shape.getDiagnostics());
+            Map<String, Object> schema = resolveDataObjectInputSchema(
+                    field, projectId, diagnostics);
+            if (schema == null) {
+                continue;
+            }
             String fieldName = trimToNull(field.getFieldName());
             if (fieldName != null) {
-                schemas.put(fieldName, shape.getSchema());
+                schemas.put(fieldName, schema);
             }
-            String type = shapeType(shape.getSchema());
+            String type = shapeType(schema);
             if (type != null) {
                 field.setFieldType(type);
             }
         }
+    }
+
+    private Map<String, Object> resolveDataObjectInputSchema(
+            RuleDefinitionInputField field,
+            Long projectId,
+            List<RuleValidationIssue> diagnostics) {
+        DataObjectSchemaResolver.ShapeResult shape =
+                dataObjectSchemaResolver.resolveField(field.getVarId(), projectId);
+        mergeDiagnostics(diagnostics, shape.getDiagnostics());
+        QLScriptFieldResolver.ValidatedScriptReference reference =
+                qlScriptFieldResolver.validateReference(
+                        projectId, field.getVarId(), "DATA_OBJECT");
+        String inputPath = trimToNull(field.getScriptName());
+        String stableRoot = reference == null ? null : reference.getScriptRoot();
+        String descendantPath = relativePath(inputPath, stableRoot);
+        if (descendantPath == null) {
+            addMissingDescendantDiagnostic(diagnostics, inputPath);
+            return null;
+        }
+        if (descendantPath.isEmpty()) {
+            return shape.getSchema();
+        }
+        Map<String, Map<String, Object>> schemasByPath = new LinkedHashMap<>();
+        Map<String, String> typesByPath = new LinkedHashMap<>();
+        indexStableSchema(
+                stableRoot, shape.getSchema(), schemasByPath, typesByPath);
+        Map<String, Object> descendantSchema =
+                schemasByPath.get(normalizeIndexedPath(inputPath));
+        if (descendantSchema == null) {
+            addMissingDescendantDiagnostic(diagnostics, inputPath);
+        }
+        return descendantSchema;
     }
 
     private void addStableOutputFieldSchemas(

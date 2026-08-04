@@ -306,21 +306,27 @@ describe('RuleList — 规则操作', () => {
     expect(wrapper.vm.$router.push).toHaveBeenCalledWith('/rule/1')
   })
 
-  test('handleDesign 跳转到设计器', () => {
+  test('handleDesign 使用命名路由进入正确设计器', () => {
     const row = { id: 1, modelType: 'TABLE' }
     wrapper.vm.handleDesign(row)
-    expect(wrapper.vm.$router.push).toHaveBeenCalledWith('/designer/table/1')
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith({
+      name: 'DecisionTable',
+      params: { id: '1' },
+    })
   })
 
   test('handleDesign 跳转到规则集设计器', () => {
     const row = { id: 4, modelType: 'RULE_SET' }
     wrapper.vm.handleDesign(row)
-    expect(wrapper.vm.$router.push).toHaveBeenCalledWith('/designer/ruleset/4')
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith({
+      name: 'RuleSet',
+      params: { id: '4' },
+    })
   })
 
-  test('生命周期操作进入治理详情，不从列表直接发布或下线', () => {
-    wrapper.vm.handleGovernance({ id: 1 })
-    expect(wrapper.vm.$router.push).toHaveBeenCalledWith('/rule/1')
+  test('列表操作不再重复展示生命周期入口', () => {
+    const buttonLabels = wrapper.findAll('button').map((button) => button.text())
+    expect(buttonLabels).not.toContain('生命周期')
   })
 
   test('handleDelete 调用删除 API', async () => {

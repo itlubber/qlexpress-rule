@@ -1788,15 +1788,9 @@ export default {
     async handleCompile() {
       const result = await this.handleSave()
       if (result === false) return false
-      if (result.compileSuccess) {
-        this.$message.success('编译成功')
-        await this.loadProjectVars(this.definitionId)
-      } else {
-        this.$message.error(
-          '编译失败: ' + (result.compileMessage || '未知错误')
-        )
-      }
-      return result
+      return this.completeRuleCompile(result, {
+        onSuccess: () => this.loadProjectVars(this.definitionId),
+      })
     },
 
     async handleTest() {

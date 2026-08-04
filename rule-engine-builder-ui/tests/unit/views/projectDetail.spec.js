@@ -59,6 +59,28 @@ describe('ProjectDetail 规则生命周期入口', () => {
     vi.clearAllMocks()
   })
 
+  test('项目工作台和项目规则使用独立 Tab', async () => {
+    const { wrapper } = await mountPage()
+
+    expect(wrapper.vm.activeProjectTab).toBe('workbench')
+    wrapper.vm.activeProjectTab = 'rules'
+    await wrapper.vm.$nextTick()
+    expect(wrapper.vm.activeProjectTab).toBe('rules')
+    wrapper.unmount()
+  })
+
+  test('项目规则设计入口复用统一命名路由', async () => {
+    const { wrapper, router } = await mountPage()
+
+    wrapper.vm.go({ id: 30, modelType: 'DECISION_FLOW' })
+
+    expect(router.push).toHaveBeenCalledWith({
+      name: 'DecisionFlow',
+      params: { id: '30' },
+    })
+    wrapper.unmount()
+  })
+
   test('发布入口只聚焦生命周期且不调用旧发布接口', async () => {
     const { wrapper, router } = await mountPage()
 

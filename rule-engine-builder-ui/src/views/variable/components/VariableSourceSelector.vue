@@ -141,7 +141,7 @@ export default {
 }
 
 .source-option__title small {
-  color: #2763d5;
+  color: var(--el-color-primary);
   font-size: 10px;
   font-weight: 600;
 }

@@ -11,10 +11,12 @@ $tianshu-color-primary-light-8: #D4D7FB;
 $tianshu-color-primary-light-9: #E9EBFD;
 $tianshu-color-primary-dark-1: #2233D2;
 $tianshu-color-primary-dark-2: #1E2EBA;
+$tianshu-color-secondary: #F76E6C;
+$tianshu-color-danger: #C93333;
 
 // 兼容仍由 Vite additionalData 注入的存量组件样式。
 $--color-primary: $tianshu-color-primary;
-$--color-danger: #C93333;
+$--color-danger: $tianshu-color-danger;
 
 $menuText: #CBD5E1;
 $menuActiveText: #FFFFFF;

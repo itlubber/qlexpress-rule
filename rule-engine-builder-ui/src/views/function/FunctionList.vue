@@ -439,6 +439,32 @@
       width="900px"
       append-to-body
     >
+      <div class="version-compare-toolbar">
+        <el-select v-model="versionCompareLeft" size="small" placeholder="选择左侧版本">
+          <el-option
+            v-for="item in versionList"
+            :key="`left-${item.version}`"
+            :label="`v${item.version}`"
+            :value="item.version"
+          />
+        </el-select>
+        <span>对比</span>
+        <el-select v-model="versionCompareRight" size="small" placeholder="选择右侧版本">
+          <el-option
+            v-for="item in versionList"
+            :key="`right-${item.version}`"
+            :label="`v${item.version}`"
+            :value="item.version"
+          />
+        </el-select>
+        <el-button
+          size="small"
+          type="primary"
+          :disabled="!versionCompareLeft || !versionCompareRight"
+          @click="compareSelectedVersions"
+          >查看具体差异</el-button
+        >
+      </div>
       <el-table :data="versionList" border size="small" style="width: 100%">
         <el-table-column
           prop="version"
@@ -481,19 +507,13 @@
         </el-table-column>
       </el-table>
       <div v-if="versionCompare" class="version-compare">
-        <div class="version-compare-title">
-          版本对比：v{{ versionCompare.left.version }} / v{{
-            versionCompare.right.version
-          }}
-        </div>
-        <el-tag
-          size="small"
-          :type="versionCompare.functionChanged ? 'warning' : 'success'"
-        >
-          {{
-            versionCompare.functionChanged ? '函数配置有变化' : '函数配置无变化'
-          }}
-        </el-tag>
+        <json-version-diff
+          :original="versionCompare.left.functionJson"
+          :modified="versionCompare.right.functionJson"
+          :original-label="`v${versionCompare.left.version}`"
+          :modified-label="`v${versionCompare.right.version}`"
+          height="380px"
+        />
       </div>
       <pre v-if="versionPreview" class="version-preview">{{
         versionPreview
@@ -528,6 +548,7 @@ import {
 } from '@/utils/pageStateCache'
 import { sampleValueForVarType } from '@/utils/testParamTemplate'
 import MonacoEditor from '@/components/MonacoEditor'
+import JsonVersionDiff from '@/components/common/JsonVersionDiff.vue'
 import RemoteFilterSelect from '@/components/RemoteFilterSelect.vue'
 import ProjectFilterSelect from '@/components/ProjectFilterSelect.vue'
 
@@ -553,6 +574,8 @@ export default {
       versionVisible: false,
       versionRow: null,
       versionList: [],
+      versionCompareLeft: null,
+      versionCompareRight: null,
       versionCompare: null,
       versionPreview: '',
       projectList: [],
@@ -590,6 +613,7 @@ export default {
   },
   components: {
     MonacoEditor,
+    JsonVersionDiff,
     RemoteFilterSelect,
     ProjectFilterSelect,
     ElIconInfo,
@@ -874,6 +898,8 @@ export default {
       this.versionPreview = ''
       const res = await listVersions(row.id)
       this.versionList = (res && res.data) || []
+      this.versionCompareLeft = this.versionList[1]?.version || null
+      this.versionCompareRight = this.versionList[0]?.version || null
     },
     viewVersion(row) {
       this.versionCompare = null
@@ -882,10 +908,21 @@ export default {
     async compareWithNext(row, index) {
       const right = this.versionList[index + 1]
       if (!this.versionRow || !right) return
+      this.versionCompareLeft = row.version
+      this.versionCompareRight = right.version
+      await this.compareSelectedVersions()
+    },
+    async compareSelectedVersions() {
+      if (
+        !this.versionRow ||
+        !this.versionCompareLeft ||
+        !this.versionCompareRight
+      )
+        return
       const res = await compareVersions(
         this.versionRow.id,
-        row.version,
-        right.version
+        this.versionCompareLeft,
+        this.versionCompareRight
       )
       this.versionCompare = (res && res.data) || null
       this.versionPreview = ''
@@ -952,9 +989,15 @@ export default {
 }
 .version-compare {
   margin-top: 10px;
+}
+.version-compare-toolbar {
   display: flex;
   align-items: center;
   gap: 10px;
+  margin-bottom: 12px;
+}
+.version-compare-toolbar .el-select {
+  width: 150px;
 }
 .version-compare-title {
   font-weight: 600;

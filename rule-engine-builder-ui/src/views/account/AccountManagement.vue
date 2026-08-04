@@ -1,5 +1,5 @@
 <template>
-  <div class="account-page">
+  <div class="uiue-list-page account-page">
     <header class="page-header">
       <div>
         <span class="page-eyebrow">CONSOLE ACCESS</span>
@@ -559,8 +559,7 @@ export default {
 
 <style lang="scss" scoped>
 .account-page {
-  max-width: 1440px;
-  margin: 0 auto;
+  color: #303133;
 }
 .page-header {
   display: flex;
@@ -585,7 +584,7 @@ export default {
   }
 }
 .page-eyebrow {
-  color: #5264f2;
+  color: var(--el-color-primary);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;

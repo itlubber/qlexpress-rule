@@ -44,7 +44,7 @@ export default {
 <style scoped>
 .lifecycle-timeline { display: grid; gap: 16px; }
 .timeline-row { display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: 12px; }
-.timeline-dot { width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: #315ca8; box-shadow: 0 0 0 4px #eaf0fb; }
+.timeline-dot { width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: var(--el-color-primary); box-shadow: 0 0 0 4px var(--el-color-primary-light-9); }
 .timeline-heading { display: flex; align-items: center; gap: 8px; }
 .timeline-meta, .timeline-comment { margin-top: 4px; color: #6b7280; font-size: 13px; }
 .timeline-digest { display: block; margin-top: 8px; color: #475569; overflow-wrap: anywhere; }

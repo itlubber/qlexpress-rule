@@ -1,8 +1,8 @@
 <template>
-  <div class="approval-detail-page">
+  <div class="uiue-list-page approval-detail-page">
     <header class="detail-header">
       <button class="back-button" type="button" @click="goBack">
-        ← 返回审批列表
+        ← 返回上一页
       </button>
       <div v-if="request" class="header-main">
         <div>
@@ -107,17 +107,43 @@
             </div>
             <span class="diff-summary">{{ diff.summary || '无配置差异' }}</span>
           </div>
+          <div class="version-selector-row">
+            <el-select v-model="compareLeftKey" size="small">
+              <el-option
+                v-for="item in compareOptions"
+                :key="`left-${item.value}`"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+            <span>对比</span>
+            <el-select v-model="compareRightKey" size="small">
+              <el-option
+                v-for="item in compareOptions"
+                :key="`right-${item.value}`"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </div>
           <div class="diff-columns-head">
             <div>
-              <span>基准版本</span>
-              <strong>{{ request.baseVersionNo ? `V${request.baseVersionNo}` : '空配置' }}</strong>
+              <span>左侧版本</span>
+              <strong>{{ compareLeftLabel }}</strong>
             </div>
             <div>
               <span>提交版本</span>
-              <strong>{{ request.status === 'EDITING' ? '编辑中草稿' : '冻结快照' }}</strong>
+              <strong>{{ compareRightLabel }}</strong>
             </div>
           </div>
-          <div v-if="changedFields.length" class="diff-list">
+          <json-version-diff
+            :original="compareOriginal"
+            :modified="compareModified"
+            :original-label="compareLeftLabel"
+            :modified-label="compareRightLabel"
+            height="400px"
+          />
+          <div v-if="isRequestComparison && changedFields.length" class="diff-list">
             <article
               v-for="field in changedFields"
               :key="field.key"
@@ -139,7 +165,9 @@
               </div>
             </article>
           </div>
-          <div v-else class="no-diff">基准版本与提交内容一致</div>
+          <div v-else-if="isRequestComparison && !changedFields.length" class="no-diff">
+            基准版本与提交内容一致
+          </div>
         </section>
 
         <section class="two-column-grid">
@@ -168,6 +196,14 @@
                 <code>{{ issue.referencePath || issue.code }}</code>
               </div>
             </div>
+            <lineage-graph
+              v-if="lineageNodeId && lineageNodeType"
+              :key="`${lineageNodeType}-${lineageNodeId}`"
+              embedded
+              :initial-node-type="lineageNodeType"
+              :initial-node-id="lineageNodeId"
+              initial-direction="ALL"
+            />
             <el-table v-else :data="detail.dependencies || []" size="small">
               <el-table-column prop="targetResourceType" label="依赖类型" width="130" />
               <el-table-column prop="targetResourceId" label="资源 ID" width="100" />
@@ -223,8 +259,14 @@
             <el-table-column label="生效时间" width="175">
               <template #default="{ row }">{{ formatTime(row.createTime) }}</template>
             </el-table-column>
-            <el-table-column label="操作" width="110">
+            <el-table-column label="操作" width="250">
               <template #default="{ row }">
+                <el-button link type="info" @click="viewGovernanceVersion(row)">
+                  查看
+                </el-button>
+                <el-button link type="primary" @click="compareGovernanceVersion(row)">
+                  与当前审批对比
+                </el-button>
                 <el-button
                   v-permission="'approval:submit'"
                   link
@@ -263,6 +305,9 @@
         </el-button>
       </template>
     </el-dialog>
+    <el-dialog v-model="versionPreviewVisible" :title="versionPreviewTitle" width="760px">
+      <pre class="version-preview">{{ prettySnapshot(versionPreviewSnapshot) }}</pre>
+    </el-dialog>
   </div>
 </template>
 
@@ -279,9 +324,12 @@ import {
   submitGovernanceRequest
 } from '@/api/governance'
 import { getCurrentUser } from '@/security/permissionState'
+import JsonVersionDiff from '@/components/common/JsonVersionDiff.vue'
+import LineageGraph from '@/views/lineage/LineageGraph.vue'
 
 export default {
   name: 'ApprovalDetail',
+  components: { JsonVersionDiff, LineageGraph },
   setup() {
     return {
       route: useRoute(),
@@ -295,7 +343,12 @@ export default {
       detail: {},
       actionDialogVisible: false,
       activeAction: '',
-      actionComment: ''
+      actionComment: '',
+      compareLeftKey: '',
+      compareRightKey: 'CURRENT',
+      versionPreviewVisible: false,
+      versionPreviewTitle: '',
+      versionPreviewSnapshot: ''
     }
   },
   computed: {
@@ -307,6 +360,63 @@ export default {
     },
     changedFields() {
       return (this.diff.fields || []).filter(field => field.changed)
+    },
+    compareOptions() {
+      const currentLabel = this.request && this.request.status === 'EDITING'
+        ? '当前审批（编辑中草稿）'
+        : '当前审批（冻结快照）'
+      return [
+        ...(this.detail.versions || []).map(version => ({
+          label: `历史生效 V${version.versionNo}`,
+          value: `VERSION:${version.id}`
+        })),
+        { label: currentLabel, value: 'CURRENT' }
+      ]
+    },
+    compareOriginal() {
+      return this.comparisonSnapshot(this.compareLeftKey)
+    },
+    compareModified() {
+      return this.comparisonSnapshot(this.compareRightKey)
+    },
+    compareLeftLabel() {
+      return this.comparisonLabel(this.compareLeftKey)
+    },
+    compareRightLabel() {
+      return this.comparisonLabel(this.compareRightKey)
+    },
+    isRequestComparison() {
+      const base = (this.detail.versions || []).find(version =>
+        version.versionNo === this.request?.baseVersionNo
+      )
+      return this.compareRightKey === 'CURRENT' &&
+        (!base || this.compareLeftKey === `VERSION:${base.id}`)
+    },
+    lineageNodeType() {
+      const type = this.request && this.request.resourceType
+      return {
+        PROJECT: 'PROJECT',
+        VARIABLE: 'VARIABLE',
+        RULE: 'RULE',
+        RULE_PROJECT_BINDING: 'RULE',
+        MODEL: 'MODEL',
+        EXTERNAL_API: 'API',
+        DATABASE: 'DB',
+        LIST_LIBRARY: 'LIST',
+        LIST_RECORD_BATCH: 'LIST',
+        EXTERNAL_DATASOURCE: 'DATASOURCE'
+      }[type] || ''
+    },
+    lineageNodeId() {
+      if (!this.request) return ''
+      const snapshot = this.requestSnapshot()
+      if (this.request.resourceType === 'RULE_PROJECT_BINDING') {
+        return snapshot.definitionId || ''
+      }
+      if (this.request.resourceType === 'LIST_RECORD_BATCH') {
+        return snapshot.listId || this.request.resourceId
+      }
+      return this.request.resourceId
     },
     resourceTitle() {
       if (!this.request) return '审批详情'
@@ -367,19 +477,18 @@ export default {
   },
   methods: {
     goBack() {
-      const projectId = Number(this.route.query && this.route.query.projectId)
-      this.navigation.push({
-        path: '/approval',
-        query: Number.isInteger(projectId) && projectId > 0
-          ? { projectId }
-          : {},
-      })
+      this.navigation.back()
     },
     async loadDetail() {
       this.loading = true
       try {
         const response = await getGovernanceRequest(this.route.params.id)
         this.detail = response.data || {}
+        const base = (this.detail.versions || []).find(version =>
+          version.versionNo === this.detail.request?.baseVersionNo
+        ) || (this.detail.versions || [])[0]
+        this.compareLeftKey = base ? `VERSION:${base.id}` : 'CURRENT'
+        this.compareRightKey = 'CURRENT'
       } finally {
         this.loading = false
       }
@@ -443,6 +552,38 @@ export default {
           ? { projectId }
           : {},
       })
+    },
+    compareGovernanceVersion(version) {
+      this.compareLeftKey = `VERSION:${version.id}`
+      this.compareRightKey = 'CURRENT'
+    },
+    viewGovernanceVersion(version) {
+      this.versionPreviewTitle = `历史生效 V${version.versionNo}`
+      this.versionPreviewSnapshot = version.snapshotJson || ''
+      this.versionPreviewVisible = true
+    },
+    comparisonSnapshot(key) {
+      if (key === 'CURRENT') {
+        return this.request
+          ? this.request.submittedSnapshotJson ||
+              this.request.draftSnapshotJson || '{}'
+          : '{}'
+      }
+      const id = Number(String(key || '').replace('VERSION:', ''))
+      const version = (this.detail.versions || []).find(item => item.id === id)
+      return version ? version.snapshotJson || '{}' : '{}'
+    },
+    comparisonLabel(key) {
+      const option = this.compareOptions.find(item => item.value === key)
+      return option ? option.label : '空配置'
+    },
+    prettySnapshot(snapshot) {
+      if (!snapshot) return '{}'
+      try {
+        return JSON.stringify(JSON.parse(snapshot), null, 2)
+      } catch (error) {
+        return String(snapshot)
+      }
     },
     requestSnapshot() {
       const text = this.request.submittedSnapshotJson || this.request.draftSnapshotJson
@@ -544,15 +685,12 @@ export default {
 
 <style scoped>
 .approval-detail-page {
-  min-height: 100%;
-  background: #f4f6f8;
-  color: #18212f;
+  color: #303133;
 }
 
 .detail-header {
-  padding: 22px max(28px, calc((100vw - 1440px) / 2));
+  padding: 0 0 16px;
   border-bottom: 1px solid #e2e6ec;
-  background: #fff;
 }
 
 .back-button {
@@ -573,7 +711,7 @@ export default {
 
 .request-number,
 .section-kicker {
-  color: #2763d5;
+  color: var(--el-color-primary);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
   font-weight: 700;
@@ -600,9 +738,7 @@ export default {
 }
 
 .detail-content {
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 24px 28px 48px;
+  padding: 16px 0 32px;
 }
 
 .overview-grid {
@@ -619,7 +755,7 @@ export default {
   justify-content: center;
   padding: 17px 20px;
   border: 1px solid #e1e6ed;
-  border-radius: 12px;
+  border-radius: 4px;
   background: #fff;
 }
 
@@ -656,9 +792,9 @@ export default {
 
 .content-card {
   border: 1px solid #e1e6ed;
-  border-radius: 12px;
+  border-radius: 4px;
   background: #fff;
-  box-shadow: 0 8px 24px rgb(23 36 58 / 5%);
+  box-shadow: 0 1px 3px rgb(23 36 58 / 5%);
 }
 
 .diff-section {
@@ -695,6 +831,17 @@ export default {
   grid-template-columns: 1fr 1fr;
   gap: 12px;
   margin: 0 0 9px 0;
+}
+
+.version-selector-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.version-selector-row .el-select {
+  width: 220px;
 }
 
 .diff-columns-head > div {
@@ -845,7 +992,7 @@ export default {
   height: 9px;
   border: 2px solid #fff;
   border-radius: 50%;
-  background: #2763d5;
+  background: var(--el-color-primary);
   box-shadow: 0 0 0 1px #8ba9e3;
 }
 
@@ -861,6 +1008,18 @@ export default {
 
 .versions-card {
   overflow: hidden;
+}
+
+.version-preview {
+  max-height: 560px;
+  margin: 0;
+  padding: 14px;
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  background: #f8fafc;
+  font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
 }
 
 @media (max-width: 1000px) {

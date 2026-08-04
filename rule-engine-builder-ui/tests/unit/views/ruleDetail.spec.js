@@ -57,6 +57,17 @@ function mockDraftSave(revision) {
 }
 
 describe('RuleDetail 生命周期治理', () => {
+  test('生命周期是规则详情第一个 Tab，并承接设计器跳转焦点', async () => {
+    const wrapper = await mountAndWait(undefined, undefined, {
+      focus: 'lifecycle',
+    })
+    const panes = wrapper.findAll('[name]')
+
+    expect(wrapper.vm.activeDetailTab).toBe('lifecycle')
+    expect(panes[0].attributes('name')).toBe('lifecycle')
+    wrapper.unmount()
+  })
+
   test('详情页加载修订和审计时间线', async () => {
     const wrapper = await mountAndWait()
     expect(definitionApi.listRuleRevisions).toHaveBeenCalledWith(1)
@@ -472,7 +483,8 @@ async function mountAndWait(
       state: 'DRAFT',
       lockVersion: 0,
     },
-  ]
+  ],
+  routeQuery = {}
 ) {
   definitionApi.getDefinitionDetail.mockResolvedValueOnce({ data: mockRuleDetail(1) })
   definitionApi.getContent.mockResolvedValueOnce({ data: content })
@@ -490,7 +502,7 @@ async function mountAndWait(
   const wrapper = shallowMount(RuleDetail, {
     props: { id: '1' },
     mocks: {
-      $route: { params: { id: 1 } },
+      $route: { params: { id: 1 }, query: routeQuery },
       $router: { push: vi.fn(), replace: vi.fn() },
       $message: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
       $confirm: vi.fn().mockResolvedValue('confirm')
@@ -635,6 +647,17 @@ describe('RuleDetail — 辅助方法', () => {
 })
 
 describe('RuleDetail — 开放接口契约', () => {
+  test('开放接口字段选项展示业务名称、编码和类型但不暴露内部 ID', async () => {
+    const wrapper = await mountAndWait()
+    const option = wrapper.vm.openInputOptions[0]
+
+    expect(option.label).toContain('age')
+    expect(option.label).toContain('INTEGER')
+    expect(option.label).not.toContain('VARIABLE:1')
+    expect(option.value).toBe('VARIABLE:1')
+    wrapper.unmount()
+  })
+
   test('统一响应编辑项位于 Element Plus 表单内', async () => {
     const wrapper = await mountAndWait()
 

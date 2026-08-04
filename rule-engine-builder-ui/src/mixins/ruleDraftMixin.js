@@ -292,6 +292,22 @@ export default {
       this.draftIssues = Array.isArray(result.issues) ? result.issues : []
       return result
     },
+    async completeRuleCompile(result, options = {}) {
+      const successMessage = options.successMessage || '编译成功'
+      const errorPrefix = options.errorPrefix || '编译失败'
+      if (!result || !result.compileSuccess) {
+        this.$message.error(
+          `${errorPrefix}: ${(result && result.compileMessage) || '未知错误'}`
+        )
+        return result
+      }
+      this.$message.success(successMessage)
+      if (typeof options.onSuccess === 'function') {
+        await options.onSuccess()
+      }
+      this.goRuleLifecycle()
+      return result
+    },
     goRuleLifecycle() {
       this.$router.push({
         name: 'RuleDetail',

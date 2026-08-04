@@ -94,9 +94,9 @@
         </template>
       </el-table-column>
       <el-table-column prop="createTime" label="创建时间" min-width="160" />
-      <el-table-column label="操作" width="220" align="center" fixed="right">
+      <el-table-column label="操作" width="300" align="center" fixed="right">
         <template v-slot="{ row }">
-          <div class="project-action-links">
+          <div class="table-operation-group project-action-links">
             <el-button v-permission="'project:edit'" link size="small" type="primary" @click="handleEdit(row)"
               >编辑</el-button
             >

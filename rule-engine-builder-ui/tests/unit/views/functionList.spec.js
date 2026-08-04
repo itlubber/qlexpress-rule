@@ -331,17 +331,24 @@ describe('FunctionList — 函数操作', () => {
     expect(functionApi.deleteFunction).toHaveBeenCalledWith(99)
   })
 
-  test('openVersionDialog loads versions and compareWithNext compares adjacent versions', async () => {
+  test('函数版本可以任意选择左右版本并显示具体内容差异', async () => {
     functionApi.listVersions.mockResolvedValueOnce({ data: [{ version: 2, functionJson: '{"a":2}' }, { version: 1, functionJson: '{"a":1}' }] })
-    functionApi.compareVersions.mockResolvedValueOnce({ data: { left: { version: 2 }, right: { version: 1 }, functionChanged: true } })
+    functionApi.compareVersions.mockResolvedValueOnce({ data: {
+      left: { version: 1, functionJson: '{"a":1}' },
+      right: { version: 2, functionJson: '{"a":2}' },
+      functionChanged: true
+    } })
 
     await wrapper.vm.openVersionDialog({ id: 1 })
-    await wrapper.vm.compareWithNext(wrapper.vm.versionList[0], 0)
+    wrapper.vm.versionCompareLeft = 1
+    wrapper.vm.versionCompareRight = 2
+    await wrapper.vm.compareSelectedVersions()
 
     expect(wrapper.vm.versionVisible).toBe(true)
     expect(functionApi.listVersions).toHaveBeenCalledWith(1)
-    expect(functionApi.compareVersions).toHaveBeenCalledWith(1, 2, 1)
+    expect(functionApi.compareVersions).toHaveBeenCalledWith(1, 1, 2)
     expect(wrapper.vm.versionCompare.functionChanged).toBe(true)
+    expect(wrapper.vm.versionCompare.left.functionJson).toBe('{"a":1}')
   })
 })
 

@@ -317,6 +317,11 @@ import {
   buildSampleParamsFromCodes,
   collectScriptInputCodes,
 } from '@/utils/testSampleParams'
+import {
+  buildQlCompletionItems,
+  buildQlHover,
+  buildQlSignatureHelp,
+} from '@/utils/qlEditorIntelligence'
 
 const VAR_PANEL_WIDTH_KEY = 'qlexpress.scriptEditor.varPanelWidth'
 const DEFAULT_VAR_PANEL_WIDTH = 300
@@ -340,6 +345,7 @@ export default {
       testParamsJson: '{}',
       testResult: null,
       monacoEditor: null,
+      qlProviderDisposables: [],
       pendingVarInsertions: [],
       varPanelWidth: DEFAULT_VAR_PANEL_WIDTH,
       varPanelMinWidth: 220,
@@ -536,6 +542,7 @@ export default {
   },
   beforeUnmount() {
     this.stopVarPanelResize()
+    this.disposeQlProviders()
   },
   methods: {
     restoreVarPanelWidth() {
@@ -712,12 +719,10 @@ export default {
     },
     async handleCompile() {
       const result = await this.handleSave()
-      if (result.compileSuccess) {
-        this.$message.success('脚本验证通过')
-      } else {
-        this.$message.error('脚本验证失败: ' + this.compileMessage)
-      }
-      return result
+      return this.completeRuleCompile(result, {
+        successMessage: '脚本验证通过',
+        errorPrefix: '脚本验证失败',
+      })
     },
     async handleTest() {
       const result = await this.handleSave()
@@ -787,8 +792,150 @@ export default {
     },
     onEditorReady(editor) {
       this.monacoEditor = editor
+      if (typeof this.registerQlProviders === 'function') {
+        this.registerQlProviders()
+      }
       const pending = this.pendingVarInsertions.splice(0)
       pending.forEach((variable) => this.insertVar(variable))
+    },
+    qlIntelligenceRefs() {
+      return (this.projectRefs || []).map((ref) => ({
+        ...ref,
+        varLabel:
+          ref.varLabel ||
+          (ref.refLabel && ref.refLabel.label) ||
+          ref.displayName ||
+          ref.refCode,
+      }))
+    },
+    recordScriptReference(reference) {
+      if (!reference || reference.varId == null || !reference.refType) return
+      const existing = this.scriptVarRefs.find(
+        (item) => item.refCode === reference.refCode
+      )
+      if (existing) {
+        existing.varId = reference.varId
+        existing.refType = reference.refType
+        return
+      }
+      this.scriptVarRefs.push({ ...reference })
+    },
+    registerQlProviders() {
+      this.disposeQlProviders()
+      const monaco = window.monaco
+      if (!monaco || !monaco.languages) return
+      const commandId = `tianshu.record-script-reference.${this.$.uid}`
+      if (monaco.editor && monaco.editor.registerCommand) {
+        this.qlProviderDisposables.push(
+          monaco.editor.registerCommand(commandId, (_accessor, reference) => {
+            this.recordScriptReference(reference)
+          })
+        )
+      }
+      if (monaco.languages.registerCompletionItemProvider) {
+        this.qlProviderDisposables.push(
+          monaco.languages.registerCompletionItemProvider('ql', {
+            triggerCharacters: ['.'],
+            provideCompletionItems: (model, position) => {
+              const line = model.getLineContent(position.lineNumber)
+              const linePrefix = line.slice(0, position.column - 1)
+              const word = model.getWordUntilPosition(position)
+              const range = {
+                startLineNumber: position.lineNumber,
+                endLineNumber: position.lineNumber,
+                startColumn: word.startColumn,
+                endColumn: word.endColumn,
+              }
+              const suggestions = buildQlCompletionItems(
+                this.qlIntelligenceRefs(),
+                this.projectFunctions,
+                linePrefix
+              ).map((item) => ({
+                label: item.label,
+                insertText: item.insertText,
+                detail: item.detail,
+                documentation: { value: item.documentation || '' },
+                range,
+                kind:
+                  item.kind === 'FUNCTION'
+                    ? monaco.languages.CompletionItemKind.Function
+                    : monaco.languages.CompletionItemKind.Field,
+                insertTextRules: item.snippet
+                  ? monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
+                  : undefined,
+                command:
+                  item.stableReference && monaco.editor.registerCommand
+                    ? {
+                        id: commandId,
+                        title: '记录稳定字段引用',
+                        arguments: [item.stableReference],
+                      }
+                    : undefined,
+              }))
+              return { suggestions }
+            },
+          })
+        )
+      }
+      if (monaco.languages.registerHoverProvider) {
+        this.qlProviderDisposables.push(
+          monaco.languages.registerHoverProvider('ql', {
+            provideHover: (model, position) => {
+              const hover = buildQlHover(
+                model.getLineContent(position.lineNumber),
+                position.column,
+                this.qlIntelligenceRefs()
+              )
+              if (!hover) return null
+              return {
+                contents: [
+                  { value: `**${hover.label}**` },
+                  { value: `\`${hover.refCode}\`` },
+                  {
+                    value: `类型：\`${hover.valueType}\`  ·  来源：\`${
+                      hover.refType || 'REFERENCE'
+                    }\``,
+                  },
+                ],
+              }
+            },
+          })
+        )
+      }
+      if (monaco.languages.registerSignatureHelpProvider) {
+        this.qlProviderDisposables.push(
+          monaco.languages.registerSignatureHelpProvider('ql', {
+            signatureHelpTriggerCharacters: ['(', ','],
+            provideSignatureHelp: (model, position) => {
+              const line = model.getLineContent(position.lineNumber)
+              const signature = buildQlSignatureHelp(
+                line.slice(0, position.column - 1),
+                this.projectFunctions
+              )
+              if (!signature) return null
+              return {
+                value: {
+                  signatures: [
+                    {
+                      label: signature.label,
+                      parameters: signature.parameters,
+                    },
+                  ],
+                  activeSignature: 0,
+                  activeParameter: signature.activeParameter,
+                },
+                dispose() {},
+              }
+            },
+          })
+        )
+      }
+    },
+    disposeQlProviders() {
+      this.qlProviderDisposables.forEach((disposable) => {
+        if (disposable && disposable.dispose) disposable.dispose()
+      })
+      this.qlProviderDisposables = []
     },
     /**
      * 仅清理通过选择器显式记录、但已不再出现在脚本中的引用。

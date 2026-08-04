@@ -815,14 +815,21 @@ describe('ModelDetail — 版本管理', () => {
     expect(wrapper.vm.versionList.map(v => v.version)).toEqual([2, 1])
   })
 
-  test('compareWithNext 调用版本对比接口', async () => {
-    wrapper.vm.versionList = [{ version: 2 }, { version: 1 }]
-    modelApi.compareVersions.mockResolvedValue({ data: { left: { version: 2 }, right: { version: 1 }, modelConfigChanged: true } })
+  test('模型历史可以任意选择左右版本并显示配置差异', async () => {
+    wrapper.vm.versionList = [{ version: 3 }, { version: 2 }, { version: 1 }]
+    wrapper.vm.versionCompareLeft = 1
+    wrapper.vm.versionCompareRight = 3
+    modelApi.compareVersions.mockResolvedValue({ data: {
+      left: { version: 1, modelConfig: '{"threshold":60}' },
+      right: { version: 3, modelConfig: '{"threshold":80}' },
+      modelConfigChanged: true
+    } })
 
-    await wrapper.vm.compareWithNext(wrapper.vm.versionList[0], 0)
+    await wrapper.vm.compareSelectedVersions()
 
-    expect(modelApi.compareVersions).toHaveBeenCalledWith(1, 2, 1)
+    expect(modelApi.compareVersions).toHaveBeenCalledWith(1, 1, 3)
     expect(wrapper.vm.versionCompare.modelConfigChanged).toBe(true)
+    expect(wrapper.vm.versionCompare.left.modelConfig).toContain('60')
   })
 })
 

@@ -19,12 +19,16 @@
       >
     </div>
 
-    <project-workbench-overview
-      :workbench="workbench"
-      :loading="workbenchLoading"
-      :error="workbenchError"
-      @action="openWorkbenchAction"
-    />
+    <el-tabs v-model="activeProjectTab" class="project-detail-tabs">
+      <el-tab-pane label="项目工作台" name="workbench">
+        <project-workbench-overview
+          :workbench="workbench"
+          :loading="workbenchLoading"
+          :error="workbenchError"
+          @action="openWorkbenchAction"
+        />
+      </el-tab-pane>
+      <el-tab-pane label="项目规则" name="rules">
 
     <div class="rule-section-heading">
       <div>
@@ -196,30 +200,24 @@
           row.updateTime ? formatDateTime(row.updateTime) : '-'
         }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="180" align="center" fixed="right">
+      <el-table-column label="操作" width="250" align="center" fixed="right">
         <template v-slot="{ row }">
-          <el-button link size="small" type="warning" @click="go(row)"
-            >设计</el-button
-          >
-          <el-button link size="small" type="success" @click="pub(row)"
-            >生命周期</el-button
-          >
-          <el-button
-            link
-            size="small"
-            type="warning"
-            v-if="row.status === 1"
-            @click="unpub(row)"
-            >下线</el-button
-          >
-          <el-button
-            link
-            size="small"
-            type="danger"
-            class="btn-delete"
-            @click="del(row)"
-            >{{ row.scope === 'GLOBAL' ? '移出项目' : '申请删除规则' }}</el-button
-          >
+          <div class="table-operation-group">
+            <el-button link size="small" type="primary" @click="detail(row)"
+              >详情</el-button
+            >
+            <el-button link size="small" type="warning" @click="go(row)"
+              >设计</el-button
+            >
+            <el-button
+              link
+              size="small"
+              type="danger"
+              class="btn-delete"
+              @click="del(row)"
+              >{{ row.scope === 'GLOBAL' ? '移出项目' : '申请删除规则' }}</el-button
+            >
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -244,6 +242,8 @@
         }
       "
     />
+      </el-tab-pane>
+    </el-tabs>
 
     <!-- 新建规则对话框 -->
     <el-dialog title="新建规则" v-model="dlgVis" width="500px">
@@ -433,6 +433,7 @@ import { getProject, getProjectWorkbench } from '@/api/project'
 import request from '@/api/request'
 import { restorePageState, savePageState } from '@/utils/pageStateCache'
 import ProjectWorkbenchOverview from '@/components/ProjectWorkbenchOverview.vue'
+import { ruleDesignerLocation } from '@/utils/ruleDesignerNavigation'
 export default {
   name: 'ProjectDetail',
   components: { ProjectWorkbenchOverview },
@@ -440,6 +441,7 @@ export default {
     return {
       pid: null,
       project: null,
+      activeProjectTab: 'workbench',
       workbench: null,
       workbenchLoading: false,
       workbenchError: '',
@@ -633,18 +635,18 @@ export default {
       return `${y}-${m}-${d} ${h}:${min}:${s}`
     },
     go(r) {
-      const m = {
-        TABLE: 'table',
-        TREE: 'tree',
-        FLOW: 'flow',
-        RULE_SET: 'ruleset',
-        CROSS: 'cross',
-        SCORE: 'score',
-        CROSS_ADV: 'cross-adv',
-        SCORE_ADV: 'score-adv',
-        SCRIPT: 'script',
+      const location = ruleDesignerLocation(r)
+      if (!location) {
+        this.$message.error(`规则模型类型 ${r.modelType || '-'} 暂无可用设计器`)
+        return
       }
-      this.$router.push('/designer/' + m[r.modelType] + '/' + r.id)
+      this.$router.push(location)
+    },
+    detail(r) {
+      this.$router.push({
+        name: 'RuleDetail',
+        params: { id: r.definitionId || r.id },
+      })
     },
     pub(r) {
       this.$router.push({
@@ -767,5 +769,22 @@ export default {
   margin: 4px 0 0;
   color: #64748b;
   font-size: 12px;
+}
+
+.project-detail-tabs {
+  :deep(.el-tabs__content) {
+    overflow: visible;
+  }
+}
+
+.table-operation-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+
+  :deep(.el-button + .el-button) {
+    margin-left: 4px;
+  }
 }
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <div class="approval-page">
+  <div class="uiue-list-page approval-page">
     <header class="page-header">
       <div>
         <span class="page-eyebrow">LIFECYCLE GOVERNANCE</span>
@@ -469,24 +469,20 @@ export default {
 
 <style scoped>
 .approval-page {
-  min-height: 100%;
-  padding: 28px;
-  background: #f4f6f8;
-  color: #18212f;
+  color: #303133;
 }
 
 .page-header {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  max-width: 1440px;
-  margin: 0 auto 22px;
+  margin-bottom: 16px;
 }
 
 .page-eyebrow {
   display: block;
   margin-bottom: 7px;
-  color: #2763d5;
+  color: var(--el-color-primary);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.16em;
@@ -516,21 +512,18 @@ export default {
 }
 
 .approval-card {
-  max-width: 1440px;
-  margin: 0 auto;
   overflow: hidden;
   border: 1px solid #e4e8ee;
-  border-radius: 14px;
+  border-radius: 4px;
   background: #fff;
-  box-shadow: 0 12px 34px rgb(25 40 65 / 7%);
+  box-shadow: 0 1px 3px rgb(25 40 65 / 5%);
 }
 
 .summary-grid {
   display: grid;
-  max-width: 1440px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
-  margin: 0 auto 16px;
+  margin-bottom: 16px;
 }
 
 .summary-card {
@@ -540,7 +533,7 @@ export default {
   align-items: flex-start;
   padding: 16px 18px;
   border: 1px solid #e1e6ed;
-  border-radius: 12px;
+  border-radius: 4px;
   background: #fff;
   color: #6b7585;
   cursor: pointer;
@@ -625,7 +618,7 @@ export default {
   border: 1px solid #cbd9f5;
   border-radius: 9px;
   background: #eef4ff;
-  color: #2763d5;
+  color: var(--el-color-primary);
   font-weight: 700;
 }
 
@@ -657,10 +650,6 @@ export default {
 }
 
 @media (max-width: 900px) {
-  .approval-page {
-    padding: 18px 12px;
-  }
-
   .header-stat {
     display: none;
   }

@@ -1,12 +1,15 @@
 <template>
-  <div class="uiue-list-page lineage-page">
-    <div class="module-hint">
+  <div
+    class="uiue-list-page lineage-page"
+    :class="{ 'is-embedded': embedded }"
+  >
+    <div v-if="!embedded" class="module-hint">
       <div class="hint-title">血缘分析</div>
       <div class="hint-text">
         从变量、规则、项目、API、数据库、名单或模型出发，查看上游依赖与下游引用关系。
       </div>
     </div>
-    <div class="usage-guide">
+    <div v-if="!embedded" class="usage-guide">
       <div
         v-for="item in lineageGuideCards"
         :key="item.title"
@@ -17,7 +20,7 @@
       </div>
     </div>
 
-    <div class="query-panel">
+    <div v-if="!embedded" class="query-panel">
       <el-form :inline="true" size="small">
         <el-form-item label="节点类型">
           <el-select
@@ -209,6 +212,12 @@ const MIN_CANVAS_W = 960
 const MIN_CANVAS_H = 440
 
 export default {
+  props: {
+    embedded: { type: Boolean, default: false },
+    initialNodeType: { type: String, default: '' },
+    initialNodeId: { type: [String, Number], default: '' },
+    initialDirection: { type: String, default: 'ALL' },
+  },
   data() {
     return {
       lineageGuideCards: [
@@ -249,7 +258,14 @@ export default {
   },
   name: 'LineageGraph',
   created() {
-    this.loadOptions('')
+    if (this.initialNodeType) this.query.nodeType = this.initialNodeType
+    if (this.initialNodeId) this.query.nodeId = this.initialNodeId
+    if (this.initialDirection) this.query.direction = this.initialDirection
+    if (this.embedded && this.query.nodeId) {
+      this.loadGraph()
+    } else {
+      this.loadOptions('')
+    }
   },
   computed: {
     showUpstream() {
@@ -631,6 +647,14 @@ export default {
 
 <style lang="scss" scoped>
 .lineage-page {
+  &.is-embedded {
+    padding: 0;
+
+    .graph-wrap {
+      min-height: 360px;
+    }
+  }
+
   .module-hint {
     background: #f8fafc;
     border: 1px solid #e2e8f0;
@@ -835,8 +859,8 @@ export default {
   }
   .branch-toggle:hover,
   .branch-toggle:focus {
-    color: #2563eb;
-    border-color: #2563eb;
+    color: var(--el-color-primary);
+    border-color: var(--el-color-primary);
     outline: none;
   }
   .branch-node.is-upstream .branch-toggle {

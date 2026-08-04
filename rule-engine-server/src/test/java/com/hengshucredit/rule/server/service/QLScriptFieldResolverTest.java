@@ -302,6 +302,21 @@ public class QLScriptFieldResolverTest {
     }
 
     @Test
+    public void dataObjectDescendantUsesLongestStableParentBinding() {
+        fixture.dataObject(10L, activeDataObject(10L, 4L, "contact"));
+        fixture.dataField(21L, activeDataField(
+                21L, 4L, 10L, null, "address", "OBJECT"));
+
+        RuleFieldAnalyzer.ResolvedFields fields = fixture.resolver.resolve(
+                model("output = contact.address.city; output",
+                        refs(ref(21L, "DATA_OBJECT", "contact.address"))), 4L);
+
+        assertEquals(Long.valueOf(21L), fields.getInputFields().get(0).getVarId());
+        assertEquals("DATA_OBJECT", fields.getInputFields().get(0).getRefType());
+        assertFalse(codes(fields).contains("SCRIPT_INPUT_REF_MISSING"));
+    }
+
+    @Test
     public void disabledDataObjectRejectsOtherwiseValidField() {
         RuleDataObject object = activeDataObject(10L, 4L, "contact");
         object.setStatus(0);

@@ -9,7 +9,8 @@ vi.mock('@/api/governance', () => ({
         action: 'UPDATE',
         status: 'PENDING',
         applicant: 'same-user',
-        baseVersionNo: 2
+        baseVersionNo: 2,
+        submittedSnapshotJson: '{"host":"db-new","port":3306}'
       },
       diff: {
         summary: '共 2 项变更',
@@ -41,7 +42,11 @@ vi.mock('@/api/governance', () => ({
         toStatus: 'PENDING'
       }],
       dependencies: [],
-      versions: [{ id: 3, versionNo: 2 }]
+      versions: [{
+        id: 3,
+        versionNo: 2,
+        snapshotJson: '{"host":"db-old","port":3306}'
+      }]
     }
   }),
   preflightGovernanceRequest: vi.fn(),
@@ -142,18 +147,28 @@ describe('统一审批详情', () => {
     expect(wrapper.text()).not.toContain('项目规则关联 #0')
   })
 
-  test('返回审批列表时保留项目上下文', async() => {
+  test('返回审批详情来源页而不是固定跳审批管理页', async() => {
     const wrapper = shallowMount(ApprovalDetail, {
       global: { directives: { permission: {} } }
     })
     await flushPromises()
-    wrapper.vm.route.query = { projectId: '9' }
-
     wrapper.vm.goBack()
 
-    expect(wrapper.vm.navigation.push).toHaveBeenCalledWith({
-      path: '/approval',
-      query: { projectId: 9 }
+    expect(wrapper.vm.navigation.back).toHaveBeenCalledTimes(1)
+    expect(wrapper.vm.navigation.push).not.toHaveBeenCalled()
+  })
+
+  test('配置差异可选择历史生效版本与当前审批版本比较', async() => {
+    const wrapper = shallowMount(ApprovalDetail, {
+      global: { directives: { permission: {} } }
     })
+    await flushPromises()
+
+    wrapper.vm.compareGovernanceVersion(wrapper.vm.detail.versions[0])
+
+    expect(wrapper.vm.compareLeftKey).toBe('VERSION:3')
+    expect(wrapper.vm.compareRightKey).toBe('CURRENT')
+    expect(wrapper.vm.compareOriginal).toBe('{"host":"db-old","port":3306}')
+    expect(wrapper.vm.compareModified).toBe('{"host":"db-new","port":3306}')
   })
 })
