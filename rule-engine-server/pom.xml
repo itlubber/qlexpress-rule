@@ -15,6 +15,7 @@
     <properties>
         <!-- 为 true 时不在 Maven 中执行 rule-engine-builder-ui 的 npm build（前端独立输出 dist/，不写入本模块） -->
         <skip.ui.build>true</skip.ui.build>
+        <tianshu.onnx.integration>false</tianshu.onnx.integration>
     </properties>
 
     <dependencies>
@@ -116,10 +117,6 @@
             <testResource>
                 <directory>${project.basedir}/src/test/resources</directory>
             </testResource>
-            <testResource>
-                <directory>${project.basedir}/../assets</directory>
-                <targetPath>assets</targetPath>
-            </testResource>
         </testResources>
         <plugins>
             <plugin>
@@ -169,6 +166,32 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <tianshu.onnx.integration>${tianshu.onnx.integration}</tianshu.onnx.integration>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>onnx-integration</id>
+            <properties>
+                <tianshu.onnx.integration>true</tianshu.onnx.integration>
+            </properties>
+            <build>
+                <testResources combine.children="append">
+                    <testResource>
+                        <directory>${project.basedir}/../assets</directory>
+                        <targetPath>assets</targetPath>
+                    </testResource>
+                </testResources>
+            </build>
+        </profile>
+    </profiles>
 </project>

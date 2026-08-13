@@ -42,12 +42,14 @@ public class OnnxRuntimeSessionManagerTest {
 
     @Test
     public void jvmShutdownDoesNotRaceEnvironmentAndSessionCleanup() throws Exception {
+        OnnxTestAssets.requireIntegrationAssets();
         String javaExecutable = new File(System.getProperty("java.home"), "bin/java").getAbsolutePath();
         String classPath = System.getProperty("surefire.test.class.path",
                 System.getProperty("java.class.path"));
         Process process = new ProcessBuilder(
                 javaExecutable,
                 "-XX:ErrorFile=target/onnx-shutdown-hs-err-pid%p.log",
+                "-Dtianshu.onnx.integration=true",
                 "-cp",
                 classPath,
                 OnnxJvmShutdownProbe.class.getName())

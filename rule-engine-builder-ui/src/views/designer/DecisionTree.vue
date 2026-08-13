@@ -424,6 +424,7 @@
         ref="scriptPanel"
         :definitionId="definitionId"
         :onBeforeCompile="handleSave"
+        @go-lifecycle="goRuleLifecycle"
       />
     </div>
 

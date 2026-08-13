@@ -148,6 +148,68 @@ public class AdvancedCrossTableCompilerTest {
         assertFalse(matchesRangeBoundary("invalid", 2000));
     }
 
+    @Test
+    public void rejectsOverlappingRangeSegmentsInOneDimension() {
+        CompileResult result = compiler.compile(rangeDimensionModel("0", "250", "200", "350"));
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getErrorMessage().contains("重叠"));
+    }
+
+    @Test
+    public void rejectsRangeSegmentWithReversedBounds() {
+        CompileResult result = compiler.compile(rangeDimensionModel("350", "250", null, null));
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getErrorMessage().contains("下界"));
+    }
+
+    @Test
+    public void acceptsAdjacentLeftClosedRightOpenRangeSegments() {
+        CompileResult result = compiler.compile(rangeDimensionModel("0", "250", "250", "350"));
+
+        assertTrue(result.getErrorMessage(), result.isSuccess());
+        Map<String, Object> context = new HashMap<>();
+        context.put("amount", 250);
+        context.put("enabled", 1);
+        RuleResult execution = engine.execute(result.getCompiledScript(), context);
+
+        assertTrue(execution.getErrorMessage(), execution.isSuccess());
+        assertEquals(2, ((Number) ((Map<?, ?>) execution.getResult()).get("rate")).intValue());
+    }
+
+    @Test
+    public void rejectsReversedStaticDateRangeSegments() {
+        CompileResult result = compiler.compile(dateRangeDimensionModel("2024-03-01", "2024-02-01", null, null));
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getErrorMessage().contains("下界"));
+    }
+
+    @Test
+    public void rejectsOverlappingStaticDateRangeSegments() {
+        CompileResult result = compiler.compile(dateRangeDimensionModel(
+                "2024-01-01", "2024-03-01", "2024-02-01", "2024-04-01"));
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getErrorMessage().contains("重叠"));
+    }
+
+    @Test
+    public void acceptsAdjacentStaticDateRangesAtLeftClosedRightOpenBoundary() {
+        CompileResult result = compiler.compile(dateRangeDimensionModel(
+                "2024-01-01", "2024-02-01", "2024-02-01", "2024-03-01"));
+
+        assertTrue(result.getErrorMessage(), result.isSuccess());
+        Map<String, Object> context = new HashMap<>();
+        context.put("applicationDate", "2024-02-01");
+        context.put("enabled", 1);
+        RuleResult execution = engine.execute(result.getCompiledScript(), context);
+
+        assertTrue(execution.getErrorMessage(), execution.isSuccess());
+        assertEquals(2, ((Number) ((Map<?, ?>) execution.getResult()).get("rate")).intValue());
+    }
+
     private boolean matchesRangeBoundary(String rangeBoundary, int amount) {
         String boundaryJson = rangeBoundary == null ? "" : ",\"rangeBoundary\":\"" + rangeBoundary + "\"";
         String json = "{"
@@ -179,5 +241,35 @@ public class AdvancedCrossTableCompilerTest {
                 + "]}],"
                 + "\"cells\":[[\"0.1\"]]"
                 + "}";
+    }
+
+    private String rangeDimensionModel(String firstMin, String firstMax, String secondMin, String secondMax) {
+        String secondSegment = secondMin == null ? "" : ",{\"operator\":\"range\",\"min\":\""
+                + secondMin + "\",\"max\":\"" + secondMax + "\",\"rangeBoundary\":\"[)\"}";
+        String cells = secondMin == null ? "[[\"1\"]]" : "[[\"1\"],[\"2\"]]";
+        return "{"
+                + "\"resultVar\":{\"varCode\":\"rate\",\"varType\":\"NUMBER\"},"
+                + "\"rowDimensions\":[{\"varCode\":\"amount\",\"varType\":\"NUMBER\",\"segments\":["
+                + "{\"operator\":\"range\",\"min\":\"" + firstMin + "\",\"max\":\"" + firstMax + "\",\"rangeBoundary\":\"[)\"}"
+                + secondSegment + "]}],"
+                + "\"colDimensions\":[{\"varCode\":\"enabled\",\"varType\":\"NUMBER\",\"segments\":[{\"operator\":\"==\",\"value\":\"1\"}]}],"
+                + "\"cells\":" + cells + "}";
+    }
+
+    private String dateRangeDimensionModel(String firstMin, String firstMax, String secondMin, String secondMax) {
+        String secondSegment = secondMin == null ? "" : "," + dateRangeSegment(secondMin, secondMax);
+        String cells = secondMin == null ? "[[\"1\"]]" : "[[\"1\"],[\"2\"]]";
+        return "{"
+                + "\"resultVar\":{\"varCode\":\"rate\",\"varType\":\"NUMBER\"},"
+                + "\"rowDimensions\":[{\"varCode\":\"applicationDate\",\"varType\":\"DATE\",\"segments\":["
+                + dateRangeSegment(firstMin, firstMax) + secondSegment + "]}],"
+                + "\"colDimensions\":[{\"varCode\":\"enabled\",\"varType\":\"NUMBER\",\"segments\":[{\"operator\":\"==\",\"value\":\"1\"}]}],"
+                + "\"cells\":" + cells + "}";
+    }
+
+    private String dateRangeSegment(String min, String max) {
+        return "{\"operator\":\"range\",\"rangeBoundary\":\"[)\","
+                + "\"minOperand\":{\"kind\":\"LITERAL\",\"value\":\"" + min + "\",\"valueType\":\"DATE\"},"
+                + "\"maxOperand\":{\"kind\":\"LITERAL\",\"value\":\"" + max + "\",\"valueType\":\"DATE\"}}";
     }
 }

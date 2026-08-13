@@ -12,6 +12,7 @@ public class OnnxTestAssetsTest {
 
     @Test
     public void allOnnxTestAssetsAreAvailableFromClasspath() throws Exception {
+        OnnxTestAssets.requireIntegrationAssets();
         for (String resource : Arrays.asList(
                 "/assets/docs/face.jpg",
                 "/assets/onnx/yunet/detector.onnx",

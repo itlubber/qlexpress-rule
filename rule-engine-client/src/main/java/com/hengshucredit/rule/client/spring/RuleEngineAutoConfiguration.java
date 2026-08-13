@@ -1,7 +1,6 @@
 package com.hengshucredit.rule.client.spring;
 
 import com.hengshucredit.rule.client.RuleEngineClient;
-import com.hengshucredit.rule.client.auth.ClientAuthConfig;
 import com.hengshucredit.rule.client.log.ExecutionLogReporter;
 import com.hengshucredit.rule.client.log.KafkaLogReporter;
 import org.springframework.beans.factory.ObjectProvider;
@@ -59,6 +58,10 @@ public class RuleEngineAutoConfiguration {
                 .applicationContext(applicationContext)
                 .l1CacheMaxSize(props.getL1CacheMaxSize())
                 .httpTimeoutMs(props.getHttpTimeoutMs())
+                .logReportEnabled(props.isLogReportEnabled())
+                .logBufferSize(props.getLogBufferSize())
+                .logBatchSize(props.getLogBatchSize())
+                .logFlushIntervalMs(props.getLogFlushIntervalMs())
                 .projectId(props.getProjectId())
                 .traceEnabled(props.isTraceEnabled())
                 .serverSideExecution(props.isServerSideExecution());
@@ -74,15 +77,6 @@ public class RuleEngineAutoConfiguration {
     }
 
     static boolean shouldUseExternalReporter(RuleEngineClientProperties properties) {
-        String authType = properties.getAuthType();
-        return !hasText(properties.getToken())
-                && !ClientAuthConfig.LEGACY_TOKEN.equalsIgnoreCase(authType)
-                && !ClientAuthConfig.BASIC.equalsIgnoreCase(authType)
-                && !ClientAuthConfig.API_KEY.equalsIgnoreCase(authType)
-                && !ClientAuthConfig.HMAC_SHA256.equalsIgnoreCase(authType);
-    }
-
-    private static boolean hasText(String value) {
-        return value != null && !value.trim().isEmpty();
+        return true;
     }
 }

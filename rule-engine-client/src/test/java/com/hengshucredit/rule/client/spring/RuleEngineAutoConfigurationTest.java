@@ -11,7 +11,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
 import java.util.stream.Collectors;
 
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class RuleEngineAutoConfigurationTest {
@@ -34,19 +33,19 @@ public class RuleEngineAutoConfigurationTest {
     }
 
     @Test
-    public void multiAuthUsesHttpReporterForServerVerifiedAttribution() {
+    public void authenticatedConfigurationStillUsesProvidedKafkaReporter() {
         RuleEngineClientProperties properties = new RuleEngineClientProperties();
         properties.setAuthType(ClientAuthConfig.BASIC);
 
-        assertFalse(RuleEngineAutoConfiguration.shouldUseExternalReporter(properties));
+        assertTrue(RuleEngineAutoConfiguration.shouldUseExternalReporter(properties));
     }
 
     @Test
-    public void legacyConfigurationUsesHttpReporterForTrustedAttribution() {
+    public void legacyTokenConfigurationStillUsesProvidedKafkaReporter() {
         RuleEngineClientProperties properties = new RuleEngineClientProperties();
         properties.setToken("legacy-token");
 
-        assertFalse(RuleEngineAutoConfiguration.shouldUseExternalReporter(properties));
+        assertTrue(RuleEngineAutoConfiguration.shouldUseExternalReporter(properties));
     }
 
     @Test

@@ -293,9 +293,10 @@ public class ActionDataCompiler {
     }
 
     private static String compileRuleCall(JSONObject b, int indent, VarContext varContext) {
-        String ruleCode = b.getString("ruleCode");
         Long ruleId = b.getLong("ruleId");
-        if (ruleId == null && empty(ruleCode)) return "";
+        if (ruleId == null) {
+            throw new IllegalArgumentException("规则调用缺少 ruleId");
+        }
         String outputField = b.getString("outputField");
         boolean outputMappingEnabled = b.containsKey("enableOutputMapping")
                 ? Boolean.TRUE.equals(b.getBoolean("enableOutputMapping"))
@@ -303,16 +304,9 @@ public class ActionDataCompiler {
         if (!outputMappingEnabled) {
             outputField = null;
         }
-        String call;
-        if (ruleId != null) {
-            call = empty(outputField)
-                    ? "executeRuleById(" + quoteString(String.valueOf(ruleId)) + ")"
-                    : "executeRuleFieldById(" + quoteString(String.valueOf(ruleId)) + ", " + quoteString(outputField) + ")";
-        } else {
-            call = empty(outputField)
-                    ? "executeRule(" + quoteString(ruleCode) + ")"
-                    : "executeRuleField(" + quoteString(ruleCode) + ", " + quoteString(outputField) + ")";
-        }
+        String call = empty(outputField)
+                ? "executeRuleById(" + quoteString(String.valueOf(ruleId)) + ")"
+                : "executeRuleFieldById(" + quoteString(String.valueOf(ruleId)) + ", " + quoteString(outputField) + ")";
         String target = outputMappingEnabled && b.getJSONObject("targetOperand") != null
                 ? OperandCompiler.compile(b.getJSONObject("targetOperand"), varContext)
                 : (outputMappingEnabled ? b.getString("target") : null);

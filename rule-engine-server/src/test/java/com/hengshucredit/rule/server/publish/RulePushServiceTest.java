@@ -41,6 +41,21 @@ public class RulePushServiceTest {
         assertEquals("rule:push:broadcast", redisTemplate.channels.get(0));
     }
 
+    @Test
+    public void globalFunctionUpdateBroadcastsWithoutProjectCode() {
+        RulePushService service = new RulePushService();
+        RecordingRedisTemplate redisTemplate = new RecordingRedisTemplate();
+        ReflectionTestUtils.setField(service, "stringRedisTemplate", redisTemplate);
+
+        RulePushMessage message = new RulePushMessage();
+        message.setAction("FUNC_UPDATE");
+        message.setFuncCode("globalRiskScore");
+        service.push(message);
+
+        assertEquals(1, redisTemplate.channels.size());
+        assertEquals("rule:push:broadcast", redisTemplate.channels.get(0));
+    }
+
     private static class RecordingRedisTemplate extends StringRedisTemplate {
         private final List<String> channels = new ArrayList<>();
 

@@ -140,9 +140,20 @@
                         operandDisplay(act.targetOperand) || '未选目标字段'
                       }}</span
                     >
-                    <span class="th-actions">
+                    <button
+                      type="button"
+                      class="th-actions action-delete"
+                      :aria-label="'删除动作 ' + (ai + 1)"
+                      :title="
+                        row.actions.length <= 1
+                          ? '每条规则至少保留一条动作'
+                          : '删除该动作'
+                      "
+                      :disabled="row.actions.length <= 1"
+                      @click="removeRuleAction(ri, ai)"
+                    >
                       <el-icon><el-icon-delete /></el-icon>
-                    </span>
+                    </button>
                   </div>
                   <div class="dt-act-body">
                     <div
@@ -216,6 +227,7 @@
       ref="scriptPanel"
       :definitionId="definitionId"
       :onBeforeCompile="handleSave"
+      @go-lifecycle="goRuleLifecycle"
     />
 
     <!-- 测试执行弹窗 -->
@@ -967,19 +979,26 @@ export default {
 }
 .th-actions {
   display: inline-flex;
-  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  color: #f76e6c;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
   flex-shrink: 0;
+
+  &:hover:not(:disabled) {
+    color: var(--el-color-danger);
+  }
+
+  &:disabled {
+    color: #cbd5e1;
+    cursor: not-allowed;
+  }
+
   i {
-    cursor: pointer;
-    color: #c0c0c0;
-    font-size: 13px;
-    transition: color 0.2s;
-    &:hover {
-      color: var(--el-color-primary);
-    }
-    .action-delete {
-      color: #f76e6c;
-    }
+    font-size: 14px;
   }
 }
 .dt-loading {

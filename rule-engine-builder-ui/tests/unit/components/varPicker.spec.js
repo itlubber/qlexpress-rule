@@ -442,6 +442,175 @@ describe('VarPicker', () => {
     expect(wrapper.vm.rightPage).toBe(2)
   })
 
+  test('打开时同步定位已有字段且后续用户分类和展开不被延迟回写', async () => {
+    const wrapper = mountPicker({
+      operandMode: true,
+      allowedKinds: ['LITERAL', 'REFERENCE'],
+      vars: [...standaloneOptions(1), ...objectFieldOptions()],
+      value: {
+        kind: 'REFERENCE',
+        code: 'v1',
+        refId: 1,
+        refType: 'VARIABLE',
+      },
+    })
+    wrapper.vm.$refs.popover.popperElm = document.createElement('div')
+    wrapper.vm.activeCategory = 'object'
+
+    wrapper.vm.openPopover()
+
+    expect(wrapper.vm.activeCategory).toBe('standalone')
+
+    wrapper.vm.onCategoryClick('object')
+    const group = wrapper.vm.filteredRightItems[0]
+    wrapper.vm.onItemClick(group)
+    const groupKey = wrapper.vm.fieldGroupKey(group)
+    await nextTick()
+    await nextTick()
+    await nextTick()
+
+    expect(wrapper.vm.activeCategory).toBe('object')
+    expect(wrapper.vm.expandedObject).toBe(groupKey)
+
+    await wrapper.setProps({
+      value: {
+        kind: 'REFERENCE',
+        code: 'v1-renamed',
+        label: '同一变量的新展示文本',
+        refId: 1,
+        refType: 'VARIABLE',
+      },
+    })
+    wrapper.vm.popoverVisible = false
+    await nextTick()
+    wrapper.vm.openPopover()
+    await nextTick()
+
+    expect(wrapper.vm.activeCategory).toBe('object')
+    expect(wrapper.vm.expandedObject).toBe(groupKey)
+  })
+
+  test('绑定值语义变化后下一次打开重新定位新字段', async () => {
+    const objectOption = {
+      ...objectFieldOptions()[0],
+      _varId: 101,
+      _refType: 'DATA_OBJECT_FIELD',
+      _ref: {
+        ...objectFieldOptions()[0]._ref,
+        refType: 'DATA_OBJECT_FIELD',
+      },
+    }
+    const wrapper = mountPicker({
+      operandMode: true,
+      allowedKinds: ['LITERAL', 'REFERENCE'],
+      vars: [...standaloneOptions(1), objectOption],
+      value: {
+        kind: 'REFERENCE',
+        code: 'v1',
+        refId: 1,
+        refType: 'VARIABLE',
+      },
+    })
+    wrapper.vm.$refs.popover.popperElm = document.createElement('div')
+    wrapper.vm.openPopover()
+
+    await wrapper.setProps({
+      value: {
+        kind: 'REFERENCE',
+        code: 'amount',
+        refId: 101,
+        refType: 'DATA_OBJECT_FIELD',
+      },
+    })
+    wrapper.vm.popoverVisible = false
+    await nextTick()
+    wrapper.vm.openPopover()
+
+    expect(wrapper.vm.activeCategory).toBe('object')
+    expect(wrapper.vm.expandedObject).toBe('LoanApply')
+  })
+
+  test.each([
+    [
+      'LITERAL',
+      { kind: 'LITERAL', value: '18', valueType: 'NUMBER' },
+      'manual',
+    ],
+    [
+      'PATH',
+      { kind: 'PATH', value: 'request.age', resolved: false },
+      'manual',
+    ],
+    [
+      '已解析 PATH',
+      {
+        kind: 'PATH',
+        value: 'v1',
+        code: 'v1',
+        refId: 1,
+        refType: 'VARIABLE',
+        resolved: true,
+      },
+      'manual',
+    ],
+    [
+      'FUNCTION',
+      { kind: 'FUNCTION', functionId: 9, functionCode: 'max', args: [] },
+      'function',
+    ],
+  ])('绑定值切换为 %s 后重开定位对应分类', async (_, value, expectedCategory) => {
+    const wrapper = mountPicker({
+      operandMode: true,
+      allowedKinds: ['LITERAL', 'PATH', 'REFERENCE', 'FUNCTION'],
+      vars: [...standaloneOptions(1), ...objectFieldOptions()],
+      functions: [{ id: 9, functionCode: 'max', functionName: '最大值' }],
+      value: {
+        kind: 'REFERENCE',
+        code: 'v1',
+        refId: 1,
+        refType: 'VARIABLE',
+      },
+    })
+    wrapper.vm.$refs.popover.popperElm = document.createElement('div')
+    wrapper.vm.openPopover()
+    wrapper.vm.onCategoryClick('object')
+    wrapper.vm.onItemClick(wrapper.vm.filteredRightItems[0])
+
+    wrapper.vm.closePopover()
+    await wrapper.setProps({ value })
+    wrapper.vm.openPopover()
+
+    expect(wrapper.vm.activeCategory).toBe(expectedCategory)
+    expect(wrapper.vm.rightPage).toBe(1)
+    expect(wrapper.vm.expandedObject).toBeNull()
+    wrapper.unmount()
+  })
+
+  test.each([
+    ['LITERAL', { kind: 'LITERAL', value: '18', valueType: 'NUMBER' }],
+    [
+      'FUNCTION',
+      { kind: 'FUNCTION', functionId: 9, functionCode: 'max', args: [] },
+    ],
+  ])('%s 对应分类不可用时保留当前可用分类', (_, value) => {
+    const wrapper = mountPicker({
+      operandMode: true,
+      allowedKinds: ['REFERENCE'],
+      vars: [...standaloneOptions(1), ...objectFieldOptions()],
+      value,
+    })
+    wrapper.vm.$refs.popover.popperElm = document.createElement('div')
+    wrapper.vm.activeCategory = 'object'
+    wrapper.vm.rightPage = 3
+    wrapper.vm.expandedObject = 'LoanApply'
+
+    wrapper.vm.openPopover()
+
+    expect(wrapper.vm.activeCategory).toBe('object')
+    expect(wrapper.vm.rightPage).toBe(1)
+    expect(wrapper.vm.expandedObject).toBeNull()
+  })
+
   test('空操作数打开后默认定位手输分类但不在弹层输入', async () => {
     const wrapper = mountPicker({ operandMode: true, allowedKinds: ['LITERAL', 'REFERENCE'], vars: standaloneOptions(1) })
     wrapper.vm.$refs.popover.popperElm = document.createElement('div')
@@ -452,6 +621,120 @@ describe('VarPicker', () => {
 
     expect(wrapper.vm.activeCategory).toBe('manual')
     expect(wrapper.find('.vp-manual-editor').exists()).toBe(false)
+  })
+
+  test('空操作数打开后立即选择普通变量不会被延迟默认分类覆盖', async () => {
+    const wrapper = mountPicker({
+      operandMode: true,
+      allowedKinds: ['LITERAL', 'REFERENCE'],
+      vars: standaloneOptions(1),
+    })
+    wrapper.vm.$refs.popover.popperElm = document.createElement('div')
+
+    wrapper.vm.openPopover()
+    wrapper.vm.onCategoryClick('standalone')
+    await nextTick()
+
+    expect(wrapper.vm.activeCategory).toBe('standalone')
+    expect(wrapper.vm.filteredRightItems.map((item) => item.varCode)).toEqual([
+      'v1',
+    ])
+  })
+
+  test('已有字段打开后立即选择其他分类不会被延迟定位覆盖', async () => {
+    const vars = [...standaloneOptions(1), ...objectFieldOptions()]
+    const wrapper = mountPicker({
+      operandMode: true,
+      allowedKinds: ['LITERAL', 'REFERENCE'],
+      vars,
+      value: {
+        kind: 'REFERENCE',
+        code: 'v1',
+        refId: 1,
+        refType: 'VARIABLE',
+      },
+    })
+    wrapper.vm.$refs.popover.popperElm = document.createElement('div')
+
+    wrapper.vm.openPopover()
+    wrapper.vm.onCategoryClick('object')
+    await nextTick()
+
+    expect(wrapper.vm.activeCategory).toBe('object')
+    expect(wrapper.vm.filteredRightItems[0]._objectGroup).toBe(true)
+  })
+
+  test('已有对象字段打开后点击当前普通变量分类不会被延迟定位覆盖', async () => {
+    const objectOption = {
+      ...objectFieldOptions()[0],
+      _varId: 101,
+      _refType: 'DATA_OBJECT_FIELD',
+      _ref: {
+        ...objectFieldOptions()[0]._ref,
+        refType: 'DATA_OBJECT_FIELD',
+      },
+    }
+    const wrapper = mountPicker({
+      operandMode: true,
+      allowedKinds: ['LITERAL', 'REFERENCE'],
+      vars: [...standaloneOptions(1), objectOption],
+      value: {
+        kind: 'REFERENCE',
+        code: 'amount',
+        refId: 101,
+        refType: 'DATA_OBJECT_FIELD',
+      },
+    })
+    wrapper.vm.$refs.popover.popperElm = document.createElement('div')
+    wrapper.vm.activeCategory = 'standalone'
+
+    wrapper.vm.openPopover()
+    wrapper.vm.onCategoryClick('standalone')
+    await nextTick()
+
+    expect(wrapper.vm.activeCategory).toBe('standalone')
+  })
+
+  test('已有普通变量打开后点击当前数据对象分类不会被延迟定位覆盖', async () => {
+    const wrapper = mountPicker({
+      operandMode: true,
+      allowedKinds: ['LITERAL', 'REFERENCE'],
+      vars: [...standaloneOptions(1), ...objectFieldOptions()],
+      value: {
+        kind: 'REFERENCE',
+        code: 'v1',
+        refId: 1,
+        refType: 'VARIABLE',
+      },
+    })
+    wrapper.vm.$refs.popover.popperElm = document.createElement('div')
+    wrapper.vm.activeCategory = 'object'
+
+    wrapper.vm.openPopover()
+    wrapper.vm.onCategoryClick('object')
+    await nextTick()
+
+    expect(wrapper.vm.activeCategory).toBe('object')
+  })
+
+  test('空操作数面板重新打开时保留用户已选择的字段分类', () => {
+    const wrapper = mountPicker({
+      operandMode: true,
+      allowedKinds: ['LITERAL', 'REFERENCE'],
+      vars: standaloneOptions(1),
+    })
+    wrapper.vm.$refs.popover.popperElm = document.createElement('div')
+
+    wrapper.vm.openPopover()
+    wrapper.vm.onCategoryClick('standalone')
+    wrapper.vm.closePopover()
+    wrapper.vm.openPopover()
+
+    expect(wrapper.vm.activeCategory).toBe('standalone')
+    expect(wrapper.vm.filteredRightItems.map((item) => item.varCode)).toEqual([
+      'v1',
+    ])
+    wrapper.unmount()
   })
 
   test('操作数模式点击手输类型只发出当前输入位编辑请求', () => {

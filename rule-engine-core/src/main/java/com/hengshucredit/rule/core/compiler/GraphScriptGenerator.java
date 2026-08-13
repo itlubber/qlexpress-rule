@@ -37,7 +37,9 @@ public class GraphScriptGenerator {
                                   Collection<String> outputVars) {
         StringBuilder script = new StringBuilder();
         Set<String> visited = new HashSet<>();
-        generateScript(startId, null, nodeMap, outEdgeMap, script, visited, 0, varContext, outputVars);
+        GenerationContext generationContext = new GenerationContext(nodeMap, outEdgeMap, outputVars, varContext);
+        generateScript(startId, null, nodeMap, outEdgeMap, script, visited, 0,
+                varContext, outputVars, generationContext, null);
         return script.toString().trim();
     }
 
@@ -54,8 +56,13 @@ public class GraphScriptGenerator {
                                        Map<String, JSONObject> nodeMap,
                                        Map<String, List<JSONObject>> outEdgeMap,
                                        StringBuilder script, Set<String> visited, int indent,
-                                       VarContext varContext, Collection<String> outputVars) {
-        if (nodeId == null || nodeId.equals(stopAt)) return;
+                                       VarContext varContext, Collection<String> outputVars,
+                                       GenerationContext generationContext, String reachedFlag) {
+        if (nodeId == null) return;
+        if (nodeId.equals(stopAt)) {
+            markReached(script, indent, reachedFlag);
+            return;
+        }
         if (visited.contains(nodeId)) return;
         visited.add(nodeId);
 
@@ -67,7 +74,8 @@ public class GraphScriptGenerator {
         if ("start".equals(type) || "join".equals(type)) {
             List<JSONObject> out = outEdgeMap.getOrDefault(nodeId, Collections.emptyList());
             if (!out.isEmpty()) {
-                generateScript(out.get(0).getString("target"), stopAt, nodeMap, outEdgeMap, script, visited, indent, varContext, outputVars);
+                generateScript(out.get(0).getString("target"), stopAt, nodeMap, outEdgeMap,
+                        script, visited, indent, varContext, outputVars, generationContext, reachedFlag);
             }
         } else if ("task".equals(type)) {
             JSONArray actionData = node.getJSONArray("actionData");
@@ -88,7 +96,8 @@ public class GraphScriptGenerator {
             }
             List<JSONObject> out = outEdgeMap.getOrDefault(nodeId, Collections.emptyList());
             if (!out.isEmpty()) {
-                generateScript(out.get(0).getString("target"), stopAt, nodeMap, outEdgeMap, script, visited, indent, varContext, outputVars);
+                generateScript(out.get(0).getString("target"), stopAt, nodeMap, outEdgeMap,
+                        script, visited, indent, varContext, outputVars, generationContext, reachedFlag);
             }
         } else if ("end".equals(type)) {
             if ("ALL_RULES".equals(node.getString("terminationScope"))) {
@@ -120,8 +129,15 @@ public class GraphScriptGenerator {
             }
 
             if (condEdges.isEmpty() && defaultEdge != null) {
-                generateScript(defaultEdge.getString("target"), stopAt, nodeMap, outEdgeMap, script, visited, indent, varContext, outputVars);
+                generateScript(defaultEdge.getString("target"), stopAt, nodeMap, outEdgeMap,
+                        script, visited, indent, varContext, outputVars, generationContext, reachedFlag);
             } else {
+                String decisionMatchedFlag = null;
+                if (mergeNode != null) {
+                    decisionMatchedFlag = generationContext.nextDecisionMatchedFlag();
+                    appendIndent(script, indent);
+                    script.append(decisionMatchedFlag).append(" = false\n");
+                }
                 for (int i = 0; i < condEdges.size(); i++) {
                     JSONObject edge = condEdges.get(i);
                     String condExpr = resolveConditionExpression(edge, varContext);
@@ -132,21 +148,62 @@ public class GraphScriptGenerator {
                         script.append("} else if (").append(condExpr).append(") {\n");
                     }
                     Set<String> branchVisited = new HashSet<>(visited);
-                    generateScript(edge.getString("target"), mergeNode, nodeMap, outEdgeMap, script, branchVisited, indent + 1, varContext, outputVars);
+                    generateScript(edge.getString("target"), mergeNode, nodeMap, outEdgeMap,
+                            script, branchVisited, indent + 1, varContext, outputVars,
+                            generationContext, decisionMatchedFlag != null ? decisionMatchedFlag : reachedFlag);
                 }
                 if (defaultEdge != null) {
                     appendIndent(script, indent);
                     script.append("} else {\n");
                     Set<String> branchVisited = new HashSet<>(visited);
-                    generateScript(defaultEdge.getString("target"), mergeNode, nodeMap, outEdgeMap, script, branchVisited, indent + 1, varContext, outputVars);
+                    generateScript(defaultEdge.getString("target"), mergeNode, nodeMap, outEdgeMap,
+                            script, branchVisited, indent + 1, varContext, outputVars,
+                            generationContext, decisionMatchedFlag != null ? decisionMatchedFlag : reachedFlag);
                 }
                 appendIndent(script, indent);
                 script.append("}\n\n");
+                if (mergeNode != null) {
+                    appendIndent(script, indent);
+                    script.append("if (").append(decisionMatchedFlag).append(") {\n");
+                    generateScript(mergeNode, stopAt, nodeMap, outEdgeMap, script, visited,
+                            indent + 1, varContext, outputVars, generationContext, reachedFlag);
+                    appendIndent(script, indent);
+                    script.append("}\n");
+                }
             }
+        }
+    }
 
-            if (mergeNode != null) {
-                generateScript(mergeNode, stopAt, nodeMap, outEdgeMap, script, visited, indent, varContext, outputVars);
+    private static void markReached(StringBuilder script, int indent, String reachedFlag) {
+        if (reachedFlag == null) return;
+        appendIndent(script, indent);
+        script.append(reachedFlag).append(" = true\n");
+    }
+
+    private static final class GenerationContext {
+        private final String reservedText;
+        private final Set<String> allocatedNames = new HashSet<>();
+        private int nextDecisionIndex;
+
+        private GenerationContext(Map<String, JSONObject> nodeMap,
+                                  Map<String, List<JSONObject>> outEdgeMap,
+                                  Collection<String> outputVars,
+                                  VarContext varContext) {
+            StringBuilder reserved = new StringBuilder();
+            reserved.append(nodeMap).append(outEdgeMap).append(outputVars);
+            if (varContext != null) {
+                reserved.append(varContext.getReservedScriptExpressions());
             }
+            this.reservedText = reserved.toString();
+        }
+
+        private String nextDecisionMatchedFlag() {
+            String candidate;
+            do {
+                candidate = "_tsDecisionMatched" + nextDecisionIndex++;
+            } while (reservedText.contains(candidate) || allocatedNames.contains(candidate));
+            allocatedNames.add(candidate);
+            return candidate;
         }
     }
 

@@ -1,13 +1,12 @@
 package com.hengshucredit.rule.server.controller.mgmt;
 
-import com.hengshucredit.rule.model.dto.RulePushMessage;
 import com.hengshucredit.rule.model.entity.RuleFunction;
 import com.hengshucredit.rule.model.entity.RuleFunctionVersion;
 import com.hengshucredit.rule.server.common.Result;
 import com.hengshucredit.rule.server.governance.GovernanceRequestView;
 import com.hengshucredit.rule.server.governance.GovernedProjectionMutation;
 import com.hengshucredit.rule.server.governance.LegacyGovernanceRestoreService;
-import com.hengshucredit.rule.server.publish.RulePushService;
+import com.hengshucredit.rule.server.publish.RuleFunctionPushService;
 import com.hengshucredit.rule.server.security.RequirePermission;
 import com.hengshucredit.rule.server.service.ConsoleOperatorResolver;
 import com.hengshucredit.rule.server.service.RuleFunctionService;
@@ -26,7 +25,7 @@ public class RuleFunctionController {
     private RuleFunctionService functionService;
 
     @Resource
-    private RulePushService pushService;
+    private RuleFunctionPushService functionPushService;
 
     @Resource
     private LegacyGovernanceRestoreService legacyRestoreService;
@@ -86,16 +85,18 @@ public class RuleFunctionController {
     @PostMapping
     @GovernedProjectionMutation
     public Result<Void> create(@RequestBody RuleFunction func) {
+        var message = functionPushService.prepare(func, "FUNC_UPDATE");
         functionService.create(func);
-        pushFuncUpdate(func);
+        functionPushService.push(message);
         return Result.ok();
     }
 
     @PutMapping
     @GovernedProjectionMutation
     public Result<Void> update(@RequestBody RuleFunction func) {
+        var message = functionPushService.prepare(func, "FUNC_UPDATE");
         functionService.update(func);
-        pushFuncUpdate(func);
+        functionPushService.push(message);
         return Result.ok();
     }
 
@@ -103,13 +104,11 @@ public class RuleFunctionController {
     @GovernedProjectionMutation
     public Result<Void> delete(@PathVariable Long id) {
         RuleFunction func = functionService.getById(id);
+        var message = func == null ? null
+                : functionPushService.prepare(func, "FUNC_DELETE");
         functionService.delete(id);
-        if (func != null) {
-            RulePushMessage msg = new RulePushMessage();
-            msg.setAction("FUNC_DELETE");
-            msg.setFuncCode(func.getFuncCode());
-            msg.setPublishTime(System.currentTimeMillis());
-            pushService.push(msg);
+        if (message != null) {
+            functionPushService.push(message);
         }
         return Result.ok();
     }
@@ -162,18 +161,4 @@ public class RuleFunctionController {
         }
     }
 
-    private void pushFuncUpdate(RuleFunction func) {
-        RulePushMessage msg = new RulePushMessage();
-        msg.setAction("FUNC_UPDATE");
-        msg.setFuncCode(func.getFuncCode());
-        msg.setFuncName(func.getFuncName());
-        msg.setFuncImplType(func.getImplType());
-        msg.setFuncImplScript(func.getImplScript());
-        msg.setFuncImplClass(func.getImplClass());
-        msg.setFuncImplMethod(func.getImplMethod());
-        msg.setFuncImplBeanName(func.getImplBeanName());
-        msg.setFuncParamsJson(func.getParamsJson());
-        msg.setPublishTime(System.currentTimeMillis());
-        pushService.push(msg);
-    }
 }

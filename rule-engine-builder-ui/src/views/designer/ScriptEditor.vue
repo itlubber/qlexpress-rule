@@ -50,6 +50,23 @@
     </div>
 
     <div
+      class="se-lifecycle-guidance"
+      data-testid="designer-lifecycle-guidance"
+    >
+      保存并验证仅更新草稿，审核发布请
+      <button
+        type="button"
+        class="se-lifecycle-link"
+        aria-label="前往规则生命周期审核发布"
+        title="前往规则生命周期审核发布"
+        @click="goRuleLifecycle"
+      >
+        前往规则生命周期
+      </button>
+      。
+    </div>
+
+    <div
       ref="designerBody"
       class="se-body"
       :class="{ 'is-resizing': resizingVarPanel }"
@@ -1009,6 +1026,26 @@ $editor-border: #313244;
   flex-wrap: wrap;
   gap: 8px;
   flex-shrink: 0;
+}
+.se-lifecycle-guidance {
+  padding: 6px 20px;
+  color: #64748b;
+  font-size: 12px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+.se-lifecycle-link {
+  padding: 0;
+  color: var(--el-color-primary);
+  font: inherit;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+
+  &:hover,
+  &:focus-visible {
+    text-decoration: underline;
+  }
 }
 .se-title-area {
   display: flex;

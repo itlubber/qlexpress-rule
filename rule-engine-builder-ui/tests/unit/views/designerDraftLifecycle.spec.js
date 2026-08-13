@@ -84,6 +84,10 @@ const [
   import('@/views/designer/AdvancedScorecard.vue'),
 ])
 
+const { default: ScriptPanel } = await vi.importActual(
+  '@/components/common/ScriptPanel.vue'
+)
+
 const designers = [
   ['ScriptEditor', ScriptEditor],
   ['DecisionTable', DecisionTable],
@@ -216,7 +220,7 @@ function configureQueryApis() {
   ruleListApi.listLibraries.mockResolvedValue({ data: [] })
 }
 
-function mountDesigner(component, query = {}) {
+function mountDesigner(component, query = {}, options = {}) {
   return mount(component, {
     mocks: {
       $route: { params: { id: 30 }, query },
@@ -237,6 +241,7 @@ function mountDesigner(component, query = {}) {
       FlowNodeAddMenu: true,
       GraphDesignerNavigator: true,
       ScriptPanel: true,
+      ...(options.stubs || {}),
     },
   })
 }
@@ -245,6 +250,60 @@ describe('九类设计器草稿保护', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     configureQueryApis()
+  })
+
+  test('可视化设计器从共享提示点击进入当前规则生命周期', async () => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({
+      data: [{
+        id: 6,
+        definitionId: 30,
+        revisionNo: 2,
+        state: 'DRAFT',
+        lockVersion: 0,
+        modelJson: JSON.stringify({ rules: [] }),
+      }],
+    })
+    const wrapper = mountDesigner(DecisionTable, {}, {
+      stubs: { ScriptPanel },
+    })
+    await flushPromises()
+
+    await wrapper
+      .get('[aria-label="前往规则生命周期审核发布"]')
+      .trigger('click')
+
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith({
+      name: 'RuleDetail',
+      params: { id: 30 },
+      query: { focus: 'lifecycle' },
+    })
+    wrapper.unmount()
+  })
+
+  test('脚本设计器从自身提示点击进入当前规则生命周期', async () => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({
+      data: [{
+        id: 6,
+        definitionId: 30,
+        revisionNo: 2,
+        state: 'DRAFT',
+        lockVersion: 0,
+        modelJson: JSON.stringify({ script: '', scriptVarRefs: [] }),
+      }],
+    })
+    const wrapper = mountDesigner(ScriptEditor)
+    await flushPromises()
+
+    await wrapper
+      .get('[aria-label="前往规则生命周期审核发布"]')
+      .trigger('click')
+
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith({
+      name: 'RuleDetail',
+      params: { id: 30 },
+      query: { focus: 'lifecycle' },
+    })
+    wrapper.unmount()
   })
 
   test.each(designers)('%s 在无 DRAFT 时基于当前修订进入可编辑草稿', async (

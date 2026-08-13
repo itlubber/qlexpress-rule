@@ -6,6 +6,11 @@
       类或 Spring Bean 实现。
     </div>
 
+    <div v-if="projectLoadError" class="function-page-error" role="alert">
+      {{ projectLoadError }}，项目筛选暂不可用。
+      <el-button link size="small" @click="loadProjects">重试</el-button>
+    </div>
+
     <div class="uiue-search-container">
       <el-form :inline="true" size="small" @keyup.enter="handleQuery">
         <el-form-item label="作用范围">
@@ -208,9 +213,14 @@
       </el-table-column>
     </el-table>
 
+    <div v-if="functionLoadError" class="function-page-error" role="alert">
+      {{ functionLoadError }}。
+      <el-button link size="small" @click="loadFunctions">重试</el-button>
+    </div>
+
     <div
-      v-if="!loading && funcList.length === 0 && currentProjectId"
-      style="text-align: center; padding: 40px; color: #bbb"
+      v-else-if="!loading && funcList.length === 0"
+      class="function-empty"
     >
       暂无自定义函数，可点击「新建函数」添加
     </div>
@@ -540,6 +550,7 @@ import {
   testFunction,
 } from '@/api/function'
 import { listProjects } from '@/api/project'
+import { isRequestErrorNotified } from '@/api/request'
 import { VAR_TYPE_FORM_OPTIONS, varTypeLabel } from '@/constants/varTypes'
 import {
   clearPageState,
@@ -557,6 +568,8 @@ export default {
     return {
       projects: [],
       currentProjectId: null,
+      projectLoadError: '',
+      functionLoadError: '',
       funcList: [],
       total: 0,
       qp: {
@@ -632,6 +645,7 @@ export default {
       savePageState('FunctionList', { qp: this.qp })
     },
     async loadProjects() {
+      this.projectLoadError = ''
       try {
         const res = await listProjects({ pageNum: 1, pageSize: 200 })
         const list =
@@ -643,6 +657,7 @@ export default {
       } catch (e) {
         this.projects = []
         this.projectList = []
+        this.projectLoadError = this.errorMessage(e, '加载项目列表失败')
       }
     },
     fetchFuncCodeOptions({ query, pageNum, pageSize }) {
@@ -701,6 +716,7 @@ export default {
     },
     async loadFunctions() {
       this.loading = true
+      this.functionLoadError = ''
       try {
         this.saveCachedState()
         const params = { ...this.qp }
@@ -717,6 +733,7 @@ export default {
       } catch (e) {
         this.funcList = []
         this.total = 0
+        this.functionLoadError = this.errorMessage(e, '加载函数列表失败')
       } finally {
         this.loading = false
       }
@@ -737,6 +754,21 @@ export default {
       } catch (e) {
         return []
       }
+    },
+    errorMessage(error, fallback) {
+      const responseMessage = error?.response?.data?.message
+      const message = responseMessage || error?.message
+      return typeof message === 'string' && message.trim()
+        ? message.trim()
+        : fallback
+    },
+    notifyOperationError(error, fallback) {
+      if (!isRequestErrorNotified(error)) {
+        this.$message.error(this.errorMessage(error, fallback))
+      }
+    },
+    isDialogCancelled(error) {
+      return error === 'cancel' || error === 'close'
     },
     formatUpdateTime(value) {
       if (!value) return '—'
@@ -888,7 +920,7 @@ export default {
         if (response.data && response.data.id)
           this.$router.push('/approval/' + response.data.id)
       } catch (e) {
-        this.$message.error('保存失败')
+        this.notifyOperationError(e, '保存函数失败')
       }
     },
     async openVersionDialog(row) {
@@ -959,7 +991,9 @@ export default {
         if (response.data && response.data.id)
           this.$router.push('/approval/' + response.data.id)
       } catch (e) {
-        /* cancel */
+        if (!this.isDialogCancelled(e)) {
+          this.notifyOperationError(e, '删除函数失败')
+        }
       }
     },
   },
@@ -977,6 +1011,20 @@ export default {
   background: #fafafa;
   padding: 8px 12px;
   border-radius: 4px;
+}
+.function-page-error {
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  color: #b42318;
+  font-size: 13px;
+  background: #fff4f2;
+  border: 1px solid #fecdca;
+  border-radius: 4px;
+}
+.function-empty {
+  padding: 40px;
+  color: #64748b;
+  text-align: center;
 }
 .mono-input :deep(textarea) {
   font-family: 'Consolas', 'Monaco', monospace;

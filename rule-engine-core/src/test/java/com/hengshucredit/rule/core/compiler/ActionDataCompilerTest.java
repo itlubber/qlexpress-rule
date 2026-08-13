@@ -101,14 +101,29 @@ public class ActionDataCompilerTest {
         varIdMap.put(5L, "risk.decision");
         VarContext context = variableContext(varIdMap);
         JSONArray actionData = JSON.parseArray("["
-                + "{\"type\":\"rule-call\",\"target\":\"decision\",\"_targetVarId\":5,\"_targetRefType\":\"VARIABLE\",\"ruleCode\":\"credit_flow\"},"
-                + "{\"type\":\"rule-call\",\"target\":\"score\",\"ruleCode\":\"score_card\",\"outputField\":\"score\"}"
+                + "{\"type\":\"rule-call\",\"target\":\"decision\",\"_targetVarId\":5,\"_targetRefType\":\"VARIABLE\",\"ruleId\":1,\"ruleCode\":\"credit_flow\"},"
+                + "{\"type\":\"rule-call\",\"target\":\"score\",\"ruleId\":2,\"ruleCode\":\"score_card\",\"outputField\":\"score\"}"
                 + "]");
 
         String script = ActionDataCompiler.compile(actionData, context);
 
-        assertTrue(script.contains("risk.decision = executeRule(\"credit_flow\")"));
-        assertTrue(script.contains("score = executeRuleField(\"score_card\", \"score\")"));
+        assertTrue(script.contains("risk.decision = executeRuleById(\"1\")"));
+        assertTrue(script.contains("score = executeRuleFieldById(\"2\", \"score\")"));
+    }
+
+    @Test
+    public void compileRuleCallRejectsRuleCodeWithoutStableRuleId() {
+        JSONArray actionData = JSON.parseArray("["
+                + "{\"type\":\"rule-call\",\"ruleCode\":\"credit_flow\"}"
+                + "]");
+
+        try {
+            ActionDataCompiler.compile(actionData);
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("ruleId"));
+            return;
+        }
+        throw new AssertionError("缺少 ruleId 的规则调用必须被拒绝");
     }
 
     @Test

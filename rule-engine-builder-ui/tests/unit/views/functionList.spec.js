@@ -35,15 +35,12 @@ function makeStub(tag) {
   return { render: () => h(tag) }
 }
 
-async function mountAndWait() {
-  projectApi.listProjects.mockResolvedValueOnce({ data: { records: mockProjects() } })
-  functionApi.listFunctions.mockResolvedValueOnce({ data: { records: mockFunctions(), total: 3 } })
-
+async function mountWithCurrentMocks() {
   const wrapper = shallowMount(FunctionList, {
     mocks: {
       $route: { params: {} },
       $router: { push: vi.fn(), replace: vi.fn() },
-      $confirm: vi.fn().mockResolvedValue(), // 必须 resolve，handleDelete 是 async 并 await
+      $confirm: vi.fn().mockResolvedValue(),
       $message: { success: vi.fn(), warning: vi.fn(), error: vi.fn() }
     },
     stubs: {
@@ -66,6 +63,12 @@ async function mountAndWait() {
   await nextTick()
   await new Promise(r => setTimeout(r, 100))
   return wrapper
+}
+
+async function mountAndWait() {
+  projectApi.listProjects.mockResolvedValueOnce({ data: { records: mockProjects() } })
+  functionApi.listFunctions.mockResolvedValueOnce({ data: { records: mockFunctions(), total: 3 } })
+  return mountWithCurrentMocks()
 }
 
 // ─── 测试用例 ─────────────────────────────────────────────
@@ -331,6 +334,47 @@ describe('FunctionList — 函数操作', () => {
     expect(functionApi.deleteFunction).toHaveBeenCalledWith(99)
   })
 
+  test('保存失败展示后端错误信息并保留编辑弹窗', async () => {
+    wrapper.vm.handleCreate()
+    wrapper.vm.editForm.funcCode = 'badFunction'
+    wrapper.vm.editForm.funcName = '错误函数'
+    functionApi.createFunction.mockRejectedValueOnce(new Error('函数编码已存在'))
+
+    await wrapper.vm.handleSave()
+
+    expect(wrapper.vm.$message.error).toHaveBeenCalledWith('函数编码已存在')
+    expect(wrapper.vm.dialogVisible).toBe(true)
+  })
+
+  test('保存失败优先保留后端响应错误信息', async () => {
+    wrapper.vm.handleCreate()
+    wrapper.vm.editForm.funcCode = 'referencedFunction'
+    wrapper.vm.editForm.funcName = '被引用函数'
+    functionApi.createFunction.mockRejectedValueOnce({
+      message: 'Request failed with status code 409',
+      response: { data: { message: '函数编码已被项目规则占用' } }
+    })
+
+    await wrapper.vm.handleSave()
+
+    expect(wrapper.vm.$message.error).toHaveBeenCalledWith('函数编码已被项目规则占用')
+  })
+
+  test('删除 API 失败展示后端错误，用户取消不报错', async () => {
+    const row = { id: 99, funcName: '测试函数' }
+    wrapper.vm.$confirm = vi.fn().mockResolvedValue()
+    functionApi.deleteFunction.mockRejectedValueOnce(new Error('函数仍被规则引用'))
+
+    await wrapper.vm.handleDelete(row)
+
+    expect(wrapper.vm.$message.error).toHaveBeenCalledWith('函数仍被规则引用')
+
+    wrapper.vm.$message.error.mockClear()
+    wrapper.vm.$confirm = vi.fn().mockRejectedValue('cancel')
+    await wrapper.vm.handleDelete(row)
+    expect(wrapper.vm.$message.error).not.toHaveBeenCalled()
+  })
+
   test('函数版本可以任意选择左右版本并显示具体内容差异', async () => {
     functionApi.listVersions.mockResolvedValueOnce({ data: [{ version: 2, functionJson: '{"a":2}' }, { version: 1, functionJson: '{"a":1}' }] })
     functionApi.compareVersions.mockResolvedValueOnce({ data: {
@@ -353,6 +397,45 @@ describe('FunctionList — 函数操作', () => {
 })
 
 describe('FunctionList — 边界情况', () => {
+  test('没有项目上下文时也展示真正的函数空状态', async () => {
+    projectApi.listProjects.mockResolvedValueOnce({ data: { records: [] } })
+    functionApi.listFunctions.mockResolvedValueOnce({ data: { records: [], total: 0 } })
+    const wrapper = await mountWithCurrentMocks()
+
+    expect(wrapper.vm.currentProjectId).toBe(null)
+    expect(wrapper.text()).toContain('暂无自定义函数')
+    wrapper.unmount()
+  })
+
+  test('项目和函数加载失败分别保留可见错误信息', async () => {
+    projectApi.listProjects.mockRejectedValueOnce(new Error('项目服务不可用'))
+    functionApi.listFunctions.mockRejectedValueOnce(new Error('函数服务不可用'))
+    const wrapper = await mountWithCurrentMocks()
+
+    expect(wrapper.vm.projectLoadError).toBe('项目服务不可用')
+    expect(wrapper.vm.functionLoadError).toBe('函数服务不可用')
+    expect(wrapper.text()).toContain('项目服务不可用')
+    expect(wrapper.text()).toContain('函数服务不可用')
+    wrapper.unmount()
+  })
+
+  test('无错误详情时加载和操作使用安全兜底文案', async () => {
+    projectApi.listProjects.mockRejectedValueOnce({})
+    functionApi.listFunctions.mockRejectedValueOnce({})
+    const wrapper = await mountWithCurrentMocks()
+
+    expect(wrapper.vm.projectLoadError).toBe('加载项目列表失败')
+    expect(wrapper.vm.functionLoadError).toBe('加载函数列表失败')
+
+    wrapper.vm.handleCreate()
+    wrapper.vm.editForm.funcCode = 'fallbackFunction'
+    wrapper.vm.editForm.funcName = '兜底函数'
+    functionApi.createFunction.mockRejectedValueOnce({})
+    await wrapper.vm.handleSave()
+    expect(wrapper.vm.$message.error).toHaveBeenCalledWith('保存函数失败')
+    wrapper.unmount()
+  })
+
   test('funcList 为空数组不报错', async () => {
     projectApi.listProjects.mockResolvedValueOnce({ data: { records: [] } })
     functionApi.listFunctions.mockResolvedValueOnce({ data: { records: [], total: 0 } })

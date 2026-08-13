@@ -1,6 +1,8 @@
 package com.hengshucredit.rule.core.compiler;
 
+import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.Map;
 
 /**
@@ -116,6 +118,17 @@ public class VarContext {
     public boolean isEmpty() {
         return refIdToScriptName.isEmpty() && constantIdToExpression.isEmpty()
                 && functionIdToCode.isEmpty() && functionIdToArity.isEmpty();
+    }
+
+    /**
+     * 返回编译后脚本可能直接引用的名称或表达式，供代码生成器避让内部变量名。
+     */
+    Collection<String> getReservedScriptExpressions() {
+        LinkedHashSet<String> reserved = new LinkedHashSet<>();
+        reserved.addAll(refIdToScriptName.values());
+        reserved.addAll(constantIdToExpression.values());
+        reserved.addAll(functionIdToCode.values());
+        return reserved;
     }
 
     /**

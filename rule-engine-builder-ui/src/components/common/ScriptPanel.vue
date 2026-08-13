@@ -7,6 +7,19 @@
         <el-tag :type="statusTag.type" size="small" class="sp-status-tag">
           {{ statusTag.text }}
         </el-tag>
+        <span class="sp-lifecycle-guidance" data-testid="designer-lifecycle-guidance">
+          保存并编译仅更新草稿，审核发布请
+          <button
+            type="button"
+            class="sp-lifecycle-link"
+            aria-label="前往规则生命周期审核发布"
+            title="前往规则生命周期审核发布"
+            @click.stop="$emit('go-lifecycle')"
+          >
+            前往规则生命周期
+          </button>
+          。
+        </span>
       </div>
       <div class="sp-header-right" @click.stop>
         <el-tooltip
@@ -107,6 +120,7 @@ import {
 
 export default {
   name: 'ScriptPanel',
+  emits: ['go-lifecycle'],
   components: {
     ElIconSPromotion,
     ElIconCloseCircle,
@@ -235,6 +249,11 @@ $editor-border: #313244;
   gap: 8px;
 }
 
+.sp-header-left {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
 .sp-icon {
   color: var(--el-color-primary);
 }
@@ -243,6 +262,25 @@ $editor-border: #313244;
   font-size: 13px;
   font-weight: 700;
   color: #333333;
+}
+
+.sp-lifecycle-guidance {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.sp-lifecycle-link {
+  padding: 0;
+  color: var(--el-color-primary);
+  font: inherit;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+
+  &:hover,
+  &:focus-visible {
+    text-decoration: underline;
+  }
 }
 
 .sp-toggle-btn {

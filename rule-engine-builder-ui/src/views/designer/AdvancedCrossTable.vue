@@ -491,6 +491,7 @@
       ref="scriptPanel"
       :definitionId="definitionId"
       :onBeforeCompile="handleSave"
+      @go-lifecycle="goRuleLifecycle"
     />
 
     <!-- 测试弹窗 -->

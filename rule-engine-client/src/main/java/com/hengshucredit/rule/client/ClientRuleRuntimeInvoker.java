@@ -93,12 +93,16 @@ class ClientRuleRuntimeInvoker {
         if (frame == null || result == null) {
             return;
         }
-        frame.rootTrace.setExpressionTrace(result.getTraces() == null
-                ? Collections.<Object>emptyList() : result.getTraces());
-        frame.rootTrace.setStatus(result.isSuccess() ? "SUCCESS" : "FAILED");
-        frame.rootTrace.setDurationMs(result.getExecuteTimeMs());
-        result.setTraceId(frame.rootTrace.getTraceId());
-        result.setTraces(Collections.<Object>singletonList(frame.rootTrace));
+        if (config.isTraceEnabled()) {
+            frame.rootTrace.setExpressionTrace(result.getTraces() == null
+                    ? Collections.<Object>emptyList() : result.getTraces());
+            frame.rootTrace.setStatus(result.isSuccess() ? "SUCCESS" : "FAILED");
+            frame.rootTrace.setDurationMs(result.getExecuteTimeMs());
+            result.setTraceId(frame.rootTrace.getTraceId());
+            result.setTraces(Collections.<Object>singletonList(frame.rootTrace));
+        } else {
+            result.setTraces(null);
+        }
     }
 
     void exit() {
@@ -170,7 +174,7 @@ class ClientRuleRuntimeInvoker {
         long childStart = System.currentTimeMillis();
         try {
             setRuleContext(cached, childTrace.getTraceId());
-            RuleResult result = engine.execute(cached.getCompiledScript(), frame.context, true);
+            RuleResult result = engine.execute(cached.getCompiledScript(), frame.context, config.isTraceEnabled());
             childTrace.setExpressionTrace(result.getTraces() == null
                     ? Collections.<Object>emptyList() : result.getTraces());
             childTrace.setStatus(result.isSuccess() ? "SUCCESS" : "FAILED");

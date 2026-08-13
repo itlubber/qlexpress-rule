@@ -74,7 +74,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **前后端分离**：`rule-engine-server/pom.xml` 中 `skip.ui.build` 默认为 `true`，前端 `npm run build` 产物在 `dist/` 独立部署，不混入后端目录
 - **客户端不直连 MySQL**：通过 HTTP 拉取服务端已编译规则，缓存在进程内 L1 内存
-- **Redis 必须与 server 同一实例**：规则发布等事件时向频道 `rule:push:{appName}` 发布消息
+- **Redis 必须与 server 同一实例**：项目规则/函数变更向 `rule:push:{projectCode}` 发布，GLOBAL 变更向 `rule:push:broadcast` 发布；客户端必须用真实 `projectCode` 订阅项目频道，`appName` 不参与项目路由
 - **执行日志**：默认 HTTP 上报；classpath 中存在 `KafkaTemplate` Bean 时自动切换为 Kafka（主题 `rule-execution-log`）
 
 ## 开发命令
@@ -191,7 +191,7 @@ Vitest 配置（`vitest.config.mjs`）关键点：
 - `setup.js` 预置所有 API mock 和 Element Plus mock
 - Playwright 配置在 `playwright.config.mjs`；`tests/e2e/dist-smoke.spec.js` 是稳定 CI 烟测，`full-stack.spec.js` 是显式部署联调门禁
 
-**当前测试状态（2026-07-22）**：前端 120 个测试文件、1276 个测试在 Node.js 26.4.0 下全部通过，Vite 8 构建、ESLint 10 flat config 和 Playwright `dist` 烟测通过 ✅；后端在 JDK 17.0.19 下共运行 740 个测试，739 个通过、1 个仅在 CUDA 环境执行的测试跳过，Tomcat NIO2 启动及 HTTP 200 验证通过 ✅（具体数字随用例增长变化，以 `npm test` / `mvn test` 实际输出为准）。
+**当前测试状态（2026-08-13）**：前端在 Node.js 24.14.1 下 153 个测试文件、1699 个测试全部通过，Vite 8 构建、ESLint 10 flat config 和 Playwright `dist` 52/52 通过 ✅；后端在 JDK 17.0.20 下默认 `mvn test` 共运行 1210 个测试，1195 个通过、15 个外部 ONNX 资产/CUDA 诊断测试跳过，0 failures、0 errors ✅（具体数字随用例增长变化，以 `npm test` / `mvn test` 实际输出为准）。
 
 ## 后端测试框架 (JUnit 4)
 

@@ -4,7 +4,10 @@
 /*.iml
 /logs/
 /log/
-.github/
+.github/*
+!.github/workflows/
+.github/workflows/*
+!.github/workflows/ci.yml
 .DS_Store
 /.env
 *.log

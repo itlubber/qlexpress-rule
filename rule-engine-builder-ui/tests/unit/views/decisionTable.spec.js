@@ -367,6 +367,22 @@ describe('DecisionTable — 操作方法', () => {
     expect(wrapper.vm.model.rules[0].actions.length).toBe(3)
   })
 
+  test('点击第二个动作的删除控件只删除目标动作', async () => {
+    wrapper.vm.$confirm = vi.fn().mockResolvedValue()
+    wrapper.vm.addRuleAction(0)
+    wrapper.vm.model.rules[0].actions[0].id = 'keep-action'
+    wrapper.vm.model.rules[0].actions[1].id = 'remove-action'
+    await nextTick()
+
+    const deleteControl = wrapper.find('[aria-label="删除动作 2"]')
+    expect(deleteControl.exists()).toBe(true)
+    await deleteControl.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.vm.model.rules[0].actions).toHaveLength(1)
+    expect(wrapper.vm.model.rules[0].actions[0].id).toBe('keep-action')
+  })
+
   test('removeRuleAction 动作只剩一条时提示至少保留一条', () => {
     wrapper.vm.$message = { warning: vi.fn() }
     wrapper.vm.removeRuleAction(0, 0)

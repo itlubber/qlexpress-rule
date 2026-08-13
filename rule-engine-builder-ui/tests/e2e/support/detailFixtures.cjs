@@ -109,6 +109,38 @@ function createDetailApiData() {
     lockVersion: 3,
     modelJson: JSON.stringify({ script: "result = 'revision-41'" })
   })
+  routes.set('POST /api/rule/definition/101/revisions/draft', {
+    id: 42,
+    definitionId: 101,
+    revisionNo: 8,
+    state: 'DRAFT',
+    baseRevisionId: 41,
+    baseArtifactId: null,
+    modelJson: JSON.stringify({ script: "result = 'draft-42'" }),
+    compiledScript: "result = 'draft-42'",
+    compiledType: 'SCRIPT',
+    openApiConfigJson: null,
+    inputSchemaJson: '[]',
+    outputSchemaJson: '[]',
+    contentDigest: 'sha256:e2e-draft-42',
+    validationReportDigest: null,
+    artifactId: null,
+    governanceRequestId: null,
+    forcePublishReason: null,
+    lockVersion: 0,
+    createBy: 'e2e',
+    createTime: '2026-07-23 12:05:00',
+    updateBy: 'e2e',
+    updateTime: '2026-07-23 12:05:00',
+    submitBy: null,
+    submitTime: null,
+    approveBy: null,
+    approveTime: null,
+    publishBy: null,
+    publishTime: null,
+    offlineBy: null,
+    offlineTime: null
+  })
   routes.set('/api/rule/definition/versions/101', [
     {
       id: 81,

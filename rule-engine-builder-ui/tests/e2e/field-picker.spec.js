@@ -75,8 +75,20 @@ test('决策表字段选择器可加载并选择普通变量和对象字段', as
   const leftPopoverId = await leftField.getAttribute('aria-describedby')
   expect(leftPopoverId).toBeTruthy()
   const leftPopover = page.locator(`[id="${leftPopoverId}"]`)
-  await leftPopover.locator('.vp-cat-item').filter({ hasText: '普通变量' }).click()
-  await leftPopover.locator('.vp-row').filter({ hasText: 'income' }).click()
+  await expect(leftPopover).toBeVisible()
+  await expect(
+    leftPopover.locator('.vp-cat-item--active')
+  ).toContainText('手动输入')
+  const standaloneCategory = leftPopover
+    .locator('.vp-cat-item')
+    .filter({ hasText: '普通变量' })
+  await standaloneCategory.click()
+  await expect(standaloneCategory).toHaveClass(/vp-cat-item--active/)
+  const incomeOption = leftPopover.locator('.vp-row').filter({
+    hasText: 'income',
+  })
+  await expect(incomeOption).toBeVisible()
+  await incomeOption.click()
   await expect(leftField).toHaveValue(/income/)
   const compactFieldMetrics = await leftField.evaluate(input => ({
     clientWidth: input.clientWidth,
@@ -88,9 +100,21 @@ test('决策表字段选择器可加载并选择普通变量和对象字段', as
 
   await targetField.click()
   await expect(popover).toBeVisible()
-  await popover.locator('.vp-cat-item').filter({ hasText: '数据对象' }).click()
-  await popover.locator('.vp-row').filter({ hasText: 'TaxRequest' }).click()
-  await popover.locator('.vp-child-item').filter({ hasText: 'amount' }).click()
+  const objectCategory = popover
+    .locator('.vp-cat-item')
+    .filter({ hasText: '数据对象' })
+  await objectCategory.click()
+  await expect(objectCategory).toHaveClass(/vp-cat-item--active/)
+  const objectOption = popover.locator('.vp-row').filter({
+    hasText: 'TaxRequest',
+  })
+  await expect(objectOption).toBeVisible()
+  await objectOption.click()
+  const amountOption = popover.locator('.vp-child-item').filter({
+    hasText: 'amount',
+  })
+  await expect(amountOption).toBeVisible()
+  await amountOption.click()
   await expect(targetField).toHaveValue(/TaxRequest\.amount/)
   await expect(popover).toBeHidden()
 

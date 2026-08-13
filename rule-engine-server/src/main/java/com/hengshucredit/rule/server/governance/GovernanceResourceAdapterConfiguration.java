@@ -37,6 +37,7 @@ import com.hengshucredit.rule.server.mapper.RuleVariableOptionMapper;
 import com.hengshucredit.rule.server.service.RuleLifecycleService;
 import com.hengshucredit.rule.server.service.RuleDraftService;
 import com.hengshucredit.rule.server.service.RuleListChangeBatchService;
+import com.hengshucredit.rule.server.publish.RuleFunctionPushService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -129,14 +130,10 @@ public class GovernanceResourceAdapterConfiguration {
     @Bean
     public GovernedResourceAdapter functionGovernanceAdapter(
             RuleFunctionMapper mapper,
-            GovernanceSecretCodec secretCodec) {
-        return adapter(GovernanceResourceTypes.FUNCTION,
-                RuleFunction.class, mapper,
-                RuleFunction::getId, RuleFunction::setId,
-                RuleFunction::getStatus,
-                RuleFunction::setStatus,
-                Set.of("funcCode", "funcName", "implType"),
-                Set.of(), secretCodec);
+            GovernanceSecretCodec secretCodec,
+            RuleFunctionPushService functionPushService) {
+        return new FunctionGovernedResourceAdapter(
+                store(mapper), secretCodec, functionPushService);
     }
 
     @Bean

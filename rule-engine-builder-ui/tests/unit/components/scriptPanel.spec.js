@@ -94,4 +94,27 @@ describe('ScriptPanel', () => {
     expect(wrapper.vm.switchToVisual).toBeUndefined()
     wrapper.unmount()
   })
+
+  test('始终说明保存编译不会自动发布及下一步入口', () => {
+    const { wrapper } = mountPanel(vi.fn())
+
+    const guidance = wrapper.get('[data-testid="designer-lifecycle-guidance"]')
+    expect(guidance.text()).toContain('保存并编译仅更新草稿')
+    expect(guidance.text()).toContain('规则生命周期')
+    wrapper.unmount()
+  })
+
+  test('点击生命周期入口只发出导航事件而不折叠脚本面板', async () => {
+    const { wrapper } = mountPanel(vi.fn())
+    wrapper.vm.expanded = true
+    await wrapper.vm.$nextTick()
+
+    await wrapper
+      .get('[aria-label="前往规则生命周期审核发布"]')
+      .trigger('click')
+
+    expect(wrapper.emitted('go-lifecycle')).toHaveLength(1)
+    expect(wrapper.vm.expanded).toBe(true)
+    wrapper.unmount()
+  })
 })

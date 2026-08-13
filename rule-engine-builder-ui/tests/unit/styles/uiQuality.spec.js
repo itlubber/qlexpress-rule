@@ -55,6 +55,34 @@ test('设计器图标按钮提供清晰的名称和用途提示', () => {
   )
 })
 
+test('可视化与脚本设计器都说明编译后仍需生命周期发布', () => {
+  const scriptPanel = source('src/components/common/ScriptPanel.vue')
+  const scriptEditor = source('src/views/designer/ScriptEditor.vue')
+
+  expect(scriptPanel).toContain('data-testid="designer-lifecycle-guidance"')
+  expect(scriptPanel).toContain('保存并编译仅更新草稿')
+  expect(scriptEditor).toContain('data-testid="designer-lifecycle-guidance"')
+  expect(scriptEditor).toContain('保存并验证仅更新草稿')
+
+  const visualDesigners = [
+    'DecisionTable.vue',
+    'DecisionTree.vue',
+    'DecisionFlow.vue',
+    'RuleSet.vue',
+    'CrossTable.vue',
+    'Scorecard.vue',
+    'AdvancedCrossTable.vue',
+    'AdvancedScorecard.vue',
+  ]
+  for (const file of visualDesigners) {
+    expect(source(`src/views/designer/${file}`)).toMatch(
+      /<script-panel[\s\S]*?@go-lifecycle="goRuleLifecycle"[\s\S]*?\/>/
+    )
+  }
+  expect(scriptEditor).toContain('@click="goRuleLifecycle"')
+  expect(scriptEditor).toContain('aria-label="前往规则生命周期审核发布"')
+})
+
 test('工作区页签滚动条使用紧凑且可感知的样式', () => {
   const tabs = source('src/layout/components/WorkspaceTabs.vue')
   expect(tabs).toMatch(

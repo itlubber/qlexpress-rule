@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -130,6 +131,73 @@ public class DatabaseInitializationSqlTest {
     }
 
     @Test
+    public void seededDefinitionsHaveACompleteDraftOrPublishedExecutionChain() throws Exception {
+        String export = read(latestExport());
+        List<List<String>> definitions = insertRows(export, "rule_definition");
+        List<List<String>> contents = insertRows(export, "rule_definition_content");
+        List<List<String>> versions = insertRows(export, "rule_definition_version");
+        List<List<String>> publishedRules = insertRows(export, "rule_published");
+        Set<Long> contentDefinitionIds = new HashSet<>();
+        Set<String> versionKeys = new HashSet<>();
+        Set<String> publishedKeys = new HashSet<>();
+
+        for (List<String> row : contents) {
+            contentDefinitionIds.add(Long.valueOf(row.get(1)));
+        }
+        for (List<String> row : versions) {
+            versionKeys.add(row.get(1) + ":" + row.get(2));
+        }
+        for (List<String> row : publishedRules) {
+            publishedKeys.add(row.get(2) + ":" + row.get(4));
+        }
+
+        for (List<String> definition : definitions) {
+            Long definitionId = Long.valueOf(definition.get(0));
+            String ruleCode = sqlString(definition.get(4));
+            Assert.assertTrue(ruleCode + " must have editable content",
+                    contentDefinitionIds.contains(definitionId));
+            Assert.assertTrue(ruleCode + " current_version must be positive",
+                    Long.parseLong(definition.get(9)) > 0L);
+            if (!"NULL".equals(definition.get(10))) {
+                String publishedKey = definitionId + ":" + definition.get(10);
+                Assert.assertTrue(ruleCode + " published_version must have an immutable revision",
+                        versionKeys.contains(publishedKey));
+                Assert.assertTrue(ruleCode + " published_version must have a runtime artifact",
+                        publishedKeys.contains(publishedKey));
+            }
+        }
+    }
+
+    @Test
+    public void sxedSnapshotsUseTheDisplayedLowerBoundWithoutOverlap() throws Exception {
+        String export = read(latestExport());
+        List<List<String>> snapshots = new ArrayList<>();
+        for (List<String> row : insertRows(export, "rule_definition_content")) {
+            if ("7".equals(row.get(1))) snapshots.add(Arrays.asList(row.get(2), row.get(3)));
+        }
+        for (List<String> row : insertRows(export, "rule_definition_version")) {
+            if ("7".equals(row.get(1))) snapshots.add(Arrays.asList(row.get(3), row.get(4)));
+        }
+        for (List<String> row : insertRows(export, "rule_published")) {
+            if ("7".equals(row.get(2))) snapshots.add(Arrays.asList(row.get(8), row.get(6)));
+        }
+
+        Assert.assertEquals("SXED content, revision and published artifact must all be checked", 3,
+                snapshots.size());
+        for (List<String> snapshot : snapshots) {
+            String modelJson = sqlString(snapshot.get(0));
+            String compiledScript = sqlString(snapshot.get(1));
+            Assert.assertTrue(modelJson.contains(
+                    "\"label\":\"[250, 350)\",\"operator\":\"range\",\"value\":\"\","
+                            + "\"min\":\"250\",\"max\":\"350\""));
+            Assert.assertFalse(modelJson.contains("\"min\":\"205\""));
+            Assert.assertEquals("each age segment must use the same SXED score lower bound", 4,
+                    occurrences(compiledScript, "score_f1.score >= 250"));
+            Assert.assertFalse(compiledScript.contains("score_f1.score >= 205"));
+        }
+    }
+
+    @Test
     public void dockerFreshInitializationLoadsSchemaBeforeSnapshot() throws Exception {
         Path root = repositoryRoot();
         String rootCompose = read(root.resolve("docker-compose.yaml"));
@@ -142,6 +210,18 @@ public class DatabaseInitializationSqlTest {
                 "../rule-engine-server/src/main/resources/sql/export_202607161151.sql:/docker-entrypoint-initdb.d/02-export.sql:ro");
         Assert.assertFalse("mysql-init must not replay destructive export",
                 rootCompose.contains("export_202607161151.sql:/data.sql"));
+    }
+
+    @Test
+    public void realOnnxAssetsAreOnlyEnabledByTheExplicitIntegrationProfile() throws Exception {
+        String pom = read(repositoryRoot().resolve("rule-engine-server/pom.xml"));
+
+        Assert.assertEquals("the ignored repository asset directory must not be a default test resource", 1,
+                occurrences(pom, "${project.basedir}/../assets"));
+        Assert.assertTrue(pom.contains("<id>onnx-integration</id>"));
+        Assert.assertTrue(pom.contains("<tianshu.onnx.integration>true</tianshu.onnx.integration>"));
+        Assert.assertTrue(pom.contains("<tianshu.onnx.integration>"
+                + "${tianshu.onnx.integration}</tianshu.onnx.integration>"));
     }
 
     @Test
@@ -197,6 +277,89 @@ public class DatabaseInitializationSqlTest {
         Pattern row = Pattern.compile("\\(" + id
                 + "\\s*,\\s*0\\s*,\\s*'GLOBAL'\\s*,\\s*'" + code + "'");
         Assert.assertTrue(code + " must keep id " + id, row.matcher(export).find());
+    }
+
+    private static List<List<String>> insertRows(String export, String table) {
+        Pattern statement = Pattern.compile("(?m)^INSERT INTO\\s+(?:`?rule_engine`?\\.)?`?"
+                + Pattern.quote(table) + "`?\\s*\\([^\\r\\n]+\\)\\s+VALUES\\s+(.*);$");
+        Matcher matcher = statement.matcher(export);
+        List<List<String>> rows = new ArrayList<>();
+        while (matcher.find()) {
+            for (String row : splitTopLevel(matcher.group(1))) {
+                Assert.assertTrue(table + " contains a malformed row", row.startsWith("(")
+                        && row.endsWith(")"));
+                rows.add(splitTopLevel(row.substring(1, row.length() - 1)));
+            }
+        }
+        Assert.assertFalse("missing INSERT for " + table, rows.isEmpty());
+        return rows;
+    }
+
+    private static List<String> splitTopLevel(String source) {
+        List<String> values = new ArrayList<>();
+        int start = 0;
+        int depth = 0;
+        boolean quoted = false;
+        boolean escaped = false;
+        for (int i = 0; i < source.length(); i++) {
+            char current = source.charAt(i);
+            if (quoted) {
+                if (escaped) {
+                    escaped = false;
+                } else if (current == '\\') {
+                    escaped = true;
+                } else if (current == '\'') {
+                    quoted = false;
+                }
+            } else if (current == '\'') {
+                quoted = true;
+            } else if (current == '(') {
+                depth++;
+            } else if (current == ')') {
+                depth--;
+            } else if (current == ',' && depth == 0) {
+                values.add(source.substring(start, i).trim());
+                start = i + 1;
+            }
+        }
+        values.add(source.substring(start).trim());
+        return values;
+    }
+
+    private static String sqlString(String literal) {
+        Assert.assertTrue("expected SQL string literal", literal.length() >= 2
+                && literal.charAt(0) == '\'' && literal.charAt(literal.length() - 1) == '\'');
+        String value = literal.substring(1, literal.length() - 1);
+        StringBuilder decoded = new StringBuilder(value.length());
+        boolean escaped = false;
+        for (int i = 0; i < value.length(); i++) {
+            char current = value.charAt(i);
+            if (!escaped && current == '\\') {
+                escaped = true;
+                continue;
+            }
+            if (escaped) {
+                if (current == 'n') current = '\n';
+                else if (current == 'r') current = '\r';
+                else if (current == 't') current = '\t';
+                else if (current == 'b') current = '\b';
+                else if (current == '0') current = '\0';
+                escaped = false;
+            }
+            decoded.append(current);
+        }
+        if (escaped) decoded.append('\\');
+        return decoded.toString();
+    }
+
+    private static int occurrences(String value, String needle) {
+        int count = 0;
+        int offset = 0;
+        while ((offset = value.indexOf(needle, offset)) >= 0) {
+            count++;
+            offset += needle.length();
+        }
+        return count;
     }
 
     private static Set<String> collectTables(Pattern pattern, String sql) {

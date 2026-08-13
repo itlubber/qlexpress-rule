@@ -46,6 +46,8 @@
 | 分流实验 | 配置冠军/挑战/测试组，按条件或流量执行实验 |
 | 执行日志 | 查看服务端和客户端规则执行记录、耗时、结果和追踪树 |
 | 账单管理 | 配置计费项、查看明细记录和聚合汇总 |
+| 审批管理 | 统一处理资源变更草稿、依赖预检、提交、通过、驳回、取消、差异对比和历史版本恢复 |
+| 账户管理 | 管理控制台账户、角色、角色权限和账户级允许/拒绝覆盖，按最终有效权限控制菜单与接口 |
 
 ## 2. 模块结构
 
@@ -75,7 +77,7 @@ sequenceDiagram
   C->>HTTP: 全量同步规则
   HTTP-->>C: CachedRule 列表
   C->>L1: 写入缓存
-  C->>Redis: 订阅 rule:push:appName
+  C->>Redis: 订阅 projectCode 频道与 GLOBAL 广播
   loop 定时心跳（默认 5 分钟）
     C->>HTTP: 全量同步（兜底）
   end
@@ -97,8 +99,8 @@ sequenceDiagram
 
 - 前后端分离部署，`rule-engine-builder-ui` 的构建产物在 `dist/`，不混入 `rule-engine-server`。
 - 业务系统不直连 MySQL 获取规则，通过 SDK 调用服务端同步接口。
-- Redis 需要与 `rule-engine-server` 使用同一实例。规则发布、下线、函数变更会向 `rule:push:{appName}` 推送消息。
-- 执行日志默认 HTTP 上报；classpath 中存在 `KafkaTemplate` Bean 时可切换到 Kafka。
+- Redis 需要与 `rule-engine-server` 使用同一实例。项目规则/函数变更会向 `rule:push:{projectCode}` 推送，GLOBAL 变更使用 `rule:push:broadcast`；`appName` 不参与项目频道路由。
+- 执行日志默认通过有界异步 HTTP 队列上报；应用提供 `ExecutionLogReporter`（classpath 中存在 `KafkaTemplate` Bean 时会自动提供 Kafka reporter）时优先使用外部 reporter。
 
 各业务功能通过变量引用、编译产物、发布版本和执行追踪形成完整链路：
 
@@ -194,21 +196,28 @@ npm run dev
 
 ## 6. 核心模型类型
 
-| 模型类型 | 设计器路由 | 说明 |
-|----------|------------|------|
-| 决策表 | `#/designer/table/{definitionId}` | 条件树加动作列，支持 FIRST、ALL、UNIQUE 命中策略 |
-| 决策树 | `#/designer/tree/{definitionId}` | 节点、连线条件和任务动作编排 |
-| 决策流 | `#/designer/flow/{definitionId}` | 流程节点、网关、连线和任务动作编排 |
-| 规则集 | `#/designer/ruleset/{definitionId}` | 多规则顺序编排，可组合条件、动作和命中策略 |
-| 交叉表 | `#/designer/cross/{definitionId}` | 行变量、列变量和二维矩阵结果 |
-| 评分卡 | `#/designer/score/{definitionId}` | 评分项、权重、分数等级和结果变量 |
-| 复杂交叉表 | `#/designer/cross-adv/{definitionId}` | 多行维度、多列维度和矩阵结果 |
-| 复杂评分卡 | `#/designer/score-adv/{definitionId}` | 维度组、维度规则、权重和等级 |
-| QL 脚本 | `#/designer/script/{definitionId}` | 直接编辑 QLExpress 脚本并维护脚本变量引用 |
+| 模型类型 | 设计器路由 | 顶层执行结果 | 命中与未命中语义 |
+|----------|------------|--------------|------------------|
+| 决策表 | `#/designer/table/{definitionId}` | `Map<输出字段, 值>` | `FIRST` 只执行第一条命中规则；`ALL` 按页面顺序执行全部命中规则，同一输出字段以后一次赋值为准；`UNIQUE` 要求至多命中一条，多条命中会执行失败。没有规则命中时，已声明输出字段仍返回且值为 `null`。 |
+| 决策树 | `#/designer/tree/{definitionId}` | `Map<任务动作输出字段, 值>`；没有输出字段时可为 `null` | 从开始节点沿条件分支执行；没有匹配条件且没有默认连线时，该分支不再继续，未赋值的声明输出为 `null`。树不允许分支汇合。 |
+| 决策流 | `#/designer/flow/{definitionId}` | `Map<任务动作输出字段, 值>`；没有输出字段时可为 `null` | 按页面顺序匹配条件分支；无默认分支且全部条件未命中时，不执行任何分支，也不经过公共汇合点；任一条件分支或默认分支到达汇合点后，从公共点继续执行。允许 DAG 分支汇合，循环路径在编译时拒绝。 |
+| 规则集 | `#/designer/ruleset/{definitionId}` | 命中项 `List`，每项包含 `ruleCode`、`ruleName`、`priority`、`order` | 先按优先级降序、同优先级按页面顺序执行；`SERIAL` 首条命中后停止，`PARALLEL` 返回全部命中项；未命中返回空列表。可把同一列表写入已绑定的 LIST 结果字段。 |
+| 交叉表 | `#/designer/cross/{definitionId}` | `Map<结果字段, 值>` | 简单矩阵按行值与列值选择一个单元格；未命中时结果字段为 `null`。兼容格式配置默认动作时，未命中执行默认动作。 |
+| 评分卡 | `#/designer/score/{definitionId}` | `Map<总分字段, 值>`；配置等级阈值时同时返回等级字段 | 总分为初始分加全部命中评分项的 `分数 × 权重`；没有评分项命中时仍返回初始分。总分不落入任何等级区间时，等级为“未知”。 |
+| 复杂交叉表 | `#/designer/cross-adv/{definitionId}` | `Map<结果字段, 值>` | 多行/列维度分段取笛卡尔积并选择首个匹配单元格；空单元格或无组合命中时结果为 `null`。 |
+| 复杂评分卡 | `#/designer/score-adv/{definitionId}` | `Map<总分字段, 值>`；配置等级阈值时同时返回等级字段 | 每个维度内部只取第一条命中规则，维度之间累加；维度未命中贡献 0 分。未落入等级区间时等级为“未知”。 |
+| QL 脚本 | `#/designer/script/{definitionId}` | 脚本显式 `_result`/`return` 的值；否则将检测到的公共输出字段包装为 `Map` | 由脚本自行决定分支和未命中结果；脚本为空或静态解析失败时拒绝编译。 |
 
 各设计器的“测试”入口会按当前模型引用生成测试样例。决策表、规则集、树、流、交叉表、评分卡、复杂模型和脚本会优先使用规则实际输入字段，不把结果变量作为默认入参。
 
 设计器测试弹窗统一使用 Monaco JSON 编辑器。点击“测试”后会自动生成当前规则输入字段样例；点击“执行”后在同一弹窗内展示本次输入、执行输出和错误信息，便于对照排查。
+
+### 6.1 区间、终止和发布语义
+
+- 评分卡、复杂评分卡的等级阈值统一使用左闭右开区间 `[min, max)`；相邻的 `[0, 250)`、`[250, 350)` 不重叠，边界值 `250` 只落入后一段。数值阈值重叠、反向或非数字会在编译时拒绝。
+- 复杂交叉表支持 `[)`、`()`、`[]`、`(]` 四种端点。可静态确定的数值和日期字面量会按开闭端点校验：共享端点只有在两侧都包含该端点时才算重叠；反向区间和重叠区间拒绝编译。引用变量、函数等动态端点无法在编译期比较，配置者仍需保证其运行时区间互斥。
+- 决策树/决策流结束节点的“结束当前规则”（`CURRENT_RULE`）立即返回当前规则已经产生的输出；“结束全部规则”（`ALL_RULES`）终止包括嵌套规则在内的整条调用链，并由根规则按根输出定义收集终止前已产生的值。
+- 设计器中的“保存并编译”（QL 脚本为“保存并验证”）只更新当前草稿，不会改变线上已发布制品。保存成功后点击设计器顶部“前往规则生命周期”，在规则详情完成发布前校验、提交评审、批准和发布；只有发布完成后，业务执行与 SDK 同步才切换到新制品。
 
 ## 7. 当前功能截图
 
@@ -383,9 +392,15 @@ rule-engine:
     token: <项目访问令牌>
     project-id: 1
     trace-enabled: true
+    log-report-enabled: true
+    log-buffer-size: 500
+    log-batch-size: 50
+    log-flush-interval-ms: 5000
     # 规则依赖 API/DB/名单变量时必须开启服务端执行
     server-side-execution: true
 ```
+
+`project-code` 是项目级实时推送和项目函数隔离的必填路由键，必须与服务端项目编码完全一致；`app-name` 只标识调用应用，不会替代 `project-code` 订阅项目频道。未配置 `project-code` 时 SDK 仍可通过 HTTP 同步并接收 GLOBAL 广播，但不会订阅任何项目频道，因此不能获得项目规则/函数的实时变更。
 
 账号密码方式示例（默认 Token 有效期 2 小时、失效后宽限 10 分钟，均可在项目鉴权配置中调整）：
 
@@ -435,18 +450,21 @@ RuleResult result = ruleEngineClient.execute("RC_PRICING_TABLE", requestMap);
 
 SDK 行为：
 
-- 启动时全量同步规则到 L1 缓存。
-- 订阅 Redis 推送，规则发布或下线后刷新本地缓存。
+- 启动时先通过 HTTP 全量同步规则和函数，再建立 Redis 订阅；项目鉴权失败会直接使启动失败，不会留下半启动的订阅或定时任务。
+- 成功的全量响应是权威快照：服务端已删除的规则/函数会从客户端移除，成功返回空数组会清空对应远端快照；HTTP 非 2xx、空响应、业务 `code != 200`、非法 JSON 或网络失败不会清空旧快照。
+- 订阅 `rule:push:{projectCode}` 和 `rule:push:broadcast`，规则发布/下线及函数更新/删除后增量刷新本地状态。项目推送只接受相同 `projectCode`；GLOBAL 推送对所有客户端生效。
 - 缓存未命中时可按规则编码单条拉取。
 - 默认本地使用 QLExpress 执行脚本，适合只依赖入参、常量、计算变量和已同步函数的规则。
+- 同名远端函数按“当前项目 PROJECT → GLOBAL”解析；删除项目函数后自动回退同名 GLOBAL 函数，删除 GLOBAL 函数不会删除仍存在的项目函数。HTTP 成功快照与 Redis 删除消息都会真正撤销已删除函数，不需要重启业务应用。
 - 如果规则依赖 API 变量、数据库变量或名单变量，必须开启 `server-side-execution: true`，或直接调用服务端接口 `POST /api/rule/sync/execute/{ruleCode}`。这些外部变量只在服务端通过 `VariableSourceResolver` 解析，本地 SDK 不会直连外部 API、数据库或名单库。
 - SDK 在 Token 到期前 60 秒自动续期；续期失败时继续使用旧 Token，直到其宽限期结束。
-- Spring Boot 自动配置使用任一项目鉴权方式（包括原项目令牌）时，执行日志固定通过受鉴权的 HTTP 接口上报，由服务端写入可信的鉴权及 Token 归因；未配置项目鉴权时才保留外部日志上报器选择。
-- 可异步上报执行日志。
+- 没有外部 `ExecutionLogReporter` 时，日志通过有界 HTTP 队列异步上报，不阻塞规则结果；达到 `log-batch-size` 立即发送，否则最多等待 `log-flush-interval-ms`。队列达到 `log-buffer-size` 后采用 drop-newest 并记录丢弃计数/告警；HTTP 或业务响应失败最多尝试 3 次，最终失败记录批次和日志计数。
+- `RuleEngineClient.close()` 会在有界等待内冲刷自己创建的 HTTP reporter；规则结果不会因 reporter 抛错而改为失败。应用提供的外部 reporter 生命周期归应用容器管理，客户端不会替它启动或关闭。
+- Spring 容器中存在自定义 `ExecutionLogReporter` 时始终优先使用；存在 `KafkaTemplate` 且没有自定义 reporter 时自动创建 Kafka reporter，默认主题为 `rule-execution-log`。是否使用 BASIC、API Key、HMAC 或旧令牌鉴权不会强制覆盖该 reporter 选择。
 
 项目鉴权配置、长期凭证和短期 Token 均可在控制台再次查看完整值。长期凭证在数据库中使用 AES-GCM 可逆加密存储；启动服务前必须通过 `RULE_AUTH_MASTER_KEY` 配置至少 32 位的独立主密钥并妥善保管，未配置或使用公开开发密钥时服务会拒绝启动。新密文默认使用 `v2` 密钥；升级前若已有旧 `v1` 密文，需通过 `RULE_AUTH_LEGACY_MASTER_KEY` 保留原主密钥；若历史版本曾在更换密钥材料时继续复用 `v2` 标识，还需通过 `RULE_AUTH_LEGACY_V2_MASTER_KEY` 配置当时的材料。解密会优先使用密文标识对应的密钥，再尝试已配置的历史密钥；待旧凭证全部修改或重置后应移除历史密钥。可通过 `RULE_AUTH_ACTIVE_KEY_ID` 显式选择活动密钥版本，后续轮换必须使用新的 key ID。访问审计记录所有受保护接口调用；只有实际规则执行进入计费，计费明细可区分 `authCode` 和 `tokenCode`，按日汇总到鉴权配置维度。
 
-## 10. 版本、日志和计费
+## 10. 版本、审批、权限、日志和计费
 
 - 规则采用 `DRAFT → REVIEW → APPROVED → PUBLISHED → OFFLINE` 生命周期。已发布规则再次编辑时会创建新草稿，线上仍执行原发布制品；审核人与发布人允许是同一账号，但每次状态变更都会记录操作人、时间、理由和校验结果。
 - 提交审核和发布前均执行 Schema 校验、结构化依赖闭包与影响分析。破坏性 Schema 变更可以发布，但必须填写明确理由并进入审计时间线。
@@ -454,6 +472,8 @@ SDK 行为：
 - 规则详情页可以下载制品；`/api/rule/artifact/import` 校验摘要和运行时兼容性，`/api/rule/artifact/deploy` 只接受“制品组件 ID → 目标环境资源 ID”的显式绑定，不按名称或编码猜测，也不打包凭证等秘密信息。
 - PMML/ONNX 上传、替换时校验文件摘要、格式、精确输入输出字段和运行时兼容性，不做隐式大小写或命名风格转换。样例不是必填项；提供样例时必须实际执行通过。模型删除、替换和下线前必须先生成引用影响分析并携带未失效的确认令牌。
 - 规则、模型、函数和分流实验均有版本记录，可查看版本内容、对比差异并回滚。
+- 侧栏“审批管理”是统一资源变更入口，按“待处理 / 我的申请 / 已结束 / 全部记录”查看字段、数据对象、模型、外数、数据库、函数、规则、名单、计费、实验和项目等申请。申请人可保存草稿、执行依赖预检、提交或取消；具备 `approval:approve` 的审批人可通过或驳回。详情页展示配置差异、依赖冲突、审批时间线和历史版本恢复入口，冲突申请不会覆盖当前生效版本。
+- 侧栏“账户管理”包含“账户”和“角色”两个页签。角色批量授予权限；账户可分配多个角色，并对单项权限设置 `ALLOW`、`DENY` 或继承，其中明确拒绝优先。菜单和后端接口同时校验最终有效权限；账户/角色启停、密码重置和权限版本更新均由具备 `account:manage` / `role:manage` 的管理员操作。全新空库的首次成功登录会用 `CONSOLE_USERNAME` / `CONSOLE_PASSWORD` 引导创建持久化 `SUPER_ADMIN` 账户和权限目录；之后登录以数据库账户为准，部署配置不是长期共享账号库。
 - 执行日志记录规则执行结果、耗时、输入输出、表达式追踪、修订 ID 和制品摘要。
 - 外数 API、数据库查询、名单匹配和模型执行会写入各自模块调用日志，日志页面按模块展示 HTTP 请求、SQL 查询、名单匹配或模型输入输出等不同结构。
 - 账单模块可对引擎执行、API 调用和数据库调用配置计费项，查看明细与汇总。
@@ -472,6 +492,28 @@ cd ..
 mvn test
 ```
 
+默认 `mvn test` 不依赖仓库外或被忽略的真实 ONNX 模型，因而适合干净 checkout 和 CI；需要真实模型/图片的推理用例会明确标记为 skipped。要执行真实 ONNX 集成门禁，先在仓库根目录准备以下资产：
+
+```text
+assets/docs/face.jpg
+assets/onnx/yunet/detector.onnx
+assets/onnx/facenox/best_model.onnx
+assets/onnx/mn3/anti-spoof-mn3.onnx
+assets/onnx/buffalo_l/det_10g.onnx
+assets/onnx/buffalo_l/w600k_r50.onnx
+assets/onnx/buffalo_l/2d106det.onnx
+assets/onnx/buffalo_l/1k3d68.onnx
+assets/onnx/buffalo_l/genderage.onnx
+```
+
+然后运行：
+
+```bash
+mvn -Ponnx-integration test
+```
+
+`onnx-integration` Profile 会把根目录 `assets/` 复制为测试 classpath 的 `/assets/` 并启用真实推理用例；任一必需图片或模型缺失/为空都会使测试失败，不会静默跳过。该目录已被 `.gitignore` 排除，不得把有许可证限制或体积较大的模型误提交到仓库。`-Ponnx-integration` 只控制真实测试资产，与选择 CPU/GPU 运行时的 `-Ponnx-gpu` 是两个独立 Profile。
+
 前端：
 
 ```bash
@@ -489,13 +531,15 @@ npm run test:e2e:full
 
 Playwright 首次使用需执行 `npx playwright install chromium`；也可设置 `PLAYWRIGHT_CHANNEL=chrome` 使用本机 Chrome。`test:e2e:dist` 直接加载真实 `dist/` 并模拟 API，不依赖本地监听端口；`docs:screenshots` 使用固定人脸风控样例重建 `docs/project-usage/` 下的页面验收截图，并在接口未匹配、关键内容缺失或紧凑工作台横向溢出时失败；`test:e2e:full` 只有在设置 `E2E_BASE_URL` 后才执行真实后端联调。
 
-2026-07-22 在 JDK 17.0.19 下验证后端共运行 740 个测试，739 个通过、1 个仅在 CUDA 环境执行的测试跳过，Tomcat NIO2 启动后 8080 端口与 HTTP 200 响应验证通过；在 Node.js 26.4.0 下验证前端 120 个测试文件、1276 个测试、ESLint 10 flat config、Vite 8 生产构建和 Playwright `dist` 烟测全部通过。测试数量会随代码演进，以命令实际输出为准。
+2026-08-13 在 Microsoft OpenJDK 17.0.20 下，默认 `mvn test` 共记录 1210 个测试：1195 个通过、15 个 skipped，0 failures、0 errors；15 个 skipped 为 14 个显式 ONNX 真实资产用例和 1 个 CUDA 环境诊断。显式 `-Ponnx-integration` 在当前无模型资产 checkout 上按预期硬失败，证明资产门禁有效。在 Node.js 24.14.1 下验证前端 153 个测试文件、1699 个单元测试、ESLint 10 flat config、Vite 8 生产构建以及 Playwright `dist` 52/52 全部通过。以上是 Task 8 决策流修复完成时的当前基线，最终交付门禁会重新执行这些命令；测试数量会随代码演进，以最新命令输出为准。
 
 ## 12. 生产交付状态与边界
 
 当前版本定位为预发布的生产候选版本。代码和自动化测试基础已经较完整，但正式交付前至少需要关闭以下门禁：
 
 - 在允许监听端口的标准部署环境完成真实后端、MySQL、Redis、HTTPS 与浏览器全链路验收；当前 Playwright `dist` 生产包烟测已通过，但不能替代部署联调。
+- 仓库和 CI 不提供任何共享默认凭据，也不连接外部业务数据。`.env.example` 只有占位值；`.env`、ONNX 测试资产、MySQL/Redis 数据目录均被忽略。生产必须通过 Secret/KMS 注入数据库、Redis、控制台引导账号、`RULE_AUTH_MASTER_KEY`、项目 Token/API Key/HMAC、外数和模型相关秘密，并建立最小权限、轮换、吊销和审计流程。
+- 默认 CI 只运行可在干净 checkout 复现的 Maven、前端单元、lint、build 和模拟 API 的 `dist` E2E；真实 ONNX 资产、真实第三方 API/数据库/名单、HTTPS 和容量/灾备验证属于显式受控环境门禁，不能用默认 CI 绿色替代。
 - JPMML 已确定采用 AGPL-3.0 开源交付；每个发布版本仍必须落实 Corresponding Source 下载入口、许可证保留和合规复核，不能满足时不得交付。
 - 完成密钥托管与轮换、HTTPS、备份恢复、容量压测、灾备和发布回滚演练。
 - 前端已迁移到 Vite 8、Vitest 4 和 ESLint 10；LogicFlow 间接依赖已通过 `uuid@11.1.1` override 修复，生产依赖审计为 0 漏洞。发布时仍需持续运行审计、SBOM 和许可证扫描。

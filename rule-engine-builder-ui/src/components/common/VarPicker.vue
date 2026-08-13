@@ -313,6 +313,23 @@ import {
   operandKindMeta,
 } from '@/utils/operand'
 
+function pickerValueIdentity(value, valueKey) {
+  if (value == null || value === '') return 'EMPTY'
+  if (typeof value !== 'object') {
+    return (valueKey === 'id' ? 'ID:' : 'CODE:') + String(value)
+  }
+  var kind = value.kind || 'OBJECT'
+  if (value.refId != null && value.refType) {
+    return kind + ':' + value.refType + ':' + String(value.refId)
+  }
+  if (value.functionId != null || value.functionCode) {
+    return (
+      kind + ':' + String(value.functionId != null ? value.functionId : value.functionCode)
+    )
+  }
+  return kind + ':' + String(value.value != null ? value.value : value.code || '')
+}
+
 export default {
   data() {
     return {
@@ -344,6 +361,9 @@ export default {
       panelBodyUserSelect: '',
       suppressFocusOpen: false,
       focusOpenTimer: null,
+      valueGeneration: 0,
+      positionedValueGeneration: -1,
+      positionedValueIdentity: pickerValueIdentity(this.value, this.valueKey),
       ElIconSearch: markRaw(ElIconSearch),
     }
   },
@@ -421,19 +441,22 @@ export default {
         )
         if (!exists) {
           this.activeCategory = list[0].key
+          this.rightPage = 1
+          this.expandedObject = null
         }
       },
     },
     value(newVal) {
+      var nextIdentity = pickerValueIdentity(newVal, this.valueKey)
+      if (nextIdentity !== this.positionedValueIdentity) {
+        this.positionedValueIdentity = nextIdentity
+        this.valueGeneration += 1
+      }
       this.localCustomValue = newVal || ''
       this._autoSwitchIfUnmatched()
     },
     customMode(val) {
       if (val) this.localCustomValue = this.value || ''
-    },
-    activeCategory() {
-      this.rightPage = 1
-      this.expandedObject = null
     },
     searchText() {
       this.rightPage = 1
@@ -445,7 +468,6 @@ export default {
       if (!val) {
         this.searchText = ''
         this.referenceKeyword = ''
-        this.expandedObject = null
         this.stopPanelResize()
       }
     },
@@ -1198,24 +1220,35 @@ export default {
         this.setPickerInert(false)
         this.popoverVisible = true
         if (!this.referenceKeyword) this.searchText = ''
-        if (!wasVisible) {
-          this.$nextTick(function () {
-            if (
-              this.operandMode &&
-              !this.value &&
-              this.allowsOperandKind('LITERAL')
-            ) {
-              this.activeCategory = 'manual'
-            } else {
-              this.focusCurrentValueInPicker()
-            }
-          })
+        if (
+          !wasVisible &&
+          this.positionedValueGeneration !== this.valueGeneration
+        ) {
+          if (
+            this.operandMode &&
+            !this.value &&
+            (this.allowsOperandKind('LITERAL') ||
+              this.allowsOperandKind('PATH'))
+          ) {
+            this.positionPickerCategory('manual')
+          } else if (this.value) {
+            this.focusCurrentValueInPicker()
+          }
+          this.positionedValueGeneration = this.valueGeneration
         }
       }
     },
     focusCurrentValueInPicker() {
       var option
       if (this.operandMode && this.value && typeof this.value === 'object') {
+        if (this.value.kind === 'LITERAL' || this.value.kind === 'PATH') {
+          this.positionPickerCategory('manual')
+          return
+        }
+        if (this.value.kind === 'FUNCTION') {
+          this.positionPickerCategory('function')
+          return
+        }
         option = this.findOptionByIdentity(this.value.refId, this.value.refType)
       } else {
         option =
@@ -1227,23 +1260,42 @@ export default {
               )
             : null
       }
-      if (!option) return
+      if (!option) {
+        this.positionPickerCategory(this.activeCategory)
+        return
+      }
 
       var category = this.optionCategory(option)
-      this.activeCategory = category
-      this.expandedObject = null
-      this.rightPage = 1
+      if (this.positionPickerCategory(category) !== category) return
 
-      this.$nextTick(
-        function () {
-          if (this.isGroupedFieldCategory(category)) {
-            this.focusGroupedOption(option)
-          } else {
-            this.focusFlatOption(option)
-          }
-          this.scrollCurrentValueIntoView()
+      if (this.isGroupedFieldCategory(category)) {
+        this.focusGroupedOption(option)
+      } else {
+        this.focusFlatOption(option)
+      }
+      this.scrollCurrentValueIntoView()
+    },
+    positionPickerCategory(category) {
+      var categories = this.categoryList || []
+      var requestedAvailable = categories.some(function (item) {
+        return item.key === category
+      })
+      var currentAvailable = categories.some(
+        function (item) {
+          return item.key === this.activeCategory
         }.bind(this)
       )
+      var target = requestedAvailable
+        ? category
+        : currentAvailable
+          ? this.activeCategory
+          : categories.length
+            ? categories[0].key
+            : ''
+      if (target) this.activeCategory = target
+      this.rightPage = 1
+      this.expandedObject = null
+      return target
     },
     focusFlatOption(option) {
       var list = this.filteredRightItems
@@ -1318,7 +1370,11 @@ export default {
           )
         }.bind(this)
       )
-      if (category) this.activeCategory = category.key
+      if (category) {
+        this.activeCategory = category.key
+        this.rightPage = 1
+        this.expandedObject = null
+      }
     },
     expandSingleSearchGroup() {
       if (

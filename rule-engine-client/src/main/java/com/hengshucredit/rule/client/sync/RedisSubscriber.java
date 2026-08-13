@@ -16,6 +16,7 @@ import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.data.redis.listener.Topic;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -43,7 +44,7 @@ public class RedisSubscriber {
 
     private final L1MemoryCache cache;
     private final RedisConnectionFactory connectionFactory;
-    private final String appName;
+    private final String projectCode;
     private final String channel;
     private final List<Topic> topics;
     private final Function<String, CachedRule> ruleFetcher;
@@ -55,20 +56,23 @@ public class RedisSubscriber {
     private final AtomicInteger reconnectCount = new AtomicInteger(0);
     private Thread healthCheckThread;
 
-    public RedisSubscriber(L1MemoryCache cache, RedisConnectionFactory connectionFactory, String appName) {
-        this(cache, connectionFactory, appName, null);
+    public RedisSubscriber(L1MemoryCache cache, RedisConnectionFactory connectionFactory, String projectCode) {
+        this(cache, connectionFactory, projectCode, null);
     }
 
-    public RedisSubscriber(L1MemoryCache cache, RedisConnectionFactory connectionFactory, String appName,
+    public RedisSubscriber(L1MemoryCache cache, RedisConnectionFactory connectionFactory, String projectCode,
                            Function<String, CachedRule> ruleFetcher) {
         this.cache = cache;
         this.connectionFactory = connectionFactory;
-        this.appName = appName;
-        this.channel = "rule:push:" + appName;
+        this.projectCode = trimToNull(projectCode);
+        this.channel = this.projectCode == null ? null : "rule:push:" + this.projectCode;
         this.ruleFetcher = ruleFetcher;
-        this.topics = Arrays.asList(
-                new ChannelTopic(channel),
-                new ChannelTopic("rule:push:broadcast"));
+        this.topics = this.channel == null
+                ? Collections.<Topic>singletonList(new ChannelTopic("rule:push:broadcast"))
+                : Arrays.<Topic>asList(new ChannelTopic(channel), new ChannelTopic("rule:push:broadcast"));
+        if (this.projectCode == null) {
+            log.warn("projectCode is not configured; project Redis channel subscription is disabled");
+        }
     }
 
     /**
@@ -216,6 +220,11 @@ public class RedisSubscriber {
     private void handleMessage(String message) {
         try {
             RulePushMessage push = JSON.parseObject(message, RulePushMessage.class);
+            if (!appliesToConfiguredProject(push)) {
+                log.debug("Ignored Redis push outside configured project: action={}, projectCode={}, scope={}",
+                        push.getAction(), push.getProjectCode(), push.getScope());
+                return;
+            }
             String action = push.getAction();
 
             if ("PUBLISH".equals(action)) {
@@ -233,8 +242,8 @@ public class RedisSubscriber {
 
             } else if ("FUNC_UPDATE".equals(action)) {
                 if (functionRegistrar != null && push.getFuncCode() != null) {
-                    functionRegistrar.registerFromPush(
-                            push.getFuncCode(), push.getFuncImplType(),
+                    functionRegistrar.registerRemoteFromPush(
+                            push.getScope(), push.getProjectCode(), push.getFuncCode(), push.getFuncImplType(),
                             push.getFuncImplScript(), push.getFuncImplClass(),
                             push.getFuncImplMethod(), push.getFuncImplBeanName(),
                             push.getFuncParamsJson());
@@ -242,8 +251,10 @@ public class RedisSubscriber {
                 }
 
             } else if ("FUNC_DELETE".equals(action)) {
-                log.info("Function delete received via Redis push: {} (runtime removal not supported, restart to apply)",
-                        push.getFuncCode());
+                if (functionRegistrar != null && push.getFuncCode() != null) {
+                    functionRegistrar.removeRemote(push.getScope(), push.getProjectCode(), push.getFuncCode());
+                    log.info("Function removed via Redis push: {}", push.getFuncCode());
+                }
             }
         } catch (Exception e) {
             log.warn("Failed to handle Redis push message: {}", e.getMessage());
@@ -267,5 +278,25 @@ public class RedisSubscriber {
         cached.setOutputScriptNames(push.getOutputScriptNames());
         cached.setLastUpdateTime(System.currentTimeMillis());
         return cached;
+    }
+
+    private boolean appliesToConfiguredProject(RulePushMessage push) {
+        String scope = trimToNull(push.getScope());
+        if ("GLOBAL".equals(scope)) {
+            return true;
+        }
+        String pushedProjectCode = trimToNull(push.getProjectCode());
+        if ("PROJECT".equals(scope)) {
+            return projectCode != null && projectCode.equals(pushedProjectCode);
+        }
+        return pushedProjectCode == null || (projectCode != null && projectCode.equals(pushedProjectCode));
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

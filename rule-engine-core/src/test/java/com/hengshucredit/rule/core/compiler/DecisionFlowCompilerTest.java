@@ -172,5 +172,167 @@ public class DecisionFlowCompilerTest {
         assertTrue(ruleResult.getErrorMessage(), ruleResult.isSuccess());
         assertTrue(ruleResult.getResult() instanceof Map);
         assertEquals("PASS", ((Map<?, ?>) ruleResult.getResult()).get("decisionResult"));
+
+        params.put("score", 500);
+        RuleResult defaultResult = engine.execute(result.getCompiledScript(), params);
+        assertTrue(defaultResult.getErrorMessage(), defaultResult.isSuccess());
+        assertEquals("REJECT", ((Map<?, ?>) defaultResult.getResult()).get("decisionResult"));
+    }
+
+    @Test
+    public void skipMergeContinuationWhenNoConditionalBranchMatches() {
+        CompileResult result = compiler.compile("{"
+                + "\"nodes\":["
+                + "{\"id\":\"start\",\"type\":\"start\"},"
+                + "{\"id\":\"decision\",\"type\":\"decision\"},"
+                + "{\"id\":\"high\",\"type\":\"task\",\"actionData\":[{\"type\":\"assign\",\"target\":\"branchResult\",\"value\":\"\\\"HIGH\\\"\"}]},"
+                + "{\"id\":\"low\",\"type\":\"task\",\"actionData\":[{\"type\":\"assign\",\"target\":\"branchResult\",\"value\":\"\\\"LOW\\\"\"}]},"
+                + "{\"id\":\"join\",\"type\":\"join\"},"
+                + "{\"id\":\"after\",\"type\":\"task\",\"actionData\":[{\"type\":\"assign\",\"target\":\"afterResult\",\"value\":\"\\\"AFTER\\\"\"}]},"
+                + "{\"id\":\"end\",\"type\":\"end\"}"
+                + "],"
+                + "\"edges\":["
+                + "{\"source\":\"start\",\"target\":\"decision\"},"
+                + "{\"source\":\"decision\",\"target\":\"high\",\"conditionExpression\":\"score >= 600\"},"
+                + "{\"source\":\"decision\",\"target\":\"low\",\"conditionExpression\":\"score < 300\"},"
+                + "{\"source\":\"high\",\"target\":\"join\"},"
+                + "{\"source\":\"low\",\"target\":\"join\"},"
+                + "{\"source\":\"join\",\"target\":\"after\"},"
+                + "{\"source\":\"after\",\"target\":\"end\"}"
+                + "]"
+                + "}");
+
+        assertTrue(result.getErrorMessage(), result.isSuccess());
+        assertEquals(result.getCompiledScript(), 1,
+                occurrences(result.getCompiledScript(), "afterResult = \"AFTER\""));
+
+        Map<?, ?> unmatched = executeResultMap(result, 450);
+        assertNull(unmatched.get("branchResult"));
+        assertNull(unmatched.get("afterResult"));
+
+        Map<?, ?> high = executeResultMap(result, 700);
+        assertEquals("HIGH", high.get("branchResult"));
+        assertEquals("AFTER", high.get("afterResult"));
+
+        Map<?, ?> low = executeResultMap(result, 100);
+        assertEquals("LOW", low.get("branchResult"));
+        assertEquals("AFTER", low.get("afterResult"));
+    }
+
+    @Test
+    public void nestedUnmatchedDecisionDoesNotReachOuterMerge() {
+        CompileResult result = compiler.compile("{"
+                + "\"nodes\":["
+                + "{\"id\":\"start\",\"type\":\"start\"},"
+                + "{\"id\":\"outer\",\"type\":\"decision\"},"
+                + "{\"id\":\"inner\",\"type\":\"decision\"},"
+                + "{\"id\":\"innerHigh\",\"type\":\"task\",\"actionData\":[{\"type\":\"assign\",\"target\":\"branchResult\",\"value\":\"\\\"INNER_HIGH\\\"\"}]},"
+                + "{\"id\":\"innerLow\",\"type\":\"task\",\"actionData\":[{\"type\":\"assign\",\"target\":\"branchResult\",\"value\":\"\\\"INNER_LOW\\\"\"}]},"
+                + "{\"id\":\"outerAlternative\",\"type\":\"task\",\"actionData\":[{\"type\":\"assign\",\"target\":\"branchResult\",\"value\":\"\\\"OUTER_ALTERNATIVE\\\"\"}]},"
+                + "{\"id\":\"innerJoin\",\"type\":\"join\"},"
+                + "{\"id\":\"outerJoin\",\"type\":\"join\"},"
+                + "{\"id\":\"after\",\"type\":\"task\",\"actionData\":[{\"type\":\"assign\",\"target\":\"afterResult\",\"value\":\"\\\"AFTER\\\"\"}]},"
+                + "{\"id\":\"end\",\"type\":\"end\"}"
+                + "],"
+                + "\"edges\":["
+                + "{\"source\":\"start\",\"target\":\"outer\"},"
+                + "{\"source\":\"outer\",\"target\":\"inner\",\"conditionExpression\":\"route == 1\"},"
+                + "{\"source\":\"outer\",\"target\":\"outerAlternative\",\"conditionExpression\":\"route == 2\"},"
+                + "{\"source\":\"inner\",\"target\":\"innerHigh\",\"conditionExpression\":\"score >= 600\"},"
+                + "{\"source\":\"inner\",\"target\":\"innerLow\",\"conditionExpression\":\"score < 300\"},"
+                + "{\"source\":\"innerHigh\",\"target\":\"innerJoin\"},"
+                + "{\"source\":\"innerLow\",\"target\":\"innerJoin\"},"
+                + "{\"source\":\"innerJoin\",\"target\":\"outerJoin\"},"
+                + "{\"source\":\"outerAlternative\",\"target\":\"outerJoin\"},"
+                + "{\"source\":\"outerJoin\",\"target\":\"after\"},"
+                + "{\"source\":\"after\",\"target\":\"end\"}"
+                + "]"
+                + "}");
+
+        assertTrue(result.getErrorMessage(), result.isSuccess());
+        assertEquals(result.getCompiledScript(), 1,
+                occurrences(result.getCompiledScript(), "afterResult = \"AFTER\""));
+
+        Map<?, ?> innerUnmatched = executeResultMap(result, params("route", 1, "score", 450));
+        assertNull(innerUnmatched.get("branchResult"));
+        assertNull(innerUnmatched.get("afterResult"));
+
+        Map<?, ?> innerMatched = executeResultMap(result, params("route", 1, "score", 700));
+        assertEquals("INNER_HIGH", innerMatched.get("branchResult"));
+        assertEquals("AFTER", innerMatched.get("afterResult"));
+
+        Map<?, ?> outerAlternative = executeResultMap(result, params("route", 2, "score", 450));
+        assertEquals("OUTER_ALTERNATIVE", outerAlternative.get("branchResult"));
+        assertEquals("AFTER", outerAlternative.get("afterResult"));
+
+        Map<?, ?> outerUnmatched = executeResultMap(result, params("route", 0, "score", 700));
+        assertNull(outerUnmatched.get("branchResult"));
+        assertNull(outerUnmatched.get("afterResult"));
+    }
+
+    @Test
+    public void internalMatchFlagDoesNotCollideWithManagedScriptName() {
+        Map<String, String> refs = new HashMap<>();
+        refs.put("VARIABLE:1", "_tsDecisionMatched0");
+        VarContext varContext = new VarContext(new HashMap<Long, String>(),
+                new HashMap<String, String>(), refs);
+        CompileResult result = compiler.compile("{"
+                + "\"nodes\":["
+                + "{\"id\":\"start\",\"type\":\"start\"},"
+                + "{\"id\":\"decision\",\"type\":\"decision\"},"
+                + "{\"id\":\"hit\",\"type\":\"task\",\"actionData\":[{\"type\":\"assign\",\"target\":\"branchResult\",\"value\":\"\\\"HIT\\\"\"}]},"
+                + "{\"id\":\"miss\",\"type\":\"task\",\"actionData\":[{\"type\":\"assign\",\"target\":\"branchResult\",\"value\":\"\\\"MISS\\\"\"}]},"
+                + "{\"id\":\"join\",\"type\":\"join\"},"
+                + "{\"id\":\"after\",\"type\":\"task\",\"actionData\":[{\"type\":\"assign\",\"target\":\"afterResult\",\"value\":\"\\\"AFTER\\\"\"}]},"
+                + "{\"id\":\"end\",\"type\":\"end\"}"
+                + "],"
+                + "\"edges\":["
+                + "{\"source\":\"start\",\"target\":\"decision\"},"
+                + "{\"source\":\"decision\",\"target\":\"hit\",\"conditionExpression\":\"score >= 600\",\"leftVarId\":1,\"leftRefType\":\"VARIABLE\"},"
+                + "{\"source\":\"decision\",\"target\":\"miss\",\"conditionExpression\":\"score < 300\",\"leftVarId\":1,\"leftRefType\":\"VARIABLE\"},"
+                + "{\"source\":\"hit\",\"target\":\"join\"},"
+                + "{\"source\":\"miss\",\"target\":\"join\"},"
+                + "{\"source\":\"join\",\"target\":\"after\"},"
+                + "{\"source\":\"after\",\"target\":\"end\"}"
+                + "]"
+                + "}", varContext);
+
+        assertTrue(result.getErrorMessage(), result.isSuccess());
+        assertTrue(result.getCompiledScript(), result.getCompiledScript().contains("_tsDecisionMatched0 >= 600"));
+        assertTrue(result.getCompiledScript(), result.getCompiledScript().contains("_tsDecisionMatched1 = false"));
+        Map<?, ?> matched = executeResultMap(result, params("_tsDecisionMatched0", 700));
+        assertEquals("HIT", matched.get("branchResult"));
+        assertEquals("AFTER", matched.get("afterResult"));
+    }
+
+    private Map<?, ?> executeResultMap(CompileResult compileResult, int score) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("score", score);
+        return executeResultMap(compileResult, params);
+    }
+
+    private Map<?, ?> executeResultMap(CompileResult compileResult, Map<String, Object> params) {
+        RuleResult ruleResult = engine.execute(compileResult.getCompiledScript(), params);
+        assertTrue(ruleResult.getErrorMessage(), ruleResult.isSuccess());
+        assertTrue(ruleResult.getResult() instanceof Map);
+        return (Map<?, ?>) ruleResult.getResult();
+    }
+
+    private static Map<String, Object> params(Object... values) {
+        Map<String, Object> params = new HashMap<>();
+        for (int i = 0; i < values.length; i += 2) {
+            params.put(String.valueOf(values[i]), values[i + 1]);
+        }
+        return params;
+    }
+
+    private static int occurrences(String text, String needle) {
+        int count = 0;
+        int offset = 0;
+        while ((offset = text.indexOf(needle, offset)) >= 0) {
+            count++;
+            offset += needle.length();
+        }
+        return count;
     }
 }

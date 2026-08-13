@@ -4,6 +4,7 @@ import com.hengshucredit.rule.client.cache.CachedRule;
 import com.hengshucredit.rule.client.cache.L1MemoryCache;
 import com.hengshucredit.rule.client.auth.ClientAuthConfig;
 import com.hengshucredit.rule.client.auth.ClientRequestAuthenticator;
+import com.hengshucredit.rule.client.auth.ProjectClientAuthenticationException;
 import com.hengshucredit.rule.client.function.ClientFunctionRegistrar;
 import com.hengshucredit.rule.client.log.ExecutionLogReporter;
 import com.hengshucredit.rule.client.log.HttpLogReporter;
@@ -36,8 +37,11 @@ public class RuleEngineClient {
     private final RedisSubscriber redisSubscriber;
     private final QLExpressEngine engine;
     private final ExecutionLogReporter logReporter;
+    private final boolean ownsLogReporter;
     private final ClientFunctionRegistrar functionRegistrar;
     private final ClientRuleRuntimeInvoker runtimeRuleInvoker;
+    private final Object lifecycleLock = new Object();
+    private LifecycleState lifecycleState = LifecycleState.STOPPED;
     private ScheduledExecutorService scheduler;
 
     private RuleEngineClient(RuleEngineClientConfig config, RedisConnectionFactory connectionFactory,
@@ -52,14 +56,18 @@ public class RuleEngineClient {
         this.engine = new QLExpressEngine();
         this.runtimeRuleInvoker = new ClientRuleRuntimeInvoker(l1Cache, httpSyncClient, engine, config);
         this.runtimeRuleInvoker.register(engine.getRunner());
-        this.functionRegistrar = new ClientFunctionRegistrar(engine, applicationContext);
+        this.functionRegistrar = new ClientFunctionRegistrar(engine, applicationContext, config.getProjectCode());
 
         if (externalReporter != null) {
             this.logReporter = externalReporter;
+            this.ownsLogReporter = false;
         } else if (config.isLogReportEnabled()) {
-            this.logReporter = new HttpLogReporter(config.getServerUrl(), config.getHttpTimeoutMs(), authenticator);
+            this.logReporter = new HttpLogReporter(config.getServerUrl(), config.getHttpTimeoutMs(), authenticator,
+                    config.getLogBufferSize(), config.getLogBatchSize(), config.getLogFlushIntervalMs());
+            this.ownsLogReporter = true;
         } else {
             this.logReporter = new NoOpLogReporter();
+            this.ownsLogReporter = true;
         }
     }
 
@@ -68,27 +76,57 @@ public class RuleEngineClient {
     }
 
     public void start() {
-        log.info("RuleEngineClient starting: serverUrl={}, appName={}, projectCode={}, logReporter={}",
-                config.getServerUrl(), config.getAppName(), config.getProjectCode(),
-                logReporter.getClass().getSimpleName());
-        redisSubscriber.setFunctionRegistrar(functionRegistrar);
-        redisSubscriber.start();
-        fullSync();
-        syncFunctions();
-        scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "rule-client-heartbeat");
-            t.setDaemon(true);
-            return t;
-        });
-        scheduler.scheduleAtFixedRate(this::fullSync,
-                config.getHeartbeatIntervalMs(), config.getHeartbeatIntervalMs(), TimeUnit.MILLISECONDS);
-        log.info("RuleEngineClient started, {} rules cached", l1Cache.size());
+        synchronized (lifecycleLock) {
+            if (lifecycleState == LifecycleState.STARTED) {
+                log.debug("RuleEngineClient is already started");
+                return;
+            }
+            lifecycleState = LifecycleState.STARTING;
+            startOwnedLogReporter();
+            log.info("RuleEngineClient starting: serverUrl={}, appName={}, projectCode={}, logReporter={}",
+                    config.getServerUrl(), config.getAppName(), config.getProjectCode(),
+                    logReporter.getClass().getSimpleName());
+            try {
+                // 先完成首次 HTTP 同步，避免认证/配置错误被 Redis 重试掩盖。
+                fullSync();
+                syncFunctions();
+                redisSubscriber.setFunctionRegistrar(functionRegistrar);
+                redisSubscriber.start();
+                scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+                    Thread t = new Thread(r, "rule-client-heartbeat");
+                    t.setDaemon(true);
+                    return t;
+                });
+                scheduler.scheduleAtFixedRate(this::fullSync,
+                        config.getHeartbeatIntervalMs(), config.getHeartbeatIntervalMs(), TimeUnit.MILLISECONDS);
+                lifecycleState = LifecycleState.STARTED;
+                log.info("RuleEngineClient started, {} rules cached", l1Cache.size());
+            } catch (ProjectClientAuthenticationException e) {
+                rollbackStart();
+                throw e;
+            } catch (RuntimeException e) {
+                rollbackStart();
+                throw e;
+            }
+        }
     }
 
     public void close() {
-        log.info("RuleEngineClient shutting down");
-        if (scheduler != null) scheduler.shutdownNow();
-        redisSubscriber.stop();
+        synchronized (lifecycleLock) {
+            if (lifecycleState == LifecycleState.STOPPED) {
+                closeOwnedLogReporter();
+                return;
+            }
+            lifecycleState = LifecycleState.CLOSING;
+            log.info("RuleEngineClient shutting down");
+            if (scheduler != null) {
+                scheduler.shutdownNow();
+                scheduler = null;
+            }
+            redisSubscriber.stop();
+            closeOwnedLogReporter();
+            lifecycleState = LifecycleState.STOPPED;
+        }
     }
 
     /**
@@ -140,7 +178,7 @@ public class RuleEngineClient {
         runtimeRuleInvoker.enter(cached, params);
         RuleResult result = new RuleResult();
         try {
-            result = engine.execute(cached.getCompiledScript(), params, true);
+            result = engine.execute(cached.getCompiledScript(), params, config.isTraceEnabled());
         } catch (RuleTerminationSignal e) {
             result.setSuccess(true);
             result.setResult(runtimeRuleInvoker.collectTerminationResult());
@@ -178,7 +216,7 @@ public class RuleEngineClient {
         runtimeRuleInvoker.enter(cached, params);
         RuleResult result = new RuleResult();
         try {
-            result = engine.execute(cached.getCompiledScript(), params, true);
+            result = engine.execute(cached.getCompiledScript(), params, config.isTraceEnabled());
         } catch (RuleTerminationSignal e) {
             result.setSuccess(true);
             result.setResult(runtimeRuleInvoker.collectTerminationResult());
@@ -272,8 +310,13 @@ public class RuleEngineClient {
         if (config.getProjectId() <= 0) return;
         try {
             List<JSONObject> functions = httpSyncClient.fetchFunctions(config.getProjectId());
-            functionRegistrar.registerAll(functions);
+            if (functions == null) {
+                return;
+            }
+            functionRegistrar.replaceRemoteSnapshot(functions);
             log.info("Function sync completed, {} functions registered", functions.size());
+        } catch (ProjectClientAuthenticationException e) {
+            throw e;
         } catch (Exception e) {
             log.warn("Function sync failed: {}", e.getMessage());
         }
@@ -282,10 +325,13 @@ public class RuleEngineClient {
     private void fullSync() {
         try {
             List<CachedRule> rules = httpSyncClient.fetchAll();
-            for (CachedRule rule : rules) {
-                l1Cache.put(rule);
+            if (rules == null) {
+                return;
             }
+            l1Cache.replaceSnapshot(rules);
             log.debug("Full sync completed, {} rules", rules.size());
+        } catch (ProjectClientAuthenticationException e) {
+            throw e;
         } catch (Exception e) {
             log.warn("Full sync failed: {}", e.getMessage());
         }
@@ -295,13 +341,42 @@ public class RuleEngineClient {
         if (config.getProjectCode() != null && !config.getProjectCode().trim().isEmpty()) {
             return config.getProjectCode().trim();
         }
-        return config.getAppName();
+        return null;
     }
 
     private static ClientAuthConfig resolveAuthConfig(RuleEngineClientConfig config) {
         if (config.getAuthConfig() != null) return config.getAuthConfig();
         return config.getToken() == null || config.getToken().isEmpty()
                 ? null : ClientAuthConfig.legacyToken(config.getToken());
+    }
+
+    private void rollbackStart() {
+        if (scheduler != null) {
+            scheduler.shutdownNow();
+            scheduler = null;
+        }
+        redisSubscriber.stop();
+        closeOwnedLogReporter();
+        lifecycleState = LifecycleState.STOPPED;
+    }
+
+    private void closeOwnedLogReporter() {
+        if (!ownsLogReporter) return;
+        try {
+            logReporter.close();
+        } catch (Exception e) {
+            log.warn("Log reporter close failed: {}", e.getMessage());
+        }
+    }
+
+    private void startOwnedLogReporter() {
+        if (ownsLogReporter) {
+            logReporter.start();
+        }
+    }
+
+    private enum LifecycleState {
+        STOPPED, STARTING, STARTED, CLOSING
     }
 
     public static class Builder {
@@ -327,6 +402,9 @@ public class RuleEngineClient {
         public Builder l1CacheMaxSize(int size) { config.setL1CacheMaxSize(size); return this; }
         public Builder httpTimeoutMs(int ms) { config.setHttpTimeoutMs(ms); return this; }
         public Builder logReportEnabled(boolean enabled) { config.setLogReportEnabled(enabled); return this; }
+        public Builder logBufferSize(int size) { config.setLogBufferSize(size); return this; }
+        public Builder logBatchSize(int size) { config.setLogBatchSize(size); return this; }
+        public Builder logFlushIntervalMs(int ms) { config.setLogFlushIntervalMs(ms); return this; }
         /** 设置项目 ID，启动时自动从服务端同步 JAVA/BEAN/SCRIPT 函数（0 表示不同步） */
         public Builder projectId(long projectId) { config.setProjectId(projectId); return this; }
         /** 设置是否开启表达式追踪，默认 true */

@@ -7,6 +7,7 @@ import java.lang.reflect.Method;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 
 public class RuleEngineClientConfigTest {
 
@@ -20,11 +21,11 @@ public class RuleEngineClientConfigTest {
     }
 
     @Test
-    public void appNameIsFallbackForRedisPushSubscription() throws Exception {
+    public void missingProjectCodeDoesNotSubscribeUsingAppName() throws Exception {
         RuleEngineClientConfig config = new RuleEngineClientConfig();
         config.setAppName("risk-service");
 
-        assertEquals("risk-service", resolvePushSubscriptionKey(config));
+        assertNull(resolvePushSubscriptionKey(config));
     }
 
     @Test

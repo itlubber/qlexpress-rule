@@ -102,4 +102,30 @@ public class ScorecardCompilerTest {
         assertTrue(result.getCompiledScript().contains("decision.score = decision.score + 10.0"));
         assertTrue(result.getCompiledScript().contains("riskLevel = passLevel"));
     }
+
+    @Test
+    public void thresholdsUseLeftClosedRightOpenBoundaryAtSharedEndpoint() {
+        CompileResult compileResult = compiler.compile(thresholdModel("0", "250", "250", "350"));
+
+        assertTrue(compileResult.getErrorMessage(), compileResult.isSuccess());
+        RuleResult result = engine.execute(compileResult.getCompiledScript(), new LinkedHashMap<String, Object>());
+
+        assertTrue(result.getErrorMessage(), result.isSuccess());
+        assertEquals("HIGH", ((Map<?, ?>) result.getResult()).get("riskLevel"));
+    }
+
+    @Test
+    public void rejectsOverlappingThresholds() {
+        CompileResult result = compiler.compile(thresholdModel("0", "250", "200", "350"));
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getErrorMessage().contains("重叠"));
+    }
+
+    private String thresholdModel(String firstMin, String firstMax, String secondMin, String secondMax) {
+        return "{"
+                + "\"initialScore\":250,\"resultVar\":{\"varCode\":\"score\",\"varType\":\"NUMBER\"},"
+                + "\"thresholds\":[{\"min\":" + firstMin + ",\"max\":" + firstMax + ",\"result\":\"LOW\",\"resultVar\":\"riskLevel\"},"
+                + "{\"min\":" + secondMin + ",\"max\":" + secondMax + ",\"result\":\"HIGH\",\"resultVar\":\"riskLevel\"}]}";
+    }
 }

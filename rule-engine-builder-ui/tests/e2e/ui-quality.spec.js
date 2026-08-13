@@ -333,16 +333,15 @@ test('列表操作按查看、编辑、执行、发布和危险动作展示稳�
       actions: [
         ['详情', 'primary'],
         ['设计', 'warning'],
-        ['生命周期', 'info'],
         ['删除', 'danger'],
       ],
     },
     {
       route: '/project/1',
+      tab: '项目规则',
       actions: [
+        ['详情', 'primary'],
         ['设计', 'warning'],
-        ['生命周期', 'success'],
-        ['下线', 'warning'],
         ['申请删除规则', 'danger'],
       ],
     },
@@ -388,6 +387,11 @@ test('列表操作按查看、编辑、执行、发布和危险动作展示稳�
   for (const item of pages) {
     await page.goto(`http://tianshu.local/index.html#${item.route}`)
     await expect(page.getByRole('main')).toBeVisible()
+    if (item.tab) {
+      const tab = page.getByRole('tab', { name: item.tab, exact: true })
+      await tab.click()
+      await expect(tab).toHaveAttribute('aria-selected', 'true')
+    }
     const visibleActions = page.locator(
       '.el-table__body .el-button.is-link:visible'
     )
@@ -414,6 +418,23 @@ test('列表操作按查看、编辑、执行、发布和危险动作展示稳�
       `${item.route} 的操作按钮仍被渲染为同一颜色`
     ).toBeGreaterThanOrEqual(3)
   }
+
+  await page.goto('http://tianshu.local/index.html#/rule/101')
+  const lifecycleTab = page.getByRole('tab', { name: /生命周期/ })
+  await expect(lifecycleTab).toBeVisible()
+  await expect(lifecycleTab).toHaveAttribute('aria-selected', 'true')
+  await expect(
+    page.getByRole('button', { name: '进入设计', exact: true })
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: '发布前校验', exact: true })
+  ).toBeVisible()
+  const submitReview = page.getByRole('button', {
+    name: '提交评审',
+    exact: true,
+  })
+  await expect(submitReview).toBeVisible()
+  await expect(submitReview).toHaveClass(/el-button--primary/)
 
   await page.goto('http://tianshu.local/index.html#/designer/cross/101')
   const deleteCrossRow = page.getByRole('button', {

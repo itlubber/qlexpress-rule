@@ -54,6 +54,7 @@ public class HttpClientAuthenticationTest {
 
         syncClient.fetchAll();
         logReporter.report(Collections.singletonList(new RuleExecutionLog()));
+        logReporter.close();
 
         assertEquals("shared", syncAuth.get());
         assertEquals("shared", logAuth.get());

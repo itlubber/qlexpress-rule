@@ -20,6 +20,8 @@ public class RulePushMessage {
     private String action;
     /** 规则所属项目编码 */
     private String projectCode;
+    /** 推送资源作用域：GLOBAL / PROJECT */
+    private String scope;
 
     // ── 函数推送字段（action = FUNC_UPDATE / FUNC_DELETE 时使用） ──
     /** 函数编码 */

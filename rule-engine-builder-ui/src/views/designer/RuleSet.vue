@@ -243,6 +243,7 @@
       ref="scriptPanel"
       :definitionId="definitionId"
       :onBeforeCompile="handleSave"
+      @go-lifecycle="goRuleLifecycle"
     />
 
     <designer-test-dialog

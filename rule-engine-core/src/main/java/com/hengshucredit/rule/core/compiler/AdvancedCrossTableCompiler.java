@@ -56,6 +56,8 @@ public class AdvancedCrossTableCompiler implements RuleCompiler {
             if (cells == null) {
                 return CompileResult.fail("复杂交叉表缺少单元格数据");
             }
+            IntervalValidator.validateDimensionRanges(rowDims);
+            IntervalValidator.validateDimensionRanges(colDims);
 
             List<List<SegmentInfo>> rowProduct = cartesianProduct(rowDims);
             List<List<SegmentInfo>> colProduct = cartesianProduct(colDims);

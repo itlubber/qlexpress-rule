@@ -32,6 +32,7 @@ public class ScorecardCompiler implements RuleCompiler {
             JSONObject resultVar = model.getJSONObject("resultVar");
             JSONArray scoreItems = model.getJSONArray("scoreItems");
             JSONArray thresholds = model.getJSONArray("thresholds");
+            IntervalValidator.validateThresholds(thresholds);
 
             Long resVarId = resultVar != null && resultVar.containsKey("_varId") ? resultVar.getLong("_varId") : null;
             String resRefType = resultVar != null ? resultVar.getString("_refType") : null;

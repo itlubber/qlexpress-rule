@@ -70,7 +70,6 @@ public class HttpSyncClient {
     }
 
     public List<CachedRule> fetchAll() {
-        List<CachedRule> rules = new ArrayList<>();
         try {
             Request.Builder requestBuilder = new Request.Builder()
                     .url(serverUrl + "/api/rule/sync/all")
@@ -78,25 +77,33 @@ public class HttpSyncClient {
             Request request = authenticate(requestBuilder.build());
             try (Response response = httpClient.newCall(request).execute()) {
                 throwIfAuthenticationFailure(response);
-                if (response.isSuccessful() && response.body() != null) {
-                    JSONObject json = JSON.parseObject(response.body().string());
-                    if (json.getIntValue("code") == 200) {
-                        JSONArray arr = json.getJSONArray("data");
-                        if (arr != null) {
-                            for (int i = 0; i < arr.size(); i++) {
-                                CachedRule r = toCachedRule(arr.getJSONObject(i));
-                                if (r != null) rules.add(r);
-                            }
-                        }
-                    }
+                if (!response.isSuccessful() || response.body() == null) {
+                    log.warn("Failed to fetch all rules: HTTP {}", response.code());
+                    return null;
                 }
+                JSONObject json = JSON.parseObject(response.body().string());
+                if (json == null || json.getIntValue("code") != 200) {
+                    log.warn("Failed to fetch all rules: invalid response");
+                    return null;
+                }
+                JSONArray arr = json.getJSONArray("data");
+                if (arr == null) {
+                    log.warn("Failed to fetch all rules: missing data");
+                    return null;
+                }
+                List<CachedRule> rules = new ArrayList<>();
+                for (int i = 0; i < arr.size(); i++) {
+                    CachedRule r = toCachedRule(arr.getJSONObject(i));
+                    if (r != null) rules.add(r);
+                }
+                return rules;
             }
         } catch (ProjectClientAuthenticationException e) {
             throw e;
         } catch (Exception e) {
             log.warn("Failed to fetch all rules: {}", e.getMessage());
+            return null;
         }
-        return rules;
     }
 
     /**
@@ -106,7 +113,6 @@ public class HttpSyncClient {
      * @return 函数元数据 JSON 列表
      */
     public List<JSONObject> fetchFunctions(long projectId) {
-        List<JSONObject> functions = new ArrayList<>();
         try {
             Request.Builder requestBuilder = new Request.Builder()
                     .url(serverUrl + "/api/rule/sync/functions/" + projectId)
@@ -114,24 +120,32 @@ public class HttpSyncClient {
             Request request = authenticate(requestBuilder.build());
             try (Response response = httpClient.newCall(request).execute()) {
                 throwIfAuthenticationFailure(response);
-                if (response.isSuccessful() && response.body() != null) {
-                    JSONObject json = JSON.parseObject(response.body().string());
-                    if (json.getIntValue("code") == 200) {
-                        JSONArray arr = json.getJSONArray("data");
-                        if (arr != null) {
-                            for (int i = 0; i < arr.size(); i++) {
-                                functions.add(arr.getJSONObject(i));
-                            }
-                        }
-                    }
+                if (!response.isSuccessful() || response.body() == null) {
+                    log.warn("Failed to fetch functions for project {}: HTTP {}", projectId, response.code());
+                    return null;
                 }
+                JSONObject json = JSON.parseObject(response.body().string());
+                if (json == null || json.getIntValue("code") != 200) {
+                    log.warn("Failed to fetch functions for project {}: invalid response", projectId);
+                    return null;
+                }
+                JSONArray arr = json.getJSONArray("data");
+                if (arr == null) {
+                    log.warn("Failed to fetch functions for project {}: missing data", projectId);
+                    return null;
+                }
+                List<JSONObject> functions = new ArrayList<>();
+                for (int i = 0; i < arr.size(); i++) {
+                    functions.add(arr.getJSONObject(i));
+                }
+                return functions;
             }
         } catch (ProjectClientAuthenticationException e) {
             throw e;
         } catch (Exception e) {
             log.warn("Failed to fetch functions for project {}: {}", projectId, e.getMessage());
         }
-        return functions;
+        return null;
     }
 
     public RuleResult executeRule(String ruleCode, Object params, String clientAppName) {

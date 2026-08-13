@@ -30,6 +30,10 @@ public class RuleEngineClientProperties {
 
     private int l1CacheMaxSize = 1000;
     private int httpTimeoutMs = 3000;
+    private boolean logReportEnabled = true;
+    private int logBufferSize = 500;
+    private int logBatchSize = 50;
+    private int logFlushIntervalMs = 5000;
     private String kafkaLogTopic = "rule-execution-log";
     /** 项目 ID，启动时自动从服务端同步函数定义（0 表示不同步函数） */
     private long projectId = 0;
