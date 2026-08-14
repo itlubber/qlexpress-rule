@@ -1510,6 +1510,13 @@
             show-icon
             title="预览会真实访问所选数据源，请使用安全的测试参数。"
           />
+          <el-alert
+            v-if="draftPreviewError"
+            type="error"
+            :closable="false"
+            show-icon
+            :title="draftPreviewError"
+          />
           <div class="draft-preview-panel__body">
             <div>
               <label>样例参数（JSON 对象）</label>
@@ -2560,6 +2567,7 @@ export default {
       },
       draftPreviewParamsText: '{}',
       draftPreviewResult: null,
+      draftPreviewError: '',
       draftPreviewing: false,
       variableAdvancedSections: [],
       listItemTypeOptions: LIST_ITEM_TYPES,
@@ -2760,9 +2768,14 @@ export default {
       deep: true,
       handler() {
         if (this.dialogVisible && !this.draftPreviewing) {
-          this.draftPreviewResult = null
+          this.invalidateDraftPreviewFeedback()
         }
       },
+    },
+    draftPreviewParamsText() {
+      if (this.dialogVisible && !this.draftPreviewing) {
+        this.invalidateDraftPreviewFeedback()
+      }
     },
   },
   computed: {
@@ -2840,7 +2853,7 @@ export default {
       const scoped =
         this.form.scope === 'GLOBAL' ||
         (this.form.scope === 'PROJECT' && !!this.form.projectId)
-      const defined = !!(
+      const defined = scoped && !!(
         this.form.varCode &&
         this.form.varLabel &&
         this.form.varType
@@ -2868,14 +2881,21 @@ export default {
       const requiresPreview = ['API', 'DB', 'LIST'].includes(
         this.form.varSource
       )
+      const sourceReady = defined && sourced
       return [
         { label: '确定归属', help: '选择全局或具体项目', ready: scoped },
         { label: '填写定义', help: '补充编码、名称和类型', ready: defined },
-        { label: '配置取值', help: '选择来源并完成必填项', ready: sourced },
+        {
+          label: '配置取值',
+          help: '选择来源并完成必填项',
+          ready: sourceReady,
+        },
         {
           label: '验证结果',
           help: requiresPreview ? '用样例参数预览一次取值' : '该来源无需在线预览',
-          ready: requiresPreview ? this.draftPreviewResult !== null : sourced,
+          ready:
+            sourceReady &&
+            (requiresPreview ? this.draftPreviewResult !== null : true),
         },
       ]
     },
@@ -3026,7 +3046,11 @@ export default {
     },
     resetDraftPreview() {
       this.draftPreviewParamsText = '{}'
+      this.invalidateDraftPreviewFeedback()
+    },
+    invalidateDraftPreviewFeedback() {
       this.draftPreviewResult = null
+      this.draftPreviewError = ''
     },
     async loadVariableSourceCatalog(clearInvalid = false) {
       const requestId = ++this.sourceCatalogRequestId
@@ -3133,13 +3157,15 @@ export default {
       try {
         const response = await previewVariableDraft(payload, params)
         this.draftPreviewResult = (response && response.data) || response
+        this.draftPreviewError = ''
         this.$message.success('取值预览成功')
       } catch (error) {
         this.draftPreviewResult = null
+        this.draftPreviewError =
+          (error && String(error.message || '').trim()) ||
+          '取值预览失败，请检查来源配置'
         if (!error || !error.requestErrorNotified) {
-          this.$message.error(
-            (error && error.message) || '取值预览失败，请检查来源配置'
-          )
+          this.$message.error(this.draftPreviewError)
         }
       } finally {
         this.draftPreviewing = false

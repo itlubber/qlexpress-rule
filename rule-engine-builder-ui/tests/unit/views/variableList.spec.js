@@ -809,8 +809,43 @@ describe('VariableList — 变量操作', () => {
     await expect(wrapper.vm.previewDraftVariable()).resolves.toBeUndefined()
 
     expect(wrapper.vm.draftPreviewResult).toBeNull()
+    expect(wrapper.vm.draftPreviewError).toBe('数据库不可用')
     expect(wrapper.vm.$message.error).not.toHaveBeenCalled()
     expect(wrapper.vm.draftPreviewing).toBe(false)
+  })
+
+  test('空白字段从 0/4 开始且后续步骤不能越过前置步骤', () => {
+    wrapper.vm.form = wrapper.vm.initForm()
+
+    expect(wrapper.vm.variableConfigurationChecklist.map(item => item.ready))
+      .toEqual([false, false, false, false])
+    expect(wrapper.vm.variableConfigurationReadyCount).toBe(0)
+
+    wrapper.vm.form.varCode = 'riskScore'
+    wrapper.vm.form.varLabel = '风险分'
+
+    expect(wrapper.vm.variableConfigurationChecklist.map(item => item.ready))
+      .toEqual([false, false, false, false])
+  })
+
+  test('修改预览样例参数后旧结果立即失效', async () => {
+    wrapper.vm.dialogVisible = true
+    wrapper.vm.form = {
+      ...wrapper.vm.initForm(), scope: 'PROJECT', projectId: 1,
+      varCode: 'riskScore', varLabel: '风险分', varType: 'NUMBER',
+      varSource: 'DB', dbDatasourceId: 21,
+      dbSql: 'select score from risk where customer_id = ?',
+      dbParams: '["$.customerId"]', dbResultPath: '0.score'
+    }
+    wrapper.vm.draftPreviewParamsText = '{"customerId":"C001"}'
+    await nextTick()
+    wrapper.vm.draftPreviewResult = { resolvedValue: 88 }
+
+    wrapper.vm.draftPreviewParamsText = '{"customerId":"C002"}'
+    await nextTick()
+
+    expect(wrapper.vm.draftPreviewResult).toBeNull()
+    expect(wrapper.vm.variableConfigurationChecklist[3].ready).toBe(false)
   })
 
   test('字段配置检查按归属、定义、来源和预览反馈就绪状态', async () => {
