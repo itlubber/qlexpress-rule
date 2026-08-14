@@ -9,8 +9,10 @@ import java.lang.reflect.Proxy;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 public class OnnxModelWarmupRunnerTest {
 
@@ -78,6 +80,36 @@ public class OnnxModelWarmupRunnerTest {
         assertEquals(2, preloads.get());
     }
 
+    @Test
+    public void backfillsMissingDigestBeforePreloadingHistoricalModel() throws Exception {
+        RuleModel historical = model("ONNX", 1, 1);
+        historical.setModelDigest(null);
+        AtomicReference<RuleModel> updated = new AtomicReference<>();
+        OnnxModelExecutionService executionService = new OnnxModelExecutionService(null) {
+            @Override
+            public void preload(byte[] modelBytes, String configJson) {
+                assertNotNull(updated.get());
+            }
+        };
+        RuleModelMapper mapper = (RuleModelMapper) Proxy.newProxyInstance(
+                RuleModelMapper.class.getClassLoader(), new Class<?>[]{RuleModelMapper.class},
+                (proxy, method, args) -> {
+                    if ("selectList".equals(method.getName())) return java.util.Collections.singletonList(historical);
+                    if ("selectById".equals(method.getName())) return historical;
+                    if ("updateById".equals(method.getName())) {
+                        updated.set((RuleModel) args[0]);
+                        return 1;
+                    }
+                    return null;
+                });
+
+        new OnnxModelWarmupRunner(mapper, executionService).run(null);
+
+        assertEquals(
+                "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81",
+                updated.get().getModelDigest());
+    }
+
     private static RuleModel model(String format, int status, int preload) {
         RuleModel model = new RuleModel();
         model.setId((long) (format.hashCode() + status + preload));
@@ -86,6 +118,7 @@ public class OnnxModelWarmupRunnerTest {
         model.setStatus(status);
         model.setPreloadOnStartup(preload);
         model.setModelContent(Base64.getEncoder().encodeToString(new byte[]{1, 2, 3}));
+        model.setModelDigest("039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81");
         model.setModelConfig("{\"onnxTaskType\":\"MN3_ANTISPOOF\"}");
         return model;
     }

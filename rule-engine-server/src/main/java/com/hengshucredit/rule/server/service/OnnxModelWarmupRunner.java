@@ -2,6 +2,7 @@ package com.hengshucredit.rule.server.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.hengshucredit.rule.model.entity.RuleModel;
+import com.hengshucredit.rule.server.artifact.Sha256Digests;
 import com.hengshucredit.rule.server.mapper.RuleModelMapper;
 import com.hengshucredit.rule.server.service.onnx.OnnxModelExecutionService;
 import org.slf4j.Logger;
@@ -44,6 +45,13 @@ public class OnnxModelWarmupRunner implements ApplicationRunner {
             if (model == null) continue;
             try {
                 byte[] modelBytes = Base64.getDecoder().decode(model.getModelContent());
+                if (model.getModelDigest() == null || model.getModelDigest().trim().isEmpty()) {
+                    RuleModel digestUpdate = new RuleModel();
+                    digestUpdate.setId(model.getId());
+                    digestUpdate.setModelDigest(Sha256Digests.bytes(modelBytes));
+                    modelMapper.updateById(digestUpdate);
+                    model.setModelDigest(digestUpdate.getModelDigest());
+                }
                 executionService.preload(modelBytes, model.getModelConfig());
                 log.info("ONNX 模型启动预加载成功: {}({})", model.getModelName(), model.getModelCode());
             } catch (RuntimeException | LinkageError e) {
