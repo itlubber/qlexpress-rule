@@ -614,6 +614,7 @@
           <thead>
             <tr>
               <th>规则号</th>
+              <th>规则名称</th>
               <template v-if="!tableUseCondSummary">
                 <th v-for="c in ruleCols" :key="c">{{ varMap[c] || c }}</th>
               </template>
@@ -626,9 +627,13 @@
             <tr
               v-for="r in tableRules"
               :key="r.no"
-              :class="{ 'rt-hit': r.hit }"
+              :class="{
+                'rt-hit': r.hit,
+                'rt-skipped': r.status === 'skipped',
+              }"
             >
               <td>R{{ r.no }}</td>
+              <td>{{ r.ruleName || '-' }}</td>
               <template v-if="!tableUseCondSummary">
                 <td v-for="c in ruleCols" :key="c">
                   <strong v-if="r.hit">{{ r.conds[c] || '-' }}</strong
@@ -638,8 +643,13 @@
               <td class="rt-cond-cell">{{ tableCondSummaryText(r) }}</td>
               <td v-for="a in actionCols" :key="a">{{ r.acts[a] || '-' }}</td>
               <td>
-                <span v-if="r.hit" class="rt-badge">命中</span
-                ><span v-else>-</span>
+                <span v-if="r.status === 'hit'" class="rt-badge">命中</span>
+                <span v-else-if="r.status === 'miss'" class="rt-badge rt-badge--miss">
+                  未命中
+                </span>
+                <span v-else class="rt-badge rt-badge--skipped">
+                  {{ r.statusText }}
+                </span>
               </td>
             </tr>
           </tbody>
@@ -1235,8 +1245,48 @@ export default {
     tableRules: function () {
       var stmts = this._getStatements()
       var ifNode = this._findFirstIf(stmts)
-      if (!ifNode) return []
-      return this._walkIfChain(ifNode)
+      var traceRules = ifNode ? this._walkIfChain(ifNode) : []
+      var hitPolicy =
+        this.definitionModel && this.definitionModel.hitPolicy
+      var modelRules =
+        !hitPolicy || hitPolicy === 'FIRST' ? this._modelTableRules() : []
+      var configuredRules = modelRules.length ? modelRules : traceRules
+      var merged = []
+      var priorHit = false
+      for (var i = 0; i < configuredRules.length; i++) {
+        var configured = modelRules[i] || {}
+        var traced = traceRules[i] || null
+        var status = this._tableRuleStatus(traced)
+        var skippedByFirst =
+          status === 'skipped' &&
+          this.definitionModel &&
+          (!hitPolicy || hitPolicy === 'FIRST') &&
+          priorHit
+        var conds =
+          configured.conds && Object.keys(configured.conds).length
+            ? configured.conds
+            : (traced && traced.conds) || {}
+        var acts =
+          configured.acts && Object.keys(configured.acts).length
+            ? configured.acts
+            : (traced && traced.acts) || {}
+        merged.push({
+          no: i + 1,
+          ruleName: configured.ruleName || '',
+          conds: conds,
+          condNode: traced ? traced.condNode : null,
+          configuredConditionText:
+            configured.configuredConditionText || '',
+          configuredHasOr: configured.configuredHasOr === true,
+          acts: acts,
+          evaluated: traced ? traced.evaluated : false,
+          hit: status === 'hit',
+          status: status,
+          statusText: this._tableRuleStatusText(status, skippedByFirst),
+        })
+        if (status === 'hit') priorHit = true
+      }
+      return merged
     },
     ruleCols: function () {
       var cols = [],
@@ -1278,7 +1328,11 @@ export default {
     tableUseCondSummary: function () {
       var rules = this.tableRules
       for (var i = 0; i < rules.length; i++) {
-        if (this._condHasOr(rules[i].condNode)) return true
+        if (
+          rules[i].configuredHasOr ||
+          this._condHasOr(rules[i].condNode)
+        )
+          return true
       }
       return false
     },
@@ -2377,6 +2431,149 @@ export default {
     },
 
     // ─── 决策表/交叉表解析 ───
+    _modelTableRules: function () {
+      var model = this.definitionModel
+      var rules = model && Array.isArray(model.rules) ? model.rules : []
+      var result = []
+      for (var i = 0; i < rules.length; i++) {
+        var rule = rules[i] || {}
+        var conds = this._modelConditionCells(rule, model)
+        result.push({
+          no: i + 1,
+          ruleName:
+            rule.ruleName || rule.name || rule.ruleCode || 'R' + (i + 1),
+          conds: conds,
+          configuredConditionText:
+            this._modelConditionText(rule.conditionRoot) ||
+            this._modelLegacyConditionText(conds),
+          configuredHasOr: this._modelConditionHasOr(rule.conditionRoot),
+          acts: this._modelActionCells(rule, model),
+        })
+      }
+      return result
+    },
+    _modelConditionCells: function (rule, model) {
+      var cells = {}
+      if (rule && rule.conditionRoot) {
+        this._appendModelConditionCells(rule.conditionRoot, cells)
+        return cells
+      }
+      var definitions =
+        model && Array.isArray(model.conditions) ? model.conditions : []
+      var conditions =
+        rule && Array.isArray(rule.conditions) ? rule.conditions : []
+      for (var i = 0; i < conditions.length; i++) {
+        var condition = conditions[i] || {}
+        var definition = definitions[i] || {}
+        var code = condition.varCode || definition.varCode || ''
+        if (!code) continue
+        var operator = condition.operator || definition.operator || ''
+        var value =
+          condition.value !== undefined ? condition.value : definition.value
+        cells[code] = this._modelConditionValue(operator, value)
+      }
+      return cells
+    },
+    _appendModelConditionCells: function (node, cells) {
+      if (!node) return
+      if (node.type === 'group') {
+        var children = Array.isArray(node.children) ? node.children : []
+        for (var i = 0; i < children.length; i++) {
+          this._appendModelConditionCells(children[i], cells)
+        }
+        return
+      }
+      var code = this._modelOperandCode(node.leftOperand) || node.varCode || ''
+      if (!code) return
+      var value = node.rightOperand
+        ? this._modelOperandText(node.rightOperand)
+        : node.value
+      cells[code] = this._modelConditionValue(node.operator, value)
+    },
+    _modelConditionValue: function (operator, value) {
+      if (operator === '*') return '任意'
+      var operatorText = OP_CN[operator] || operator || ''
+      var valueText = value === undefined ? '' : this._displayVal(value)
+      return (operatorText + ' ' + valueText).trim() || '-'
+    },
+    _modelConditionText: function (node) {
+      if (!node) return ''
+      if (node.type === 'group') {
+        var children = Array.isArray(node.children) ? node.children : []
+        if (!children.length) return '默认规则'
+        var parts = []
+        for (var i = 0; i < children.length; i++) {
+          var text = this._modelConditionText(children[i])
+          if (text) parts.push(text)
+        }
+        return parts.join(node.op === 'OR' ? ' 或 ' : ' 且 ')
+      }
+      var code = this._modelOperandCode(node.leftOperand) || node.varCode || '?'
+      var label =
+        (node.leftOperand && node.leftOperand.label) || this.varMap[code] || code
+      var value = node.rightOperand
+        ? this._modelOperandText(node.rightOperand)
+        : node.value
+      return label + ' ' + this._modelConditionValue(node.operator, value)
+    },
+    _modelLegacyConditionText: function (cells) {
+      var keys = Object.keys(cells || {})
+      if (!keys.length) return '默认规则'
+      var self = this
+      return keys
+        .map(function (key) {
+          return (self.varMap[key] || key) + ' ' + cells[key]
+        })
+        .join(' 且 ')
+    },
+    _modelConditionHasOr: function (node) {
+      if (!node || node.type !== 'group') return false
+      if (node.op === 'OR') return true
+      var children = Array.isArray(node.children) ? node.children : []
+      for (var i = 0; i < children.length; i++) {
+        if (this._modelConditionHasOr(children[i])) return true
+      }
+      return false
+    },
+    _modelActionCells: function (rule, model) {
+      var cells = {}
+      var definitions =
+        model && Array.isArray(model.actions) ? model.actions : []
+      var actions = rule && Array.isArray(rule.actions) ? rule.actions : []
+      for (var i = 0; i < actions.length; i++) {
+        var action = actions[i] || {}
+        var definition = definitions[i] || {}
+        var code =
+          this._modelOperandCode(action.targetOperand) ||
+          action.varCode ||
+          definition.varCode ||
+          ''
+        if (!code) continue
+        var value = action.valueOperand
+          ? this._modelOperandText(action.valueOperand)
+          : action.value
+        cells[code] = value === undefined ? '-' : this._displayVal(value)
+      }
+      return cells
+    },
+    _modelOperandCode: function (operand) {
+      if (!operand) return ''
+      return operand.code || operand.value || operand.varCode || ''
+    },
+    _modelOperandText: function (operand) {
+      if (!operand) return ''
+      if (operand.kind === 'LITERAL') return operand.value
+      return operand.label || operand.code || operand.value || ''
+    },
+    _tableRuleStatus: function (rule) {
+      if (!rule || rule.evaluated === false) return 'skipped'
+      return rule.hit ? 'hit' : 'miss'
+    },
+    _tableRuleStatusText: function (status, skippedByFirst) {
+      if (status === 'hit') return '命中'
+      if (status === 'miss') return '未命中'
+      return skippedByFirst ? '未执行（首次命中后终止）' : '未执行'
+    },
     _walkIfChain: function (node) {
       var rules = []
       var current = node
@@ -2386,12 +2583,14 @@ export default {
         var condNode = ch[0]
         var thenNode = ch[1]
         var elseNode = ch[2]
-        var hit = condNode && condNode.evaluated && condNode.value === true
+        var evaluated = condNode && condNode.evaluated !== false
+        var hit = evaluated && condNode.value === true
         rules.push({
           no: no++,
           conds: this._extractConds(condNode),
           condNode: condNode,
           acts: this._extractActMap(thenNode),
+          evaluated: evaluated,
           hit: hit,
         })
         if (!elseNode) break
@@ -2405,6 +2604,7 @@ export default {
             conds: { _default: '其他' },
             condNode: null,
             acts: this._extractActMap(elseNode),
+            evaluated: isEvaled,
             hit: isEvaled && !this._anyHit(rules),
           })
           break
@@ -3157,9 +3357,16 @@ export default {
      * 决策表追踪表格：条件列展示（含与/或嵌套的递归文案）。
      */
     tableCondSummaryText: function (r) {
-      if (!r || !r.condNode) return '-'
-      if (this._condHasOr(r.condNode)) return this._traceCondText(r.condNode)
-      return this._condTextSimple(r.condNode)
+      if (!r) return '-'
+      var traced = '-'
+      if (r.condNode) {
+        traced = this._condHasOr(r.condNode)
+          ? this._traceCondText(r.condNode)
+          : this._condTextSimple(r.condNode)
+      }
+      return traced && traced !== '-'
+        ? traced
+        : r.configuredConditionText || '-'
     },
     /**
      * 递归将条件追踪节点格式化为可读中文（支持 && 与 ||）。
@@ -5339,10 +5546,19 @@ export default {
 .rt-table tr.rt-hit td {
   font-weight: 600;
 }
+.rt-table tr.rt-skipped {
+  background: #f8fafc;
+}
 .rt-badge {
   color: #67c23a;
   font-weight: 700;
   white-space: nowrap;
+}
+.rt-badge--miss {
+  color: #64748b;
+}
+.rt-badge--skipped {
+  color: #946200;
 }
 .rt-footer {
   text-align: center;

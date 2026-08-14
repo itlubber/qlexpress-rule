@@ -121,6 +121,56 @@ function ruleSetIfNode(condNode, hit, hitInfo) {
   }
 }
 
+function tableCondition(varCode, operator, value) {
+  return {
+    type: 'group',
+    op: 'AND',
+    children: [{
+      type: 'leaf',
+      operator,
+      leftOperand: {
+        kind: 'REFERENCE', code: varCode, value: varCode, valueType: 'NUMBER'
+      },
+      rightOperand: { kind: 'LITERAL', value, valueType: 'NUMBER' }
+    }]
+  }
+}
+
+function tableAction(varCode, value) {
+  return {
+    targetOperand: {
+      kind: 'REFERENCE', code: varCode, value: varCode, valueType: 'STRING'
+    },
+    valueOperand: { kind: 'LITERAL', value, valueType: 'STRING' }
+  }
+}
+
+function tableIfNode(condNode, actionValue, elseIf, elseEvaluated = true) {
+  const hit = condNode && condNode.evaluated !== false && condNode.value === true
+  const children = [
+    condNode,
+    {
+      type: 'BLOCK',
+      evaluated: hit,
+      children: hit ? [assignNode('decision', actionValue)] : []
+    }
+  ]
+  if (elseIf) {
+    children.push({
+      type: 'BLOCK',
+      evaluated: elseEvaluated,
+      children: [elseIf]
+    })
+  }
+  return { type: 'IF', token: 'if', evaluated: true, value: hit, children }
+}
+
+function skippedTableCondition(operator) {
+  return {
+    type: 'OPERATOR', token: operator, evaluated: false, children: []
+  }
+}
+
 describe('TraceTree', () => {
   test('默认表达式追踪按顶层语句拆成纵向步骤', () => {
     const wrapper = mountTraceTree({
@@ -203,6 +253,126 @@ describe('TraceTree', () => {
       wrapper.unmount()
     }
   )
+
+  test('FIRST 首条命中后后续规则保留静态配置并标记未执行', () => {
+    const secondIf = tableIfNode(skippedTableCondition('>='), 'REVIEW')
+    const firstIf = tableIfNode(
+      compareNode('score', '>=', 95, 90, true),
+      'PASS',
+      secondIf,
+      false
+    )
+    const wrapper = mountTraceTree({
+      modelType: 'TABLE',
+      definitionModel: {
+        hitPolicy: 'FIRST',
+        rules: [
+          {
+            ruleName: '高分通过',
+            conditionRoot: tableCondition('score', '>=', 90),
+            actions: [tableAction('decision', 'PASS')]
+          },
+          {
+            ruleName: '中分复核',
+            conditionRoot: tableCondition('score', '>=', 60),
+            actions: [tableAction('decision', 'REVIEW')]
+          }
+        ]
+      },
+      traceInfo: JSON.stringify([firstIf])
+    })
+
+    expect(wrapper.vm.tableRules).toHaveLength(2)
+    expect(wrapper.vm.tableRules[0]).toMatchObject({
+      ruleName: '高分通过', status: 'hit', statusText: '命中'
+    })
+    expect(wrapper.vm.tableRules[1]).toMatchObject({
+      ruleName: '中分复核',
+      status: 'skipped',
+      statusText: '未执行（首次命中后终止）'
+    })
+    expect(wrapper.vm.tableRules[1].acts).toEqual({ decision: 'REVIEW' })
+    expect(wrapper.vm.tableRules[1].configuredConditionText).toContain('60')
+    expect(wrapper.text()).toContain('未执行（首次命中后终止）')
+  })
+
+  test('FIRST 中间命中时按执行顺序展示未命中命中和未执行', () => {
+    const thirdIf = tableIfNode(skippedTableCondition('>='), 'REJECT')
+    const secondIf = tableIfNode(
+      compareNode('score', '>=', 75, 60, true),
+      'REVIEW',
+      thirdIf,
+      false
+    )
+    const firstIf = tableIfNode(
+      compareNode('score', '>=', 75, 90, false),
+      'PASS',
+      secondIf
+    )
+    const wrapper = mountTraceTree({
+      modelType: 'TABLE',
+      definitionModel: {
+        hitPolicy: 'FIRST',
+        rules: [
+          { conditionRoot: tableCondition('score', '>=', 90), actions: [tableAction('decision', 'PASS')] },
+          { conditionRoot: tableCondition('score', '>=', 60), actions: [tableAction('decision', 'REVIEW')] },
+          { conditionRoot: tableCondition('score', '>=', 0), actions: [tableAction('decision', 'REJECT')] }
+        ]
+      },
+      traceInfo: JSON.stringify([firstIf])
+    })
+
+    expect(wrapper.vm.tableRules.map(rule => rule.status))
+      .toEqual(['miss', 'hit', 'skipped'])
+  })
+
+  test('FIRST 无命中和默认规则命中都保留真实三态', () => {
+    const noHit = mountTraceTree({
+      modelType: 'TABLE',
+      definitionModel: {
+        hitPolicy: 'FIRST',
+        rules: [
+          { conditionRoot: tableCondition('score', '>=', 90), actions: [tableAction('decision', 'PASS')] },
+          { conditionRoot: tableCondition('score', '>=', 60), actions: [tableAction('decision', 'REVIEW')] }
+        ]
+      },
+      traceInfo: JSON.stringify([
+        tableIfNode(
+          compareNode('score', '>=', 20, 90, false),
+          'PASS',
+          tableIfNode(compareNode('score', '>=', 20, 60, false), 'REVIEW')
+        )
+      ])
+    })
+    expect(noHit.vm.tableRules.map(rule => rule.status)).toEqual(['miss', 'miss'])
+    noHit.unmount()
+
+    const defaultHit = mountTraceTree({
+      modelType: 'TABLE',
+      definitionModel: {
+        hitPolicy: 'FIRST',
+        rules: [
+          { conditionRoot: tableCondition('score', '>=', 60), actions: [tableAction('decision', 'REVIEW')] },
+          {
+            ruleName: '默认拒绝',
+            conditionRoot: { type: 'group', op: 'AND', children: [] },
+            actions: [tableAction('decision', 'REJECT')]
+          }
+        ]
+      },
+      traceInfo: JSON.stringify([
+        tableIfNode(
+          compareNode('score', '>=', 20, 60, false),
+          'REVIEW',
+          tableIfNode(valueNode(true, 'true'), 'REJECT')
+        )
+      ])
+    })
+    expect(defaultHit.vm.tableRules.map(rule => rule.status)).toEqual(['miss', 'hit'])
+    expect(defaultHit.vm.tableRules[1]).toMatchObject({
+      ruleName: '默认拒绝', acts: { decision: 'REJECT' }
+    })
+  })
 
   test('决策流对象参数和结果显示为可读 JSON', () => {
     const faces = { faces: [{ score: 0.98 }] }
