@@ -306,7 +306,7 @@ describe('九类设计器草稿保护', () => {
     wrapper.unmount()
   })
 
-  test.each(designers)('%s 在无 DRAFT 时基于当前修订进入可编辑草稿', async (
+  test.each(designers)('%s 在无 DRAFT 时只读展示且点击开始编辑后才创建草稿', async (
     _name,
     component
   ) => {
@@ -334,6 +334,15 @@ describe('九类设计器草稿保护', () => {
     })
 
     const wrapper = mountDesigner(component)
+    await flushPromises()
+
+    expect(definitionApi.createDraftRevision).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="draft-read-only"]').exists()).toBe(true)
+    expect(wrapper.vm.canEditDraft).toBe(false)
+    expect(wrapper.vm.draftRevision).toBeNull()
+    expect(wrapper.vm.viewRevision).toMatchObject({ id: 5, state: 'PUBLISHED' })
+
+    await wrapper.findComponent({ name: 'RuleDraftReadOnly' }).vm.$emit('fork')
     await flushPromises()
 
     expect(definitionApi.createDraftRevision).toHaveBeenCalledWith(30, 5)
@@ -380,7 +389,7 @@ describe('九类设计器草稿保护', () => {
   })
 
   test.each(explicitRevisionSources)(
-    '$name 在没有治理修订时根据旧版生效内容初始化可编辑草稿',
+    '$name 在没有治理修订时只读加载旧版内容且点击开始编辑后才创建草稿',
     async ({ component, model, assertLoaded }) => {
       definitionApi.listRuleRevisions.mockResolvedValueOnce({ data: [] })
       definitionApi.getContent.mockResolvedValueOnce({
@@ -405,10 +414,17 @@ describe('九类设计器草稿保护', () => {
       await flushPromises()
 
       expect(wrapper.vm.viewRevision).toMatchObject({
-        id: 6,
-        state: 'DRAFT',
+        id: 'legacy-content:30',
+        state: 'LEGACY',
       })
       assertLoaded(wrapper.vm)
+      expect(definitionApi.createDraftRevision).not.toHaveBeenCalled()
+      expect(wrapper.find('[data-testid="draft-read-only"]').exists()).toBe(true)
+      expect(wrapper.vm.canEditDraft).toBe(false)
+
+      await wrapper.findComponent({ name: 'RuleDraftReadOnly' }).vm.$emit('fork')
+      await flushPromises()
+
       expect(definitionApi.createDraftRevision).toHaveBeenCalledWith(30)
       expect(wrapper.find('[data-testid="draft-read-only"]').exists()).toBe(false)
       expect(wrapper.vm.canEditDraft).toBe(true)

@@ -56,7 +56,7 @@ describe('RuleDraftReadOnly source actions', () => {
     })
 
     expect(wrapper.text()).toContain('版本 7')
-    expect(wrapper.text()).toContain('基于此节点编辑')
+    expect(wrapper.text()).toContain('开始编辑')
     await wrapper.get('[data-testid="fork-view-revision"]').trigger('click')
     expect(wrapper.emitted('fork')).toHaveLength(1)
   })
@@ -70,20 +70,21 @@ describe('RuleDraftReadOnly source actions', () => {
     expect(wrapper.find('[data-testid="fork-view-revision"]').exists()).toBe(false)
   })
 
-  test('明确说明旧版历史内容只读且必须显式创建草稿', () => {
+  test('旧版历史内容提供显式开始编辑入口', () => {
     const wrapper = mount(RuleDraftReadOnly, {
       props: {
         visible: true,
         loading: false,
         revisionLabel: '历史生效内容',
         revisionState: 'LEGACY',
+        canFork: true,
       },
     })
 
     expect(wrapper.text()).toContain('历史生效内容')
     expect(wrapper.text()).toContain('旧版历史内容，只读展示')
-    expect(wrapper.text()).toContain('前往规则生命周期创建草稿')
-    expect(wrapper.find('[data-testid="fork-view-revision"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('开始编辑')
+    expect(wrapper.find('[data-testid="fork-view-revision"]').exists()).toBe(true)
   })
 
   test('distinguishes failed source loading from an ordinary read-only node', () => {

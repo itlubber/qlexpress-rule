@@ -13,8 +13,6 @@ function sourceKey(source) {
   return source ? `${source.sourceType}:${source.sourceId}` : ''
 }
 
-const EDITABLE_BASE_STATES = ['APPROVED', 'PUBLISHED', 'OFFLINE', 'LEGACY']
-
 export default {
   data() {
     return {
@@ -54,7 +52,7 @@ export default {
       )
     },
     canForkViewRevision() {
-      return ['VERSION', 'APPROVED', 'PUBLISHED', 'OFFLINE'].includes(
+      return ['VERSION', 'APPROVED', 'PUBLISHED', 'OFFLINE', 'LEGACY'].includes(
         this.viewRevision?.state
       )
     },
@@ -204,14 +202,6 @@ export default {
             modelJson,
           }
         }
-        if (EDITABLE_BASE_STATES.includes(this.viewRevision?.state)) {
-          await this.createEditableEntryDraft(
-            definitionId,
-            requestedSourceKey,
-            refreshToken
-          )
-          if (!this.isCurrentSource(requestedSourceKey, refreshToken)) return null
-        }
         return { refreshToken, sourceKey: requestedSourceKey }
       } catch (error) {
         if (!this.isCurrentSource(requestedSourceKey, refreshToken)) return null
@@ -224,62 +214,54 @@ export default {
         }
       }
     },
-    async createEditableEntryDraft(
-      definitionId,
-      requestedSourceKey,
-      refreshToken
-    ) {
-      const baseRevisionId =
-        this.viewRevision?.state === 'LEGACY' ? undefined : this.viewRevision?.id
-      const response =
-        baseRevisionId === undefined
-          ? await definitionApi.createDraftRevision(definitionId)
-          : await definitionApi.createDraftRevision(definitionId, baseRevisionId)
-      if (!this.isCurrentSource(requestedSourceKey, refreshToken)) return null
-      const revision = unwrap(response)
-      if (!revision || revision.state !== 'DRAFT') {
-        throw new Error('创建可编辑草稿响应缺少 DRAFT 修订')
-      }
-      this.draftRevision = revision
-      this.viewRevision = revision
-      return revision
-    },
     async forkViewRevision() {
       if (!this.canForkViewRevision) {
         throw new Error('当前节点不允许派生草稿')
       }
       const definitionId = this.definitionId || this.$route.params.id
-      const sourceType = this.viewRevision.sourceType === 'VERSION' ? 'VERSION' : 'REVISION'
-      const sourceId =
-        this.requestedSource?.sourceType === sourceType
-          ? this.requestedSource.sourceId
-          : this.viewRevision.sourceId ?? this.viewRevision.id
       const action = {
         sourceKey: sourceKey(this.requestedSource),
         refreshToken: this.viewRefreshToken,
         viewId: String(this.viewRevision.id),
       }
-      const response = await definitionApi.createDraftFromSource(definitionId, {
-        sourceType,
-        sourceId,
-      })
-      const result = unwrap(response)
-      const revision = result?.revision || result
-      if (!revision || revision.state !== 'DRAFT') {
-        if (this.isCurrentViewAction(action)) {
-          this.draftRevision = null
-          this.viewRevision = null
+      try {
+        let response
+        if (this.requestedSource) {
+          response = await definitionApi.createDraftFromSource(definitionId, {
+            sourceType: this.requestedSource.sourceType,
+            sourceId: this.requestedSource.sourceId,
+          })
+        } else if (this.viewRevision.state === 'LEGACY') {
+          response = await definitionApi.createDraftRevision(definitionId)
+        } else {
+          response = await definitionApi.createDraftRevision(
+            definitionId,
+            this.viewRevision.id
+          )
         }
-        throw new Error('派生草稿响应缺少 DRAFT 修订')
+        const result = unwrap(response)
+        const revision = result?.revision || result
+        if (!revision || revision.state !== 'DRAFT') {
+          throw new Error('派生草稿响应缺少 DRAFT 修订')
+        }
+        if (!this.isCurrentViewAction(action)) return result
+        this.draftRevision = revision
+        this.viewRevision = revision
+        this.draftIssues = Array.isArray(result?.issues) ? result.issues : []
+        this.$router.replace({
+          query: { sourceType: 'REVISION', sourceId: String(revision.id) },
+        })
+        return result
+      } catch (error) {
+        if (
+          this.isCurrentViewAction(action) &&
+          !error?.requestErrorNotified &&
+          this.$message?.error
+        ) {
+          this.$message.error(error?.message || '创建草稿失败，请稍后重试')
+        }
+        throw error
       }
-      if (!this.isCurrentViewAction(action)) return result
-      this.draftRevision = revision
-      this.viewRevision = revision
-      this.draftIssues = Array.isArray(result?.issues) ? result.issues : []
-      this.$router.replace({
-        query: { sourceType: 'REVISION', sourceId: String(revision.id) },
-      })
-      return result
     },
     async saveDraftModel(modelJson, extra = {}) {
       if (this.draftGuardPromise) await this.draftGuardPromise

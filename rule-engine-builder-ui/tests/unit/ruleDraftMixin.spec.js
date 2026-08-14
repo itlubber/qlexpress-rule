@@ -11,7 +11,7 @@ function mountHost() {
   }, {
     mocks: {
       $route: { params: { id: 30 }, query: {} },
-      $router: { push: vi.fn() },
+      $router: { push: vi.fn(), replace: vi.fn() },
     },
   })
 }
@@ -157,7 +157,7 @@ describe('ruleDraftMixin', () => {
     wrapper.unmount()
   })
 
-  test('无 DRAFT 时基于当前已发布修订创建草稿并允许保存', async () => {
+  test('无 DRAFT 时只读展示当前已发布修订且点击开始编辑后才创建草稿', async () => {
     definitionApi.listRuleRevisions.mockResolvedValueOnce({
       data: [
         {
@@ -196,6 +196,13 @@ describe('ruleDraftMixin', () => {
     const wrapper = mountHost()
     await flushPromises()
 
+    expect(definitionApi.createDraftRevision).not.toHaveBeenCalled()
+    expect(wrapper.vm.canEditDraft).toBe(false)
+    expect(wrapper.vm.draftRevision).toBeNull()
+    expect(wrapper.vm.viewRevision).toMatchObject({ id: 5, state: 'PUBLISHED' })
+
+    await wrapper.vm.forkViewRevision()
+
     expect(definitionApi.createDraftRevision).toHaveBeenCalledWith(30, 5)
     expect(wrapper.vm.canEditDraft).toBe(true)
     expect(wrapper.vm.viewRevision).toMatchObject({ id: 6, state: 'DRAFT' })
@@ -212,7 +219,7 @@ describe('ruleDraftMixin', () => {
     wrapper.unmount()
   })
 
-  test('没有治理修订时根据旧版生效内容初始化可编辑草稿', async () => {
+  test('没有治理修订时只读加载旧版内容且点击开始编辑后才创建草稿', async () => {
     definitionApi.listRuleRevisions.mockResolvedValueOnce({ data: [] })
     definitionApi.getContent.mockResolvedValueOnce({
       data: {
@@ -235,12 +242,19 @@ describe('ruleDraftMixin', () => {
     await flushPromises()
 
     expect(wrapper.vm.viewRevision).toMatchObject({
-      id: 6,
+      id: 'legacy-content:30',
       definitionId: 30,
-      state: 'DRAFT',
+      state: 'LEGACY',
       modelJson: '{"rules":[{"id":"legacy"}]}',
     })
+    expect(definitionApi.createDraftRevision).not.toHaveBeenCalled()
+    expect(wrapper.vm.canEditDraft).toBe(false)
+    expect(wrapper.vm.canForkViewRevision).toBe(true)
+
+    await wrapper.vm.forkViewRevision()
+
     expect(definitionApi.createDraftRevision).toHaveBeenCalledWith(30)
+    expect(wrapper.vm.viewRevision).toMatchObject({ id: 6, state: 'DRAFT' })
     expect(wrapper.vm.canEditDraft).toBe(true)
     wrapper.unmount()
   })
@@ -636,6 +650,7 @@ describe('ruleDraftMixin stable source loading', () => {
     await expect(wrapper.vm.forkViewRevision()).rejects.toThrow('conflict')
 
     expect(wrapper.vm.viewRevision).toBe(viewed)
+    expect(wrapper.vm.$message.error).toHaveBeenCalledWith('conflict')
     expect(definitionApi.saveContent).not.toHaveBeenCalled()
     wrapper.unmount()
   })
@@ -707,18 +722,12 @@ describe('ruleDraftMixin stable source loading', () => {
     wrapper.unmount()
   })
 
-  test('ignores an older automatic draft response after historical view wins', async () => {
-    let resolveDraft
+  test('默认修订加载和切换历史节点都不会隐式创建草稿', async () => {
     definitionApi.listRuleRevisions
       .mockResolvedValueOnce({
         data: [{ id: 5, revisionNo: 2, state: 'PUBLISHED' }],
       })
       .mockResolvedValueOnce({ data: [] })
-    definitionApi.createDraftRevision.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveDraft = resolve
-      })
-    )
     definitionApi.getRuleRevision.mockResolvedValueOnce({
       data: {
         id: 4,
@@ -733,11 +742,9 @@ describe('ruleDraftMixin stable source loading', () => {
     wrapper.vm.$route.query.sourceType = 'REVISION'
     wrapper.vm.$route.query.sourceId = '4'
     await wrapper.vm.refreshViewedRevision()
-    resolveDraft({
-      data: { id: 6, revisionNo: 3, state: 'DRAFT', modelJson: '{}' },
-    })
-    await flushPromises()
 
+    expect(definitionApi.createDraftRevision).not.toHaveBeenCalled()
+    expect(definitionApi.createDraftFromSource).not.toHaveBeenCalled()
     expect(wrapper.vm.viewRevision).toMatchObject({
       id: 4,
       state: 'PUBLISHED',
