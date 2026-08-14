@@ -53,13 +53,7 @@
                 <el-option
                   v-for="r in rules"
                   :key="r.id"
-                  :label="
-                    (r.scope === 'GLOBAL' ? '[全局] ' : '[项目] ') +
-                    r.ruleName +
-                    ' (' +
-                    r.ruleCode +
-                    ')'
-                  "
+                  :label="ruleOptionLabel(r)"
                   :value="r.id"
                 />
               </el-select>
@@ -132,88 +126,10 @@
           </ul>
         </div>
 
-        <div v-if="selectedRule" class="uiue-card fixed-cases-card">
-          <div class="uiue-card-title fixed-cases-title">
-            <span>固定测试用例收藏</span>
-            <span>
-              <el-button link size="small" @click="saveCurrentTestCase"
-                ><el-icon><el-icon-star-off /></el-icon>
-                收藏当前输入与结果</el-button
-              >
-              <el-button
-                link
-                size="small"
-                :loading="batchExecuting"
-                :disabled="selectedTestCaseIds.length === 0"
-                @click="executeSelectedTestCases"
-                ><el-icon><el-icon-video-play /></el-icon> 批量执行</el-button
-              >
-            </span>
-          </div>
-          <async-state
-            :loading="testCasesLoading"
-            :error="testCasesError"
-            :empty="testCases.length === 0"
-            empty-text="暂无收藏用例，可将当前参数与结果保存为固定用例"
-            compact
-            @retry="loadTestCases"
-          >
-            <el-checkbox-group
-              v-model="selectedTestCaseIds"
-              class="fixed-case-list"
-            >
-              <div
-                v-for="testCase in testCases"
-                :key="testCase.id"
-                class="fixed-case-row"
-              >
-                <el-checkbox :value="testCase.id">{{
-                  testCase.scenarioName
-                }}</el-checkbox>
-                <el-button
-                  link
-                  size="small"
-                  @click="applyTestCase(testCase)"
-                  >载入</el-button
-                >
-              </div>
-            </el-checkbox-group>
-          </async-state>
-          <el-table
-            v-if="batchResults.length"
-            :data="batchResults"
-            border
-            size="small"
-            class="batch-result-table"
-          >
-            <el-table-column prop="scenarioName" label="用例" min-width="130" />
-            <el-table-column label="执行结果" min-width="90">
-              <template v-slot="{ row }"
-                ><el-tag
-                  :type="row.success ? 'success' : 'danger'"
-                  size="small"
-                  >{{ row.success ? '成功' : '失败' }}</el-tag
-                ></template
-              >
-            </el-table-column>
-            <el-table-column label="结果 Diff" min-width="220">
-              <template v-slot="{ row }">
-                <span v-if="row.diffs.length === 0" class="diff-pass"
-                  >与收藏结果一致</span
-                >
-                <div v-else class="diff-lines">
-                  <div v-for="(diff, index) in row.diffs" :key="index">
-                    <code>{{ diff.path }}</code
-                    >：{{ formatJson(diff.expected) }} →
-                    {{ formatJson(diff.actual) }}
-                  </div>
-                </div>
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
-
-        <div class="uiue-card" style="margin-top: 12px">
+        <div
+          class="uiue-card input-parameters-card"
+          style="margin-top: 12px"
+        >
           <div class="uiue-card-title">
             输入参数
             <el-button
@@ -332,6 +248,102 @@
               </el-button>
             </div>
           </el-form>
+        </div>
+
+        <div
+          v-if="selectedRule"
+          class="uiue-card fixed-cases-card"
+          :class="{
+            'is-empty':
+              !testCasesLoading && !testCasesError && testCases.length === 0,
+          }"
+        >
+          <div class="uiue-card-title fixed-cases-title">
+            <span>固定测试用例收藏</span>
+            <span>
+              <el-button link size="small" @click="saveCurrentTestCase"
+                ><el-icon><el-icon-star-off /></el-icon>
+                收藏当前输入与结果</el-button
+              >
+              <el-button
+                link
+                size="small"
+                :loading="batchExecuting"
+                :disabled="selectedTestCaseIds.length === 0"
+                @click="executeSelectedTestCases"
+                ><el-icon><el-icon-video-play /></el-icon> 批量执行</el-button
+              >
+            </span>
+          </div>
+          <div
+            v-if="
+              !testCasesLoading && !testCasesError && testCases.length === 0
+            "
+            class="fixed-case-empty"
+          >
+            暂无收藏用例，可将当前参数与结果保存为固定用例
+          </div>
+          <async-state
+            v-else
+            :loading="testCasesLoading"
+            :error="testCasesError"
+            :empty="false"
+            compact
+            @retry="loadTestCases"
+          >
+            <el-checkbox-group
+              v-model="selectedTestCaseIds"
+              class="fixed-case-list"
+            >
+              <div
+                v-for="testCase in testCases"
+                :key="testCase.id"
+                class="fixed-case-row"
+              >
+                <el-checkbox :value="testCase.id">{{
+                  testCase.scenarioName
+                }}</el-checkbox>
+                <el-button
+                  link
+                  size="small"
+                  @click="applyTestCase(testCase)"
+                  >载入</el-button
+                >
+              </div>
+            </el-checkbox-group>
+          </async-state>
+          <el-table
+            v-if="batchResults.length"
+            :data="batchResults"
+            border
+            size="small"
+            class="batch-result-table"
+          >
+            <el-table-column prop="scenarioName" label="用例" min-width="130" />
+            <el-table-column label="执行结果" min-width="90">
+              <template v-slot="{ row }"
+                ><el-tag
+                  :type="row.success ? 'success' : 'danger'"
+                  size="small"
+                  >{{ row.success ? '成功' : '失败' }}</el-tag
+                ></template
+              >
+            </el-table-column>
+            <el-table-column label="结果 Diff" min-width="220">
+              <template v-slot="{ row }">
+                <span v-if="row.diffs.length === 0" class="diff-pass"
+                  >与收藏结果一致</span
+                >
+                <div v-else class="diff-lines">
+                  <div v-for="(diff, index) in row.diffs" :key="index">
+                    <code>{{ diff.path }}</code
+                    >：{{ formatJson(diff.expected) }} →
+                    {{ formatJson(diff.actual) }}
+                  </div>
+                </div>
+              </template>
+            </el-table-column>
+          </el-table>
         </div>
 
         <div style="margin-top: 16px; text-align: center">
@@ -1613,6 +1625,22 @@ export default {
       }
       cur[parts[parts.length - 1]] = value
     },
+    ruleOptionLabel(rule) {
+      if (!rule) return ''
+      const name = rule.ruleName || ''
+      const code = rule.ruleCode ? ' (' + rule.ruleCode + ')' : ''
+      if (rule.scope === 'GLOBAL') return '[全局] ' + name + code
+      const project =
+        this.projects.find(
+          (item) => String(item.id) === String(rule.projectId)
+        ) || {}
+      const identity = [
+        rule.projectName || project.projectName,
+        rule.projectCode || project.projectCode,
+      ].filter((part) => part != null && String(part).trim())
+      const prefix = identity.length ? '[' + identity.join(' / ') + '] ' : ''
+      return prefix + name + code
+    },
     mtl(t) {
       return (
         {
@@ -1664,6 +1692,14 @@ export default {
 }
 .fixed-cases-card {
   margin-top: 12px;
+}
+.fixed-cases-card.is-empty {
+  padding-bottom: 8px;
+}
+.fixed-case-empty {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 20px;
 }
 .fixed-cases-title {
   display: flex;

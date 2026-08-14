@@ -284,6 +284,50 @@ describe('RuleTest — 辅助方法', () => {
     expect(wrapper.vm.mtl('SCRIPT')).toBe('QL脚本')
   })
 
+  test('全部范围的项目规则标签包含项目名称和项目编码', () => {
+    expect(wrapper.vm.ruleOptionLabel({
+      id: 8,
+      scope: 'PROJECT',
+      projectId: 1,
+      projectName: '响应项目',
+      projectCode: 'RESPONSE_PROJECT',
+      ruleName: '同名规则',
+      ruleCode: 'SAME_RULE'
+    })).toBe('[响应项目 / RESPONSE_PROJECT] 同名规则 (SAME_RULE)')
+
+    expect(wrapper.vm.ruleOptionLabel(mockRules()[0]))
+      .toBe('[综合风控示例项目 / RISK_DEMO] 客商×产品总线定价表 (RC_PRICING_TABLE)')
+  })
+
+  test('规则标签省略缺失片段且全局规则保持明确标识', () => {
+    expect(wrapper.vm.ruleOptionLabel({
+      scope: 'GLOBAL', ruleName: '全局规则', ruleCode: 'GLOBAL_RULE'
+    })).toBe('[全局] 全局规则 (GLOBAL_RULE)')
+    expect(wrapper.vm.ruleOptionLabel({
+      scope: 'PROJECT', projectName: '仅名称', ruleName: '项目规则'
+    })).toBe('[仅名称] 项目规则')
+    expect(wrapper.vm.ruleOptionLabel({ scope: 'PROJECT', ruleName: '无项目元数据' }))
+      .toBe('无项目元数据')
+  })
+
+  test('输入参数位于固定测试用例之前且空用例卡片紧凑', async () => {
+    wrapper.vm.selectedRule = mockRules()[0]
+    wrapper.vm.testCases = []
+    wrapper.vm.testCasesLoading = false
+    wrapper.vm.testCasesError = ''
+    await nextTick()
+
+    const input = wrapper.find('.input-parameters-card')
+    const fixed = wrapper.find('.fixed-cases-card')
+    const html = wrapper.find('.test-left').html()
+
+    expect(input.exists()).toBe(true)
+    expect(fixed.exists()).toBe(true)
+    expect(html.indexOf('input-parameters-card'))
+      .toBeLessThan(html.indexOf('fixed-cases-card'))
+    expect(fixed.classes()).toContain('is-empty')
+  })
+
   test('mtl 对未知类型返回原值', () => {
     expect(wrapper.vm.mtl('UNKNOWN')).toBe('UNKNOWN')
   })
