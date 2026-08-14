@@ -2569,6 +2569,7 @@ export default {
       draftPreviewResult: null,
       draftPreviewError: '',
       draftPreviewing: false,
+      draftPreviewRequestId: 0,
       variableAdvancedSections: [],
       listItemTypeOptions: LIST_ITEM_TYPES,
       listCombinationModeOptions: LIST_COMBINATION_MODES,
@@ -2767,13 +2768,13 @@ export default {
     form: {
       deep: true,
       handler() {
-        if (this.dialogVisible && !this.draftPreviewing) {
+        if (this.dialogVisible) {
           this.invalidateDraftPreviewFeedback()
         }
       },
     },
     draftPreviewParamsText() {
-      if (this.dialogVisible && !this.draftPreviewing) {
+      if (this.dialogVisible) {
         this.invalidateDraftPreviewFeedback()
       }
     },
@@ -3049,8 +3050,10 @@ export default {
       this.invalidateDraftPreviewFeedback()
     },
     invalidateDraftPreviewFeedback() {
+      this.draftPreviewRequestId++
       this.draftPreviewResult = null
       this.draftPreviewError = ''
+      this.draftPreviewing = false
     },
     async loadVariableSourceCatalog(clearInvalid = false) {
       const requestId = ++this.sourceCatalogRequestId
@@ -3153,13 +3156,18 @@ export default {
         this.$message.warning('样例参数必须是 JSON 对象')
         return
       }
+      const requestId = ++this.draftPreviewRequestId
+      this.draftPreviewResult = null
+      this.draftPreviewError = ''
       this.draftPreviewing = true
       try {
         const response = await previewVariableDraft(payload, params)
+        if (requestId !== this.draftPreviewRequestId) return
         this.draftPreviewResult = (response && response.data) || response
         this.draftPreviewError = ''
         this.$message.success('取值预览成功')
       } catch (error) {
+        if (requestId !== this.draftPreviewRequestId) return
         this.draftPreviewResult = null
         this.draftPreviewError =
           (error && String(error.message || '').trim()) ||
@@ -3168,7 +3176,9 @@ export default {
           this.$message.error(this.draftPreviewError)
         }
       } finally {
-        this.draftPreviewing = false
+        if (requestId === this.draftPreviewRequestId) {
+          this.draftPreviewing = false
+        }
       }
     },
     async loadVariableSourceOptions(source) {

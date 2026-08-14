@@ -30,19 +30,24 @@ public class OnnxModelWarmupRunner implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         List<RuleModel> candidates = modelMapper.selectList(new QueryWrapper<RuleModel>()
-                .select("id", "model_code", "model_name", "model_format", "status", "preload_on_startup")
+                .select("id", "model_code", "model_name", "model_format", "status",
+                        "preload_on_startup", "model_digest")
                 .eq("model_format", "ONNX")
-                .eq("status", 1)
-                .eq("preload_on_startup", 1));
+                .ne("status", -1));
         if (candidates == null) return;
         for (RuleModel candidate : candidates) {
+            boolean missingDigest = candidate.getModelDigest() == null
+                    || candidate.getModelDigest().trim().isEmpty();
+            boolean shouldPreload = Integer.valueOf(1).equals(candidate.getStatus())
+                    && Integer.valueOf(1).equals(candidate.getPreloadOnStartup());
             if (!"ONNX".equals(candidate.getModelFormat())
-                    || !Integer.valueOf(1).equals(candidate.getStatus())
-                    || !Integer.valueOf(1).equals(candidate.getPreloadOnStartup())) {
+                    || Integer.valueOf(-1).equals(candidate.getStatus())
+                    || (!missingDigest && !shouldPreload)) {
                 continue;
             }
             RuleModel model = modelMapper.selectById(candidate.getId());
-            if (model == null) continue;
+            if (model == null || !"ONNX".equals(model.getModelFormat())
+                    || Integer.valueOf(-1).equals(model.getStatus())) continue;
             try {
                 byte[] modelBytes = Base64.getDecoder().decode(model.getModelContent());
                 if (model.getModelDigest() == null || model.getModelDigest().trim().isEmpty()) {
@@ -52,10 +57,14 @@ public class OnnxModelWarmupRunner implements ApplicationRunner {
                     modelMapper.updateById(digestUpdate);
                     model.setModelDigest(digestUpdate.getModelDigest());
                 }
-                executionService.preload(modelBytes, model.getModelConfig());
-                log.info("ONNX 模型启动预加载成功: {}({})", model.getModelName(), model.getModelCode());
+                if (Integer.valueOf(1).equals(model.getStatus())
+                        && Integer.valueOf(1).equals(model.getPreloadOnStartup())) {
+                    executionService.preload(modelBytes, model.getModelConfig());
+                    log.info("ONNX 模型启动预加载成功: {}({})", model.getModelName(), model.getModelCode());
+                }
             } catch (RuntimeException | LinkageError e) {
-                log.error("ONNX 模型启动预加载失败: {}({})", model.getModelName(), model.getModelCode(), e);
+                log.error("ONNX 模型摘要修复或启动预加载失败: {}({})",
+                        model.getModelName(), model.getModelCode(), e);
             }
         }
     }

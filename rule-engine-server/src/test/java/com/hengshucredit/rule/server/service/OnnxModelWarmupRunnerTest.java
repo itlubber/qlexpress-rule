@@ -12,7 +12,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 
 public class OnnxModelWarmupRunnerTest {
 
@@ -81,14 +80,15 @@ public class OnnxModelWarmupRunnerTest {
     }
 
     @Test
-    public void backfillsMissingDigestBeforePreloadingHistoricalModel() throws Exception {
-        RuleModel historical = model("ONNX", 1, 1);
+    public void backfillsMissingDigestForHistoricalModelWithoutPreloading() throws Exception {
+        RuleModel historical = model("ONNX", 1, 0);
         historical.setModelDigest(null);
         AtomicReference<RuleModel> updated = new AtomicReference<>();
+        AtomicInteger preloads = new AtomicInteger();
         OnnxModelExecutionService executionService = new OnnxModelExecutionService(null) {
             @Override
             public void preload(byte[] modelBytes, String configJson) {
-                assertNotNull(updated.get());
+                preloads.incrementAndGet();
             }
         };
         RuleModelMapper mapper = (RuleModelMapper) Proxy.newProxyInstance(
@@ -108,6 +108,7 @@ public class OnnxModelWarmupRunnerTest {
         assertEquals(
                 "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81",
                 updated.get().getModelDigest());
+        assertEquals(0, preloads.get());
     }
 
     private static RuleModel model(String format, int status, int preload) {

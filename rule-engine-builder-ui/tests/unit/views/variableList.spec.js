@@ -848,6 +848,32 @@ describe('VariableList — 变量操作', () => {
     expect(wrapper.vm.variableConfigurationChecklist[3].ready).toBe(false)
   })
 
+  test('预览请求期间修改 SQL 后旧响应不得重新标记验证完成', async () => {
+    wrapper.vm.dialogVisible = true
+    wrapper.vm.form = {
+      ...wrapper.vm.initForm(), scope: 'PROJECT', projectId: 1,
+      varCode: 'riskScore', varLabel: '风险分', varType: 'NUMBER',
+      varSource: 'DB', dbDatasourceId: 21,
+      dbSql: 'select 1 as score', dbParams: '[]', dbResultPath: '0.score'
+    }
+    let resolvePreview
+    variableApi.previewVariableDraft.mockReturnValueOnce(
+      new Promise(resolve => { resolvePreview = resolve })
+    )
+
+    const pending = wrapper.vm.previewDraftVariable()
+    await nextTick()
+    wrapper.vm.form.dbSql = 'select 2 as score'
+    await nextTick()
+    resolvePreview({ data: { resolvedValue: 1 } })
+    await pending
+
+    expect(wrapper.vm.draftPreviewResult).toBeNull()
+    expect(wrapper.vm.draftPreviewError).toBe('')
+    expect(wrapper.vm.variableConfigurationChecklist[3].ready).toBe(false)
+    expect(wrapper.vm.$message.success).not.toHaveBeenCalled()
+  })
+
   test('字段配置检查按归属、定义、来源和预览反馈就绪状态', async () => {
     wrapper.vm.form = {
       ...wrapper.vm.initForm(), scope: 'PROJECT', projectId: 1,
