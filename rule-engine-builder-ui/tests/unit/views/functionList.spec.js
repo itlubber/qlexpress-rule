@@ -407,6 +407,19 @@ describe('FunctionList — 边界情况', () => {
     wrapper.unmount()
   })
 
+  test('已设置筛选但无结果时提示调整或重置而不误报系统无函数', async () => {
+    projectApi.listProjects.mockResolvedValueOnce({ data: { records: [] } })
+    functionApi.listFunctions.mockResolvedValueOnce({ data: { records: [], total: 0 } })
+    const wrapper = await mountWithCurrentMocks()
+
+    wrapper.vm.qp.funcCode = 'NO_SUCH_FUNCTION'
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('未找到符合当前筛选条件的函数')
+    expect(wrapper.text()).not.toContain('暂无自定义函数')
+    wrapper.unmount()
+  })
+
   test('项目和函数加载失败分别保留可见错误信息', async () => {
     projectApi.listProjects.mockRejectedValueOnce(new Error('项目服务不可用'))
     functionApi.listFunctions.mockRejectedValueOnce(new Error('函数服务不可用'))

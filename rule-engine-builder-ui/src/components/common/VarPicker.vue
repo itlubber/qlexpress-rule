@@ -223,6 +223,7 @@
               aria-label="打开字段与表达式选择器"
               aria-haspopup="dialog"
               :aria-expanded="popoverVisible ? 'true' : 'false'"
+              @mousedown="onReferenceMouseDown"
               @focus="onInputFocus"
               @update:model-value="onReferenceInput"
               @click.stop="onInputClick"
@@ -360,6 +361,7 @@ export default {
       panelBodyCursor: '',
       panelBodyUserSelect: '',
       suppressFocusOpen: false,
+      pointerFocusPending: false,
       focusOpenTimer: null,
       valueGeneration: 0,
       positionedValueGeneration: -1,
@@ -1185,7 +1187,14 @@ export default {
       })
     },
     /** 输入框获得焦点时自动弹出选择器面板 */
+    onReferenceMouseDown() {
+      this.pointerFocusPending = true
+      this.$nextTick(function () {
+        this.pointerFocusPending = false
+      })
+    },
     onInputFocus() {
+      if (this.pointerFocusPending) return
       if (this.suppressFocusOpen) return
       this.openPopover()
     },
@@ -1201,6 +1210,7 @@ export default {
     },
     /** 点击输入框时弹出选择器面板 */
     onInputClick() {
+      this.pointerFocusPending = false
       this.openPopover()
     },
     onReferenceKeydown(event) {

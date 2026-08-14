@@ -1,5 +1,6 @@
 <template>
   <el-select
+    :key="selectGeneration"
     v-bind="$attrs"
     ref="select"
     :model-value="value"
@@ -54,6 +55,7 @@ export default {
       lastEmittedFreeInput: null,
       inputObserver: null,
       optionsRequestId: 0,
+      selectGeneration: 0,
     }
   },
   watch: {
@@ -62,6 +64,10 @@ export default {
       const nextValue = value == null ? '' : String(value)
       this.query = nextValue
       this.lastEmittedFreeInput = nextValue
+      if (!nextValue) {
+        this.closeDropdownForReset()
+        this.selectGeneration += 1
+      }
       this.$nextTick(() => {
         const input = this.nativeInput()
         if (input && input.value !== nextValue) input.value = nextValue
@@ -115,6 +121,14 @@ export default {
         this.unbindDropdownScroll()
       }
     },
+    closeDropdownForReset() {
+      const select = this.$refs.select
+      if (select && typeof select.blur === 'function') select.blur()
+      this.cancelPendingLoad()
+      this.options = []
+      this.setDropdownAccessible(false)
+      this.unbindDropdownScroll()
+    },
     nativeInput() {
       const select = this.$refs.select
       const reference = select && select.$refs ? select.$refs.reference : null
@@ -164,6 +178,7 @@ export default {
       const dropdown = this.dropdownElement()
       if (!dropdown) return
       if (visible) {
+        dropdown.style.pointerEvents = ''
         dropdown.removeAttribute('inert')
         dropdown.removeAttribute('aria-hidden')
         return
@@ -174,6 +189,7 @@ export default {
       }
       dropdown.setAttribute('inert', '')
       dropdown.setAttribute('aria-hidden', 'true')
+      dropdown.style.pointerEvents = 'none'
     },
     retainSelectedOption() {
       if (

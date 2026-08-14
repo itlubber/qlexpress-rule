@@ -184,7 +184,7 @@ Vitest 配置（`vitest.config.mjs`）关键点：
 - `setup.js` 预置所有 API mock 和 Element Plus mock
 - Playwright 配置在 `playwright.config.mjs`；`tests/e2e/dist-smoke.spec.js` 是稳定 CI 烟测，`full-stack.spec.js` 是显式部署联调门禁
 
-**当前测试状态（2026-08-13）**：前端在 Node.js 24.14.1 下 153 个测试文件、1699 个测试全部通过，Vite 8 构建、ESLint 10 flat config 和 Playwright `dist` 52/52 通过 ✅；后端在 JDK 17.0.20 下默认 `mvn test` 共运行 1210 个测试，1195 个通过、15 个外部 ONNX 资产/CUDA 诊断测试跳过，0 failures、0 errors ✅（具体数字随用例增长变化，以 `npm test` / `mvn test` 实际输出为准）。
+**当前测试状态（2026-08-13）**：前端在 Node.js 24.14.1 下 153 个测试文件、1702 个测试全部通过，Vite 8 构建、ESLint 10 flat config 和 Playwright `dist` 52/52 通过 ✅；后端在 JDK 17.0.20 下默认 `mvn test` 共运行 1211 个测试，1196 个通过、15 个外部 ONNX 资产/CUDA 诊断测试跳过，0 failures、0 errors ✅（具体数字随用例增长变化，以 `npm test` / `mvn test` 实际输出为准）。
 
 ## 后端测试框架 (JUnit 4)
 

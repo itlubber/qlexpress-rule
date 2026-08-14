@@ -169,6 +169,45 @@ public class DatabaseInitializationSqlTest {
     }
 
     @Test
+    public void seededDefinitionDraftsAndReferencesMatchTheirActualDefinitions() throws Exception {
+        String export = read(latestExport());
+        List<List<String>> definitions = insertRows(export, "rule_definition");
+        List<List<String>> contents = insertRows(export, "rule_definition_content");
+        Set<Long> definitionIds = new HashSet<>();
+        Map<String, Long> definitionIdByCode = new HashMap<>();
+        Map<Long, List<String>> contentByDefinitionId = new HashMap<>();
+
+        for (List<String> definition : definitions) {
+            Long definitionId = Long.valueOf(definition.get(0));
+            definitionIds.add(definitionId);
+            definitionIdByCode.put(sqlString(definition.get(4)), definitionId);
+        }
+        for (List<String> content : contents) {
+            contentByDefinitionId.put(Long.valueOf(content.get(1)), content);
+        }
+
+        Assert.assertEquals("editable drafts must not be missing or orphaned",
+                definitionIds, contentByDefinitionId.keySet());
+        assertDefinitionReferenceIds(export, "rule_definition_input_field", definitionIds);
+        assertDefinitionReferenceIds(export, "rule_definition_output_field", definitionIds);
+        assertDefinitionReferenceIds(export, "rule_definition_ref", definitionIds);
+
+        assertDraftOwner(definitionIdByCode, contentByDefinitionId,
+                "SXCL0001", "\"nodes\"", "credit_limit");
+        assertDraftOwner(definitionIdByCode, contentByDefinitionId,
+                "MONTHLY_SUCCESSFUL_REPAYMENT_AMOUNT", "\"rowDimensions\"",
+                "monthly_successful_repayment_amount");
+        assertDraftOwner(definitionIdByCode, contentByDefinitionId,
+                "RISK_FACTOR", "\"rowDimensions\"", "risk_factor");
+        assertDraftOwner(definitionIdByCode, contentByDefinitionId,
+                "RISK_LIMIT", "\"rowDimensions\"", "risk_limit");
+        assertDraftOwner(definitionIdByCode, contentByDefinitionId,
+                "AMOUNT_FORMULA", "\"script\"", "numCeil");
+        assertDraftOwner(definitionIdByCode, contentByDefinitionId,
+                "CREDIT_AMOUNT", "\"nodes\"", "executeRuleById");
+    }
+
+    @Test
     public void sxedSnapshotsUseTheDisplayedLowerBoundWithoutOverlap() throws Exception {
         String export = read(latestExport());
         List<List<String>> snapshots = new ArrayList<>();
@@ -277,6 +316,28 @@ public class DatabaseInitializationSqlTest {
         Pattern row = Pattern.compile("\\(" + id
                 + "\\s*,\\s*0\\s*,\\s*'GLOBAL'\\s*,\\s*'" + code + "'");
         Assert.assertTrue(code + " must keep id " + id, row.matcher(export).find());
+    }
+
+    private static void assertDefinitionReferenceIds(String export, String table,
+                                                     Set<Long> definitionIds) {
+        for (List<String> row : insertRows(export, table)) {
+            Assert.assertTrue(table + " contains orphan definition_id=" + row.get(1),
+                    definitionIds.contains(Long.valueOf(row.get(1))));
+        }
+    }
+
+    private static void assertDraftOwner(Map<String, Long> definitionIdByCode,
+                                         Map<Long, List<String>> contentByDefinitionId,
+                                         String ruleCode, String modelMarker,
+                                         String scriptMarker) {
+        Long definitionId = definitionIdByCode.get(ruleCode);
+        Assert.assertNotNull("missing definition " + ruleCode, definitionId);
+        List<String> content = contentByDefinitionId.get(definitionId);
+        Assert.assertNotNull("missing editable draft for " + ruleCode, content);
+        Assert.assertTrue(ruleCode + " has another rule's model",
+                sqlString(content.get(2)).contains(modelMarker));
+        Assert.assertTrue(ruleCode + " has another rule's compiled script",
+                sqlString(content.get(3)).contains(scriptMarker));
     }
 
     private static List<List<String>> insertRows(String export, String table) {

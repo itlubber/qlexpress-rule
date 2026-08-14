@@ -9,9 +9,14 @@ const ElSelectStub = {
   mounted() {
     this.popperElm = this.$refs.popper
   },
+  methods: {
+    blur() {
+      this.$refs.input.blur()
+    }
+  },
   template: `
     <div class="el-select-stub">
-      <input class="filter-input" readonly />
+      <input ref="input" class="filter-input" readonly />
       <div ref="popper" class="el-select-dropdown">
         <button class="dropdown-option">选项</button>
       </div>
@@ -77,7 +82,30 @@ describe('RemoteFilterSelect', () => {
     await wrapper.setProps({ value: '' })
     await wrapper.vm.$nextTick()
 
-    expect(input.value).toBe('')
+    expect(input.isConnected).toBe(false)
+    expect(wrapper.find('.filter-input').element.value).toBe('')
+    wrapper.unmount()
+  })
+
+  test('父级重置时同步收起下拉并阻止退场浮层拦截后续点击', async () => {
+    const wrapper = mountSelect({
+      allowFreeInput: true,
+      value: 'e2e_project'
+    })
+    const input = wrapper.find('.filter-input').element
+    const popper = wrapper.find('.el-select-dropdown').element
+    const blur = vi.spyOn(wrapper.findComponent(ElSelectStub).vm, 'blur')
+
+    wrapper.vm.handleVisibleChange(true)
+    input.focus()
+    await wrapper.setProps({ value: '' })
+    await wrapper.vm.$nextTick()
+
+    expect(blur).toHaveBeenCalledTimes(1)
+    expect(popper.style.pointerEvents).toBe('none')
+    expect(popper.hasAttribute('inert')).toBe(true)
+    expect(input.isConnected).toBe(false)
+    expect(wrapper.find('.filter-input').element.value).toBe('')
     wrapper.unmount()
   })
 
@@ -152,6 +180,7 @@ describe('RemoteFilterSelect', () => {
     await wrapper.vm.$nextTick()
     expect(popper.hasAttribute('inert')).toBe(false)
     expect(popper.hasAttribute('aria-hidden')).toBe(false)
+    expect(popper.style.pointerEvents).toBe('')
 
     wrapper.vm.options = [
       { label: '已选', value: 'selected' },
@@ -163,6 +192,7 @@ describe('RemoteFilterSelect', () => {
     expect(document.activeElement).toBe(input)
     expect(popper.hasAttribute('inert')).toBe(true)
     expect(popper.getAttribute('aria-hidden')).toBe('true')
+    expect(popper.style.pointerEvents).toBe('none')
     expect(wrapper.vm.options).toEqual([{ label: '已选', value: 'selected' }])
     wrapper.unmount()
   })

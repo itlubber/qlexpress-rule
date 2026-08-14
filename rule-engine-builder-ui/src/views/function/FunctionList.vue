@@ -222,7 +222,10 @@
       v-else-if="!loading && funcList.length === 0"
       class="function-empty"
     >
-      暂无自定义函数，可点击「新建函数」添加
+      <template v-if="hasActiveFunctionFilters">
+        未找到符合当前筛选条件的函数，请调整条件或点击「重置」
+      </template>
+      <template v-else>暂无自定义函数，可点击「新建函数」添加</template>
     </div>
 
     <el-pagination
@@ -632,6 +635,18 @@ export default {
     ElIconInfo,
   },
   name: 'FunctionList',
+  computed: {
+    hasActiveFunctionFilters() {
+      return [
+        'scope',
+        'projectCode',
+        'projectName',
+        'implType',
+        'funcCode',
+        'funcLabel',
+      ].some((key) => String(this.qp[key] || '').trim() !== '')
+    },
+  },
   created() {
     this.restoreCachedState()
     this.loadProjects().then(() => this.loadFunctions())

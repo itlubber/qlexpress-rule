@@ -531,7 +531,7 @@ npm run test:e2e:full
 
 Playwright 首次使用需执行 `npx playwright install chromium`；也可设置 `PLAYWRIGHT_CHANNEL=chrome` 使用本机 Chrome。`test:e2e:dist` 直接加载真实 `dist/` 并模拟 API，不依赖本地监听端口；`docs:screenshots` 使用固定人脸风控样例重建 `docs/project-usage/` 下的页面验收截图，并在接口未匹配、关键内容缺失或紧凑工作台横向溢出时失败；`test:e2e:full` 只有在设置 `E2E_BASE_URL` 后才执行真实后端联调。
 
-2026-08-13 在 Microsoft OpenJDK 17.0.20 下，默认 `mvn test` 共记录 1210 个测试：1195 个通过、15 个 skipped，0 failures、0 errors；15 个 skipped 为 14 个显式 ONNX 真实资产用例和 1 个 CUDA 环境诊断。显式 `-Ponnx-integration` 在当前无模型资产 checkout 上按预期硬失败，证明资产门禁有效。在 Node.js 24.14.1 下验证前端 153 个测试文件、1699 个单元测试、ESLint 10 flat config、Vite 8 生产构建以及 Playwright `dist` 52/52 全部通过。以上是 Task 8 决策流修复完成时的当前基线，最终交付门禁会重新执行这些命令；测试数量会随代码演进，以最新命令输出为准。
+2026-08-13 在 Microsoft OpenJDK 17.0.20 下，默认 `mvn test` 共记录 1211 个测试：1196 个通过、15 个 skipped，0 failures、0 errors；15 个 skipped 为 14 个显式 ONNX 真实资产用例和 1 个 CUDA 环境诊断。显式 `-Ponnx-integration` 在当前无模型资产 checkout 上按预期硬失败，证明资产门禁有效。在 Node.js 24.14.1 下验证前端 153 个测试文件、1702 个单元测试、ESLint 10 flat config、Vite 8 生产构建以及 Playwright `dist` 52/52 全部通过。测试数量会随代码演进，以最新命令输出为准。
 
 ## 12. 生产交付状态与边界
 

@@ -759,6 +759,25 @@ describe('VarPicker', () => {
     expect(wrapper.vm.popoverVisible).toBe(true)
   })
 
+  test('鼠标单击只在 click 阶段打开一次避免 focus 与 click 重入', () => {
+    const wrapper = mountPicker({
+      operandMode: true,
+      allowedKinds: ['LITERAL', 'REFERENCE'],
+      vars: standaloneOptions(1),
+    })
+    wrapper.vm.$refs.popover.popperElm = document.createElement('div')
+
+    wrapper.vm.onReferenceMouseDown()
+    wrapper.vm.onInputFocus()
+
+    expect(wrapper.vm.popoverVisible).toBe(false)
+
+    wrapper.vm.onInputClick()
+
+    expect(wrapper.vm.popoverVisible).toBe(true)
+    expect(wrapper.vm.pointerFocusPending).toBe(false)
+  })
+
   test('关闭面板前移走弹层内焦点并仅处理当前弹层', () => {
     const wrapper = mountPicker(
       { operandMode: true, allowedKinds: ['LITERAL'], vars: standaloneOptions(1) },
