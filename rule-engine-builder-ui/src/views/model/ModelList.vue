@@ -169,7 +169,7 @@
               }}</el-tag></template
             >
           </el-table-column>
-          <el-table-column label="执行设备" min-width="90" align="center">
+          <el-table-column label="配置设备" min-width="90" align="center">
             <template v-slot="{ row }">
               <el-tag
                 v-if="row.modelFormat === 'ONNX'"
@@ -180,6 +180,24 @@
               >
                 {{ modelExecutionProvider(row) }}
               </el-tag>
+              <span v-else>—</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            label="实际运行状态"
+            min-width="120"
+            align="center"
+          >
+            <template v-slot="{ row }">
+              <el-tooltip
+                v-if="row.modelFormat === 'ONNX'"
+                :content="modelRuntimeStateReason(row)"
+                placement="top"
+              >
+                <el-tag :type="modelRuntimeStateType(row)" size="small">
+                  {{ modelRuntimeStateLabel(row) }}
+                </el-tag>
+              </el-tooltip>
               <span v-else>—</span>
             </template>
           </el-table-column>
@@ -905,12 +923,15 @@ export default {
       onnxTasks: ONNX_TASKS,
       runtimeCapabilities: {
         onnxRuntimeVersion: '',
-        availableProviders: ['CPU'],
+        availableProviders: [],
         cudaAvailable: false,
         cudaError: '',
         cpuFallbackEnabled: true,
         activeCpuFallbackCount: 0,
+        modelRuntimeStates: [],
       },
+      runtimeCapabilitiesLoadError: '',
+      runtimeCapabilitiesRequestId: 0,
       uploadForm: createUploadForm(),
       uploadRules: {
         modelCode: [
@@ -1085,7 +1106,6 @@ export default {
     )
     if (this.contextProjectId) this.qp.projectId = this.contextProjectId
     this.loadProjects()
-    this.loadRuntimeCapabilities()
   },
   mounted() {
     this.load()
@@ -1190,6 +1210,7 @@ export default {
       } finally {
         this.loading = false
       }
+      await this.loadRuntimeCapabilities()
     },
     handleQuery() {
       this.qp.pageNum = 1
@@ -1224,19 +1245,95 @@ export default {
         parseOnnxModelConfig(row && row.modelConfig)
       ).executionProvider
     },
+    modelRuntimeState(row) {
+      if (!row || row.modelFormat !== 'ONNX') return null
+      const states = Array.isArray(this.runtimeCapabilities.modelRuntimeStates)
+        ? this.runtimeCapabilities.modelRuntimeStates
+        : []
+      const matched = states.find(
+        (state) => String(state.modelId) === String(row.id)
+      )
+      if (matched) return matched
+      return {
+        modelId: row.id,
+        configuredProvider: this.modelExecutionProvider(row),
+        effectiveProvider: null,
+        state: 'UNKNOWN',
+        reason:
+          this.runtimeCapabilitiesLoadError || '服务端未返回该模型的运行状态',
+      }
+    },
+    modelRuntimeStateLabel(row) {
+      if (!row || row.modelFormat !== 'ONNX') return '—'
+      const state = this.modelRuntimeState(row).state
+      return (
+        {
+          CPU: 'CPU',
+          CUDA: 'CUDA',
+          CPU_FALLBACK: '已回退 CPU',
+          NOT_INITIALIZED: '尚未初始化',
+          UNKNOWN: '状态未知',
+        }[state] || '状态未知'
+      )
+    },
+    modelRuntimeStateType(row) {
+      const state = this.modelRuntimeState(row)
+      return (
+        {
+          CPU: 'info',
+          CUDA: 'success',
+          CPU_FALLBACK: 'warning',
+          NOT_INITIALIZED: 'info',
+          UNKNOWN: 'danger',
+        }[(state && state.state) || 'UNKNOWN'] || 'danger'
+      )
+    },
+    modelRuntimeStateReason(row) {
+      const state = this.modelRuntimeState(row)
+      if (!state) return ''
+      const parts = []
+      const configured =
+        state.configuredProvider || this.modelExecutionProvider(row)
+      if (configured) parts.push('配置设备：' + configured)
+      if (state.effectiveProvider)
+        parts.push('实际设备：' + state.effectiveProvider)
+      if (state.state === 'NOT_INITIALIZED')
+        parts.push('尚未创建运行会话，首次执行后更新')
+      if (state.reason) parts.push(state.reason)
+      return parts.join('；')
+    },
     async loadRuntimeCapabilities() {
+      const requestId = ++this.runtimeCapabilitiesRequestId
       try {
         const res = await api.getRuntimeCapabilities()
+        if (requestId !== this.runtimeCapabilitiesRequestId) return
+        const capabilities = res.data || {}
         this.runtimeCapabilities = {
-          ...this.runtimeCapabilities,
-          ...(res.data || {}),
+          onnxRuntimeVersion: '',
+          availableProviders: [],
+          cudaAvailable: false,
+          cudaError: '',
+          cpuFallbackEnabled: true,
+          activeCpuFallbackCount: 0,
+          ...capabilities,
+          modelRuntimeStates: Array.isArray(capabilities.modelRuntimeStates)
+            ? capabilities.modelRuntimeStates
+            : [],
         }
+        this.runtimeCapabilitiesLoadError = ''
       } catch (e) {
+        if (requestId !== this.runtimeCapabilitiesRequestId) return
         this.runtimeCapabilities = {
-          ...this.runtimeCapabilities,
+          onnxRuntimeVersion: '',
+          availableProviders: [],
           cudaAvailable: false,
           cudaError: e.message || '运行时能力查询失败',
+          cpuFallbackEnabled: true,
+          activeCpuFallbackCount: 0,
+          modelRuntimeStates: [],
         }
+        this.runtimeCapabilitiesLoadError =
+          e.message || '运行时能力查询失败'
       }
     },
 

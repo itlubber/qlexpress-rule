@@ -218,6 +218,44 @@ public class OnnxRuntimeSessionManager {
         return result;
     }
 
+    /**
+     * Returns the effective runtime state for one persisted ONNX model/configuration pair
+     * without creating a native session.
+     */
+    public Map<String, Object> runtimeState(String modelDigest, OnnxRuntimeConfig runtimeConfig) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (modelDigest == null || modelDigest.trim().isEmpty() || runtimeConfig == null) {
+            result.put("state", "UNKNOWN");
+            result.put("effectiveProvider", null);
+            result.put("reason", "模型摘要或运行配置缺失");
+            return result;
+        }
+        if (!runtimeConfig.isCuda()) {
+            result.put("state", "CPU");
+            result.put("effectiveProvider", OnnxRuntimeConfig.CPU);
+            result.put("reason", null);
+            return result;
+        }
+        String key = modelDigest.trim() + ':' + runtimeConfig.cacheKey();
+        String fallbackReason = cpuFallbacks.get(key);
+        if (fallbackReason != null) {
+            result.put("state", "CPU_FALLBACK");
+            result.put("effectiveProvider", OnnxRuntimeConfig.CPU);
+            result.put("reason", fallbackReason);
+            return result;
+        }
+        if (sessions.containsKey(key)) {
+            result.put("state", "CUDA");
+            result.put("effectiveProvider", OnnxRuntimeConfig.CUDA);
+            result.put("reason", null);
+            return result;
+        }
+        result.put("state", "NOT_INITIALIZED");
+        result.put("effectiveProvider", null);
+        result.put("reason", null);
+        return result;
+    }
+
     private OrtEnvironment environment() {
         OrtEnvironment current = environment;
         if (current != null) return current;

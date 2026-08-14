@@ -623,7 +623,60 @@ public class RuleModelService {
     }
 
     public Map<String, Object> runtimeCapabilities() {
-        return onnxSessionManager.runtimeCapabilities();
+        Map<String, Object> result = new LinkedHashMap<>(onnxSessionManager.runtimeCapabilities());
+        List<Map<String, Object>> states = new ArrayList<>();
+        List<RuleModel> models = modelMapper.selectList(withoutModelContent()
+                .eq(RuleModel::getModelFormat, "ONNX")
+                .ne(RuleModel::getStatus, -1));
+        if (models != null) {
+            for (RuleModel model : models) {
+                if (model == null || !"ONNX".equalsIgnoreCase(model.getModelFormat())) continue;
+                states.add(modelRuntimeState(model));
+            }
+        }
+        result.put("modelRuntimeStates", states);
+        return result;
+    }
+
+    private Map<String, Object> modelRuntimeState(RuleModel model) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("modelId", model.getId());
+        try {
+            com.alibaba.fastjson.JSONObject configJson =
+                    model.getModelConfig() == null || model.getModelConfig().trim().isEmpty()
+                            ? new com.alibaba.fastjson.JSONObject()
+                            : com.alibaba.fastjson.JSON.parseObject(model.getModelConfig());
+            OnnxRuntimeConfig config = OnnxRuntimeConfig.from(configJson);
+            result.put("configuredProvider", config.getExecutionProvider());
+            result.putAll(onnxSessionManager.runtimeState(model.getModelDigest(), config));
+        } catch (RuntimeException e) {
+            result.put("configuredProvider", configuredProvider(model.getModelConfig()));
+            result.put("effectiveProvider", null);
+            result.put("state", "UNKNOWN");
+            result.put("reason", safeRuntimeReason(e));
+        }
+        return result;
+    }
+
+    private String configuredProvider(String modelConfig) {
+        try {
+            if (modelConfig == null || modelConfig.trim().isEmpty()) return OnnxRuntimeConfig.CPU;
+            String provider = com.alibaba.fastjson.JSON.parseObject(modelConfig)
+                    .getString("executionProvider");
+            return provider == null || provider.trim().isEmpty()
+                    ? OnnxRuntimeConfig.CPU : provider.trim().toUpperCase(Locale.ROOT);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private String safeRuntimeReason(Throwable failure) {
+        String reason = failure == null ? null : failure.getMessage();
+        if (reason == null || reason.trim().isEmpty()) {
+            reason = failure == null ? "未知错误" : failure.getClass().getSimpleName();
+        }
+        reason = reason.replaceAll("[\\r\\n]+", " ").trim();
+        return reason.length() <= 500 ? reason : reason.substring(0, 500);
     }
 
     /**

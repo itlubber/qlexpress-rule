@@ -7,8 +7,10 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -22,6 +24,66 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class OnnxRuntimeSessionManagerTest {
+
+    @Test
+    public void reportsConfiguredCpuWithoutCreatingSession() throws Exception {
+        OnnxRuntimeSessionManager manager = new OnnxRuntimeSessionManager();
+
+        Map<String, Object> state = manager.runtimeState(digest(new byte[]{1}), OnnxRuntimeConfig.cpu());
+
+        assertEquals("CPU", state.get("state"));
+        assertEquals("CPU", state.get("effectiveProvider"));
+        assertNull(state.get("reason"));
+        assertEquals(0, manager.getCachedSessionCount());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void reportsOnlyTheExactlyConfiguredCudaSession() throws Exception {
+        byte[] model = new byte[]{2};
+        OnnxRuntimeConfig cuda0 = OnnxRuntimeConfig.from(JSON.parseObject(
+                "{\"executionProvider\":\"CUDA\",\"cudaDeviceId\":0}"));
+        OnnxRuntimeConfig cuda1 = OnnxRuntimeConfig.from(JSON.parseObject(
+                "{\"executionProvider\":\"CUDA\",\"cudaDeviceId\":1}"));
+        OnnxRuntimeSessionManager manager = new OnnxRuntimeSessionManager();
+        Map<String, OnnxRuntimeSessionManager.CachedSession> sessions =
+                (Map<String, OnnxRuntimeSessionManager.CachedSession>)
+                        ReflectionTestUtils.getField(manager, "sessions");
+        assertNotNull(sessions);
+        sessions.put(digest(model) + ':' + cuda0.cacheKey(),
+                new OnnxRuntimeSessionManager.CachedSession(() -> { }));
+
+        assertEquals("CUDA", manager.runtimeState(digest(model), cuda0).get("state"));
+        assertEquals("CUDA", manager.runtimeState(digest(model), cuda0).get("effectiveProvider"));
+        assertEquals("NOT_INITIALIZED", manager.runtimeState(digest(model), cuda1).get("state"));
+        assertNull(manager.runtimeState(digest(model), cuda1).get("effectiveProvider"));
+    }
+
+    @Test
+    public void reportsCpuFallbackReasonForTheExactCudaConfiguration() throws Exception {
+        byte[] model = new byte[]{3};
+        OnnxRuntimeConfig cuda = OnnxRuntimeConfig.from(JSON.parseObject(
+                "{\"executionProvider\":\"CUDA\",\"cudaDeviceId\":0}"));
+        OnnxRuntimeSessionManager manager = new OnnxRuntimeSessionManager();
+        manager.withCpuFallback(model, cuda, config -> {
+            if (config.isCuda()) throw new IllegalArgumentException("missing CUDA runtime");
+            return "cpu";
+        });
+
+        Map<String, Object> state = manager.runtimeState(digest(model), cuda);
+
+        assertEquals("CPU_FALLBACK", state.get("state"));
+        assertEquals("CPU", state.get("effectiveProvider"));
+        assertEquals("missing CUDA runtime", state.get("reason"));
+    }
+
+    @Test
+    public void reportsUnknownForMissingDigestOrConfiguration() {
+        OnnxRuntimeSessionManager manager = new OnnxRuntimeSessionManager();
+
+        assertEquals("UNKNOWN", manager.runtimeState("", OnnxRuntimeConfig.cpu()).get("state"));
+        assertEquals("UNKNOWN", manager.runtimeState("digest", null).get("state"));
+    }
 
     @Test
     public void constructionDoesNotRequireNativeRuntime() {
@@ -38,6 +100,10 @@ public class OnnxRuntimeSessionManagerTest {
         assertNull(capabilities.get("onnxRuntimeVersion"));
         assertEquals(Boolean.FALSE, capabilities.get("cudaAvailable"));
         assertTrue(String.valueOf(capabilities.get("cudaError")).contains("native runtime unavailable"));
+    }
+
+    private static String digest(byte[] value) throws Exception {
+        return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value));
     }
 
     @Test

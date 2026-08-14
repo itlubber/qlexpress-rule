@@ -17,6 +17,7 @@ import com.hengshucredit.rule.server.mapper.RuleModelVersionMapper;
 import com.hengshucredit.rule.server.mapper.RuleVariableMapper;
 import com.hengshucredit.rule.server.service.onnx.OnnxRuntimeSessionManager;
 import com.hengshucredit.rule.server.service.onnx.OnnxModelExecutionService;
+import com.hengshucredit.rule.server.service.onnx.OnnxRuntimeConfig;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -46,6 +47,62 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class RuleModelServiceTest {
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void runtimeCapabilitiesIncludeSafePerOnnxModelState() {
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new Configuration(), ""), RuleModel.class);
+        RuleModel cuda = model();
+        cuda.setId(11L);
+        cuda.setModelFormat("ONNX");
+        cuda.setModelDigest("digest-11");
+        cuda.setModelConfig("{\"executionProvider\":\"CUDA\",\"cudaDeviceId\":0}");
+        RuleModel invalid = model();
+        invalid.setId(12L);
+        invalid.setModelFormat("ONNX");
+        invalid.setModelDigest("digest-12");
+        invalid.setModelConfig("{\"executionProvider\":\"TPU\"}");
+        RuleModel pmml = model();
+        pmml.setId(13L);
+
+        RuleModelService service = new RuleModelService();
+        ReflectionTestUtils.setField(service, "modelMapper",
+                mapper(RuleModelMapper.class, (proxy, method, args) ->
+                        "selectList".equals(method.getName())
+                                ? Arrays.asList(cuda, invalid, pmml)
+                                : defaultValue(method.getReturnType())));
+        ReflectionTestUtils.setField(service, "onnxSessionManager", new OnnxRuntimeSessionManager() {
+            @Override
+            public Map<String, Object> runtimeCapabilities() {
+                return new LinkedHashMap<>(Collections.singletonMap("cudaAvailable", true));
+            }
+
+            @Override
+            public Map<String, Object> runtimeState(String digest, OnnxRuntimeConfig config) {
+                assertEquals("digest-11", digest);
+                assertEquals("CUDA", config.getExecutionProvider());
+                Map<String, Object> state = new LinkedHashMap<>();
+                state.put("state", "NOT_INITIALIZED");
+                state.put("effectiveProvider", null);
+                state.put("reason", null);
+                return state;
+            }
+        });
+
+        Map<String, Object> capabilities = service.runtimeCapabilities();
+        List<Map<String, Object>> states =
+                (List<Map<String, Object>>) capabilities.get("modelRuntimeStates");
+
+        assertEquals(2, states.size());
+        assertEquals(11L, states.get(0).get("modelId"));
+        assertEquals("CUDA", states.get(0).get("configuredProvider"));
+        assertEquals("NOT_INITIALIZED", states.get(0).get("state"));
+        assertEquals(12L, states.get(1).get("modelId"));
+        assertEquals("UNKNOWN", states.get(1).get("state"));
+        assertFalse(states.get(1).containsKey("modelDigest"));
+        assertFalse(states.get(1).containsKey("modelConfig"));
+    }
 
     @Test
     public void savedTestParamsAreMarkedAsApprovedUserInput() {

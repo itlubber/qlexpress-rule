@@ -62,6 +62,18 @@ describe('ModelList 项目筛选交互', () => {
     expect(source).toContain('field="projectCode"')
     expect(source).toContain('field="projectName"')
   })
+
+  test('配置设备与实际运行状态使用独立列展示', () => {
+    const source = fs.readFileSync(
+      path.resolve(__dirname, '../../../src/views/model/ModelList.vue'),
+      'utf8'
+    )
+
+    expect(source).toContain('label="配置设备"')
+    expect(source).toContain('label="实际运行状态"')
+    expect(source.indexOf('label="配置设备"'))
+      .toBeLessThan(source.indexOf('label="实际运行状态"'))
+  })
 })
 
 // ─── 测试用例 ─────────────────────────────────────────────
@@ -71,7 +83,13 @@ async function mountAndWait(routeQuery = {}) {
   projectApi.listProjects.mockResolvedValue({ data: { records: mockProjects() } })
   modelApi.listModels.mockResolvedValue({ data: { records: mockModels(), total: 3 } })
   modelApi.getRuntimeCapabilities.mockResolvedValue({
-    data: { onnxRuntimeVersion: '1.26.0', availableProviders: ['CPU', 'CUDA'], cudaAvailable: true, cudaError: null }
+    data: {
+      onnxRuntimeVersion: '1.26.0',
+      availableProviders: ['CPU', 'CUDA'],
+      cudaAvailable: true,
+      cudaError: null,
+      modelRuntimeStates: []
+    }
   })
 
   const wrapper = mount(ModelList, {
@@ -295,6 +313,85 @@ describe('ModelList — 上传模型', () => {
     expect(wrapper.vm.uploadForm.cudaDeviceId).toBe(0)
     expect(wrapper.vm.fileList).toEqual([])
     expect(wrapper.vm.selectedFile).toBeNull()
+  })
+
+  test('ONNX 列表展示服务端返回的真实运行态而不是配置设备', () => {
+    const row = {
+      id: 21,
+      modelFormat: 'ONNX',
+      modelConfig: JSON.stringify({ executionProvider: 'CUDA' })
+    }
+    wrapper.vm.runtimeCapabilities = {
+      ...wrapper.vm.runtimeCapabilities,
+      modelRuntimeStates: [{
+        modelId: 21,
+        configuredProvider: 'CUDA',
+        effectiveProvider: 'CPU',
+        state: 'CPU_FALLBACK',
+        reason: 'missing CUDA runtime'
+      }]
+    }
+
+    expect(wrapper.vm.modelExecutionProvider(row)).toBe('CUDA')
+    expect(wrapper.vm.modelRuntimeStateLabel(row)).toBe('已回退 CPU')
+    expect(wrapper.vm.modelRuntimeStateType(row)).toBe('warning')
+    expect(wrapper.vm.modelRuntimeStateReason(row)).toContain('missing CUDA runtime')
+  })
+
+  test('运行态区分 CPU CUDA 未初始化和未知且 PMML 不适用', () => {
+    wrapper.vm.runtimeCapabilities = {
+      ...wrapper.vm.runtimeCapabilities,
+      modelRuntimeStates: [
+        { modelId: 31, state: 'CPU', effectiveProvider: 'CPU' },
+        { modelId: 32, state: 'CUDA', effectiveProvider: 'CUDA' },
+        { modelId: 33, state: 'NOT_INITIALIZED', effectiveProvider: null }
+      ]
+    }
+
+    expect(wrapper.vm.modelRuntimeStateLabel({ id: 31, modelFormat: 'ONNX' })).toBe('CPU')
+    expect(wrapper.vm.modelRuntimeStateLabel({ id: 32, modelFormat: 'ONNX' })).toBe('CUDA')
+    expect(wrapper.vm.modelRuntimeStateLabel({ id: 33, modelFormat: 'ONNX' })).toBe('尚未初始化')
+    expect(wrapper.vm.modelRuntimeStateLabel({ id: 34, modelFormat: 'ONNX' })).toBe('状态未知')
+    expect(wrapper.vm.modelRuntimeStateLabel({ id: 35, modelFormat: 'PMML' })).toBe('—')
+  })
+
+  test('运行态接口失败会清空旧状态并明确显示未知', async () => {
+    wrapper.vm.runtimeCapabilities.modelRuntimeStates = [
+      { modelId: 41, state: 'CUDA', effectiveProvider: 'CUDA' }
+    ]
+    modelApi.getRuntimeCapabilities.mockRejectedValueOnce(new Error('network down'))
+
+    await wrapper.vm.loadRuntimeCapabilities()
+
+    expect(wrapper.vm.runtimeCapabilities.modelRuntimeStates).toEqual([])
+    expect(wrapper.vm.runtimeCapabilitiesLoadError).toBe('network down')
+    expect(wrapper.vm.modelRuntimeStateLabel({ id: 41, modelFormat: 'ONNX' }))
+      .toBe('状态未知')
+  })
+
+  test('较早的运行态请求后返回时不会覆盖最新结果', async () => {
+    let resolveFirst
+    let resolveSecond
+    modelApi.getRuntimeCapabilities
+      .mockImplementationOnce(() => new Promise(resolve => { resolveFirst = resolve }))
+      .mockImplementationOnce(() => new Promise(resolve => { resolveSecond = resolve }))
+
+    const first = wrapper.vm.loadRuntimeCapabilities()
+    const second = wrapper.vm.loadRuntimeCapabilities()
+    resolveSecond({ data: { modelRuntimeStates: [{ modelId: 51, state: 'CUDA' }] } })
+    await second
+    resolveFirst({ data: { modelRuntimeStates: [{ modelId: 51, state: 'CPU' }] } })
+    await first
+
+    expect(wrapper.vm.modelRuntimeStateLabel({ id: 51, modelFormat: 'ONNX' })).toBe('CUDA')
+  })
+
+  test('刷新模型列表时同步刷新实际运行态', async () => {
+    modelApi.getRuntimeCapabilities.mockClear()
+
+    await wrapper.vm.load()
+
+    expect(modelApi.getRuntimeCapabilities).toHaveBeenCalledTimes(1)
   })
 
   test('项目上下文限定模型列表并默认选择当前项目', async () => {
