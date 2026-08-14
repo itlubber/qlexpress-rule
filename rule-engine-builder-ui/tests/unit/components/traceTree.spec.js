@@ -167,7 +167,10 @@ function tableIfNode(condNode, actionValue, elseIf, elseEvaluated = true) {
 
 function skippedTableCondition(operator) {
   return {
-    type: 'OPERATOR', token: operator, evaluated: false, children: []
+    type: 'OPERATOR',
+    token: operator,
+    evaluated: false,
+    children: [variableNode('score', null, false), valueNode(null, 'null', false)]
   }
 }
 
@@ -293,6 +296,7 @@ describe('TraceTree', () => {
     })
     expect(wrapper.vm.tableRules[1].acts).toEqual({ decision: 'REVIEW' })
     expect(wrapper.vm.tableRules[1].configuredConditionText).toContain('60')
+    expect(wrapper.vm.tableCondSummaryText(wrapper.vm.tableRules[1])).toContain('60')
     expect(wrapper.text()).toContain('未执行（首次命中后终止）')
   })
 

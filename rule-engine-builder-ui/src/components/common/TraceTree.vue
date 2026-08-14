@@ -3358,6 +3358,8 @@ export default {
      */
     tableCondSummaryText: function (r) {
       if (!r) return '-'
+      if (r.status === 'skipped' && r.configuredConditionText)
+        return r.configuredConditionText
       var traced = '-'
       if (r.condNode) {
         traced = this._condHasOr(r.condNode)
