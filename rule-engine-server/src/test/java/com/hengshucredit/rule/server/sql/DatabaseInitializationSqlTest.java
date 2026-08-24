@@ -29,6 +29,11 @@ public class DatabaseInitializationSqlTest {
             "(?im)^TRUNCATE TABLE\\s+(?:`?rule_engine`?\\.)?`?([a-z0-9_]+)`?\\s*;");
     private static final Pattern TABLE_BLOCK = Pattern.compile(
             "(?is)CREATE TABLE IF NOT EXISTS\\s+`([^`]+)`\\s*\\((.*?)\\)\\s*ENGINE=");
+    private static final Pattern MOJIBAKE = Pattern.compile(
+            "(?:Ã[\\u0080-\\u024F]|Â[\\u0080-\\u024F]|"
+                    + "â[\\u0080-\\u024F\\u2000-\\u20FF]|"
+                    + "[åæçèéä][\\u0080-\\u024F\\u2000-\\u20FF]|"
+                    + "�|锟斤拷|烫烫烫|屯屯屯)");
     private static final List<String> CANONICAL_CONSTANTS = Arrays.asList(
             "NULL_VALUE", "EMPTY_STRING", "EMPTY_LIST", "EMPTY_MAP",
             "TRUE_VALUE", "FALSE_VALUE", "ZERO", "ONE", "NEGATIVE_ONE",
@@ -59,6 +64,31 @@ public class DatabaseInitializationSqlTest {
         Assert.assertTrue(export.contains("SET FOREIGN_KEY_CHECKS = 0"));
         Assert.assertTrue(export.contains("SET FOREIGN_KEY_CHECKS = @OLD_FOREIGN_KEY_CHECKS"));
         Assert.assertFalse(export.toUpperCase().contains("INSERT IGNORE"));
+    }
+
+    @Test
+    public void latestExportDeclaresUtf8mb4BeforeRestoringData() throws Exception {
+        String export = read(latestExport());
+        int setNames = export.indexOf("SET NAMES utf8mb4");
+        int setConnection = export.indexOf("SET character_set_connection = utf8mb4");
+        int firstTruncate = export.indexOf("TRUNCATE TABLE");
+        int firstInsert = export.indexOf("INSERT INTO");
+        int firstDataStatement = Math.min(firstTruncate, firstInsert);
+
+        Assert.assertTrue("export must declare SET NAMES utf8mb4", setNames >= 0);
+        Assert.assertTrue("export must set the connection character set to utf8mb4",
+                setConnection >= 0);
+        Assert.assertTrue("UTF-8 connection settings must precede all restored data",
+                setNames < firstDataStatement && setConnection < firstDataStatement);
+    }
+
+    @Test
+    public void canonicalInitializationSqlContainsNoMojibake() throws Exception {
+        for (Path sql : Arrays.asList(sqlDirectory().resolve("schema.sql"), latestExport())) {
+            Matcher matcher = MOJIBAKE.matcher(read(sql));
+            Assert.assertFalse(sql.getFileName() + " contains mojibake near "
+                    + (matcher.find() ? matcher.group() : ""), matcher.reset().find());
+        }
     }
 
     @Test

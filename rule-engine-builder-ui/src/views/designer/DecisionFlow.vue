@@ -871,6 +871,7 @@ export default {
           },
         },
         grid: { size: 20, visible: true },
+        snapGrid: true,
         keyboard: {
           enabled: true,
           shortcuts: [

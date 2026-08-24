@@ -1,4 +1,7 @@
 -- 全量初始数据快照：会清空本文件覆盖的表；不得用于需要保留现有业务数据的数据库。
+SET NAMES utf8mb4;
+SET character_set_connection = utf8mb4;
+
 SET @OLD_FOREIGN_KEY_CHECKS = @@FOREIGN_KEY_CHECKS;
 SET FOREIGN_KEY_CHECKS = 0;
 TRUNCATE TABLE rule_engine.rule_auth_access_log;

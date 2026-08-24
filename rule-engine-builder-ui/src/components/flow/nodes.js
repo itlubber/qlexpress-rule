@@ -263,15 +263,7 @@ function ExclusiveGatewayFactory(DiamondNode, DiamondNodeModel) {
           fill: '#fff',
           fontSize: 11,
           fontWeight: 'bold'
-        }, shortName),
-        h('text', {
-          x,
-          y: y + ry + 14,
-          textAnchor: 'middle',
-          dominantBaseline: 'central',
-          fill: '#666',
-          fontSize: 12
-        }, nodeName.length > 8 ? nodeName.substr(0, 8) + '…' : nodeName)
+        }, shortName)
       ])
     }
   }

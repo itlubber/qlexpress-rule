@@ -112,6 +112,95 @@ for (const designer of designers) {
   })
 }
 
+for (const designer of designers.filter(item => ['决策树', '决策流'].includes(item.name))) {
+  test(`${designer.name}节点拖动后吸附到 20px 网格`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    const { assertClean } = await installDistRoutes(page, {
+      apiData: createDesignerApiData()
+    })
+    await page.goto(`http://tianshu.local/index.html#${designer.path}`)
+
+    await page.getByRole('button', { name: '开始', exact: true }).click()
+    const canvasClass = designer.name === '决策树' ? '.tree-canvas' : '.flow-canvas'
+    const node = page.locator(
+      `${canvasClass} .lf-node:not(.lf-mini-map .lf-node)`
+    ).last()
+    await expect(node).toBeVisible()
+    const before = await node.boundingBox()
+    expect(before).toBeTruthy()
+
+    await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(
+      before.x + before.width / 2 + 47,
+      before.y + before.height / 2 + 43,
+      { steps: 10 }
+    )
+    await page.mouse.up()
+
+    const after = await node.boundingBox()
+    expect(after).toBeTruthy()
+    const deltaX = Math.round(after.x - before.x)
+    const deltaY = Math.round(after.y - before.y)
+    expect(Math.abs(deltaX) + Math.abs(deltaY)).toBeGreaterThan(0)
+    expect(deltaX % 20).toBe(0)
+    expect(deltaY % 20).toBe(0)
+    assertClean()
+  })
+}
+
+test('结束节点范围弹窗完整容纳两项说明且不发生内容重叠', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const { assertClean } = await installDistRoutes(page, {
+    apiData: createDesignerApiData()
+  })
+  await page.goto('http://tianshu.local/index.html#/designer/tree/102')
+
+  await page.getByRole('button', { name: '结束', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '添加结束节点' })
+  await expect(dialog).toBeVisible()
+  const metrics = await dialog.locator('.scope-option').evaluateAll(options =>
+    options.map(option => {
+      const optionRect = option.getBoundingClientRect()
+      const descriptionRect = option.querySelector('.scope-description').getBoundingClientRect()
+      return {
+        optionHeight: optionRect.height,
+        contentFits: descriptionRect.bottom <= optionRect.bottom + 1
+      }
+    })
+  )
+
+  expect(metrics).toHaveLength(2)
+  metrics.forEach(metric => {
+    expect(metric.optionHeight).toBeGreaterThanOrEqual(72)
+    expect(metric.contentFits).toBe(true)
+  })
+  const bodyOverflow = await dialog.locator('.el-dialog__body').evaluate(body => ({
+    clientHeight: body.clientHeight,
+    scrollHeight: body.scrollHeight
+  }))
+  expect(bodyOverflow.scrollHeight).toBeLessThanOrEqual(bodyOverflow.clientHeight + 1)
+  assertClean()
+})
+
+test('判断节点只在菱形内部显示一次名称', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const { assertClean } = await installDistRoutes(page, {
+    apiData: createDesignerApiData()
+  })
+  await page.goto('http://tianshu.local/index.html#/designer/tree/102')
+
+  await page.getByRole('button', { name: '条件判断', exact: true }).click()
+  const gateway = page.locator('.lf-node').filter({ hasText: '条件判断' })
+  await expect(gateway).toBeVisible()
+  const labels = (await gateway.locator('text').allTextContents())
+    .map(text => text.trim())
+    .filter(Boolean)
+
+  expect(labels).toEqual(['条件判断'])
+  assertClean()
+})
+
 test('QL 脚本编辑器可加载变量、插入字段并保持工具栏可操作', async ({ page }) => {
   const pageErrors = []
   const consoleErrors = []

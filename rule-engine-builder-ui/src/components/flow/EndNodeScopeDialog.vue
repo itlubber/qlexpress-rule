@@ -15,13 +15,13 @@
 
     <el-radio-group v-model="scope" class="scope-options">
       <el-radio :value="currentRule" class="scope-option scope-current">
-        <span class="scope-title"><i class="scope-dot" />跳出当前规则</span>
+        <span class="scope-title">跳出当前规则</span>
         <span class="scope-description"
           >当前规则立即执行结束并返回；作为子规则执行时，外层规则仍会继续。</span
         >
       </el-radio>
       <el-radio :value="allRules" class="scope-option scope-all">
-        <span class="scope-title"><i class="scope-dot" />跳出整体规则</span>
+        <span class="scope-title">跳出整体规则</span>
         <span class="scope-description"
           >整条规则立即执行结束，根规则及所有后续规则都不会再执行；即使当前规则是子规则也会整体结束。</span
         >
@@ -102,14 +102,25 @@ export default {
   box-sizing: border-box;
   width: 100%;
   margin: 0;
-  padding: 16px;
+  height: auto;
+  min-height: 72px;
+  padding: 12px 16px;
   border: 2px solid #e4e7ed;
   border-radius: 8px;
+  align-items: flex-start;
+
+  :deep(.el-radio__input) {
+    margin-top: 3px;
+  }
+
   :deep(.el-radio__label) {
-    display: inline-flex;
+    display: flex;
+    flex: 1;
     flex-direction: column;
-    gap: 8px;
-    width: calc(100% - 28px);
+    gap: 4px;
+    min-width: 0;
+    width: auto;
+    padding-left: 8px;
     white-space: normal;
   }
 
@@ -124,25 +135,16 @@ export default {
   }
 }
 .scope-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  display: block;
   color: #303133;
   font-size: 14px;
   font-weight: 600;
+  line-height: 1.5;
 }
 .scope-description {
+  display: block;
   color: #606266;
   font-size: 13px;
   line-height: 1.6;
-}
-.scope-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #fa8c16;
-}
-.scope-all .scope-dot {
-  background: #ff4d4f;
 }
 </style>

@@ -29,10 +29,9 @@
         <el-popover
           v-if="groupedByCategory && (hasVarOptions || operandMode)"
           ref="popover"
-          v-model:visible="popoverVisible"
+          :visible="popoverVisible"
           placement="bottom-start"
           :width="popoverWidth"
-          trigger="manual"
           popper-class="var-picker-popover"
         >
           <div class="vp-panel" :style="panelStyle" @mousedown.stop @click.stop>
