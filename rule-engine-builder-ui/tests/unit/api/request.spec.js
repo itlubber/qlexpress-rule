@@ -67,4 +67,26 @@ describe('request 错误提示', () => {
     expect(error).toMatchObject({ message: '无法序列化规范 JSON' })
     expect(isRequestErrorNotified(error)).toBe(true)
   })
+
+  test('业务错误保留原始响应数据供发布前校验页面展示详情', async () => {
+    const [resolveResponse] = axiosHarness.responseUse.mock.calls[0]
+    const response = {
+      config: { url: '/rule/definition/14/revisions/1/preflight' },
+      data: {
+        code: 422,
+        message: '发布前验证未通过',
+        data: {
+          valid: false,
+          errors: [{ code: 'FROZEN_REVISION_FIELD_SNAPSHOT_INVALID', message: '字段快照无效' }],
+          warnings: [],
+        },
+      },
+    }
+
+    const error = await resolveResponse(response).catch(reason => reason)
+
+    expect(error.response).toBe(response)
+    expect(error.response.data.data.errors[0].code)
+      .toBe('FROZEN_REVISION_FIELD_SNAPSHOT_INVALID')
+  })
 })

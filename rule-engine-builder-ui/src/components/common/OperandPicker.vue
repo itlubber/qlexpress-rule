@@ -417,7 +417,7 @@ export default {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   width: 100%;
 }
 .operand-picker > .var-picker-wrap {
@@ -430,19 +430,23 @@ export default {
   min-width: 0;
   flex: 1;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
 }
 .operand-manual-type {
-  width: 96px;
+  width: 88px;
   flex: none;
 }
 .operand-manual-editor > .el-input {
-  min-width: 0;
-  flex: 1;
+  min-width: 112px;
+  flex: 1 1 160px;
+}
+.operand-manual-editor > .el-input :deep(.el-input__wrapper) {
+  padding-left: 6px;
+  padding-right: 6px;
 }
 .manual-back-button {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   flex: none;
   padding: 0;
   border: 1px solid #cbd6e4;
@@ -488,8 +492,8 @@ export default {
 }
 .expression-button {
   flex: none;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: 1px solid #cbd6e4;
   border-radius: 5px;

@@ -1,6 +1,5 @@
 package com.hengshucredit.rule.server.artifact;
 
-import com.alibaba.fastjson.JSON;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.hengshucredit.rule.model.dto.RulePreflightReport;
 import com.hengshucredit.rule.model.entity.DecisionArtifact;
@@ -94,10 +93,10 @@ public class DecisionArtifactService {
                 report.getOutputSchemaJson());
         List<RuleDefinitionInputField> inputFields = fields.getInputFields();
         addText(artifactPackage, "rule/input-fields.json", "application/json",
-                CanonicalJson.write(JSON.parse(JSON.toJSONString(inputFields))));
+                CanonicalJson.write(inputFields));
         List<RuleDefinitionOutputField> outputFields = fields.getOutputFields();
         addText(artifactPackage, "rule/output-fields.json", "application/json",
-                CanonicalJson.write(JSON.parse(JSON.toJSONString(outputFields))));
+                CanonicalJson.write(outputFields));
         Map<String, Object> fieldResolution = new LinkedHashMap<>();
         fieldResolution.put("localOutputNames", fields.getLocalOutputNames());
         fieldResolution.put("inputPropertySchemas", fields.getInputPropertySchemas());

@@ -72,7 +72,8 @@ public class GraphScriptGenerator {
         String name = node.getString("name");
 
         if ("start".equals(type) || "join".equals(type)) {
-            List<JSONObject> out = outEdgeMap.getOrDefault(nodeId, Collections.emptyList());
+            List<JSONObject> out = orderedEdges(
+                    outEdgeMap.getOrDefault(nodeId, Collections.emptyList()));
             if (!out.isEmpty()) {
                 generateScript(out.get(0).getString("target"), stopAt, nodeMap, outEdgeMap,
                         script, visited, indent, varContext, outputVars, generationContext, reachedFlag);
@@ -113,7 +114,8 @@ public class GraphScriptGenerator {
                 script.append("return _result\n");
             }
         } else if ("decision".equals(type)) {
-            List<JSONObject> out = outEdgeMap.getOrDefault(nodeId, Collections.emptyList());
+            List<JSONObject> out = orderedEdges(
+                    outEdgeMap.getOrDefault(nodeId, Collections.emptyList()));
             if (out.isEmpty()) return;
 
             String mergeNode = findMergeNode(nodeId, outEdgeMap, nodeMap);
@@ -286,11 +288,25 @@ public class GraphScriptGenerator {
         return left + " " + matcher.group(2) + " " + right;
     }
 
-    private static boolean isConditionalEdge(JSONObject edge) {
+    static boolean isConditionalEdge(JSONObject edge) {
         JSONObject conditionConfig = getConditionConfig(edge);
         if (hasUsableCondition(conditionConfig)) return true;
         String condExpr = edge.getString("conditionExpression");
         return condExpr != null && !condExpr.trim().isEmpty();
+    }
+
+    private static List<JSONObject> orderedEdges(List<JSONObject> edges) {
+        if (edges == null || edges.size() < 2) return edges;
+        List<JSONObject> ordered = new ArrayList<>(edges);
+        Map<JSONObject, Integer> sourceOrder = new IdentityHashMap<>();
+        for (int i = 0; i < edges.size(); i++) sourceOrder.put(edges.get(i), i);
+        ordered.sort(Comparator
+                .comparingInt((JSONObject edge) -> edge.containsKey("priority")
+                        && edge.getInteger("priority") != null
+                        ? edge.getInteger("priority")
+                        : (sourceOrder.get(edge) + 1) * 10)
+                .thenComparingInt(sourceOrder::get));
+        return ordered;
     }
 
     private static JSONObject getConditionConfig(JSONObject edge) {

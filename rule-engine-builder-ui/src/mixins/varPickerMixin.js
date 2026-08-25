@@ -83,6 +83,14 @@ export default {
     })
   },
 
+  activated() {
+    // 工作区页签会缓存设计器组件；字段或数据对象在审批中心生效后，
+    // 回到旧页签必须重新拉取引用，避免仍显示审批前的字段库。
+    if (this.projectIdForRefs != null) {
+      return this.refreshProjectRefs()
+    }
+  },
+
   methods: {
     normalizeObjectFieldScriptName(field, objScriptName) {
       const raw = (field && (field.scriptName || field.varCode)) || ''

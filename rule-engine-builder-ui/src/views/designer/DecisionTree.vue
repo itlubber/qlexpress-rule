@@ -33,7 +33,11 @@
       </div>
       <div class="toolbar-center">
         <span class="toolbar-label">添加节点：</span>
-        <el-button size="small" @click="addNode('start-event')">
+        <el-button
+          size="small"
+          :disabled="startNodeExists"
+          @click="addNode('start-event')"
+        >
           <span class="node-dot" style="background: #52c41a" />开始
         </el-button>
         <el-button size="small" @click="addNode('exclusive-gateway')">
@@ -202,7 +206,14 @@
               <app-icon :name="propIcon" />
               {{ isEdge ? '连线属性' : '节点属性配置' }}
             </span>
-            <el-icon class="prop-close"><el-icon-close /></el-icon>
+            <el-icon
+              class="prop-close"
+              role="button"
+              tabindex="0"
+              aria-label="关闭属性面板"
+              @click="closePropertyPanel"
+              @keydown.enter="closePropertyPanel"
+            ><el-icon-close /></el-icon>
           </div>
 
           <!-- ========== 连线属性（可视化+脚本双模式） ========== -->
@@ -251,6 +262,7 @@
                   :list-options="projectLists"
                   :get-var-options-fn="getVarOptions"
                   :selected-vars="selectedVarPickerOptions"
+                  @changed="persistEdgeConditionDraft"
                 />
                 <el-button
                   type="primary"
@@ -339,6 +351,21 @@
                     <span class="edge-name">{{
                       edgeLabel(edge) || '（点击配置条件）'
                     }}</span>
+                    <span class="edge-priority">P{{ edgePriority(edge, ei) }}</span>
+                    <el-button
+                      link
+                      size="small"
+                      class="edge-priority-up"
+                      :disabled="ei === 0"
+                      @click.stop="moveGatewayEdge(edge.id, -1)"
+                    >上移</el-button>
+                    <el-button
+                      link
+                      size="small"
+                      class="edge-priority-down"
+                      :disabled="ei === outEdges.length - 1"
+                      @click.stop="moveGatewayEdge(edge.id, 1)"
+                    >下移</el-button>
                     <el-tag v-if="!edgeLabel(edge)" size="small" type="warning"
                       >未设置</el-tag
                     >
@@ -495,12 +522,14 @@ import {
   createAnchorGesture,
   createDynamicGroup,
   createFlowNodeData,
+  findToolbarNodePosition,
   getBusinessGraphData,
   getPersistableGraphData,
   isAnchorClickGesture,
   layoutGraphByAnchors,
   resolveAnchorDirection,
   updateAnchorGesture,
+  validateDesignerGraphStructure,
 } from '@/components/flow/flowDesignerGraph'
 import {
   normalizeDefaultEdgeLineType,
@@ -561,6 +590,7 @@ export default {
       definitionId: null,
       lf: null,
       activeElement: null,
+      startNodeExists: false,
       hasSelection: false,
       selectionMode: false,
       miniMapVisible: true,
@@ -599,6 +629,7 @@ export default {
         rightRefType: null,
       },
       edgeConditionRoot: null,
+      edgeOrderVersion: 0,
       actionMode: 'visual',
       currentActionData: [],
       testVisible: false,
@@ -662,12 +693,20 @@ export default {
       return map[this.activeElement.type] || 'HelpFilled'
     },
     outEdges() {
+      this.edgeOrderVersion
       if (!this.lf || !this.activeElement || this.isEdge) return []
       try {
         const edges = this.lf.getNodeEdges(this.activeElement.id)
-        return (edges || []).filter(
-          (e) => e.sourceNodeId === this.activeElement.id
-        )
+        return (edges || [])
+          .filter((e) => e.sourceNodeId === this.activeElement.id)
+          .map((edge, index) => ({ edge, index }))
+          .sort(
+            (left, right) =>
+              this.edgePriority(left.edge, left.index) -
+                this.edgePriority(right.edge, right.index) ||
+              left.index - right.index
+          )
+          .map((item) => item.edge)
       } catch (e) {
         return []
       }
@@ -713,6 +752,79 @@ export default {
       this.resizingPropertyPanel = false
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
+    },
+    edgePriority(edge, fallbackIndex = 0) {
+      const value = edge && edge.properties && Number(edge.properties.priority)
+      return Number.isFinite(value) ? value : (fallbackIndex + 1) * 10
+    },
+    moveGatewayEdge(edgeId, offset) {
+      const ordered = this.outEdges.slice()
+      const index = ordered.findIndex((edge) => edge.id === edgeId)
+      const target = index + offset
+      if (index < 0 || target < 0 || target >= ordered.length) return
+      ;[ordered[index], ordered[target]] = [ordered[target], ordered[index]]
+      ordered.forEach((edge, edgeIndex) => {
+        const current = this.lf.getProperties(edge.id) || edge.properties || {}
+        this.lf.setProperties(edge.id, {
+          ...current,
+          priority: (edgeIndex + 1) * 10,
+        })
+      })
+      this.edgeOrderVersion++
+    },
+    persistEdgeConditionDraft() {
+      if (
+        !this.activeElement ||
+        this.activeElement.baseType !== 'edge' ||
+        this.edgeCondMode !== 'visual' ||
+        !this.edgeConditionRoot
+      ) return
+      this.edgeProps.conditionExpr = compileConditionTreeExpression(
+        this.edgeConditionRoot
+      )
+      this.edgeProps.conditionConfig = JSON.parse(
+        JSON.stringify(this.edgeConditionRoot)
+      )
+      this.edgeProps.leftVarId = null
+      this.edgeProps.leftRefType = null
+      this.edgeProps.rightVarId = null
+      this.edgeProps.rightRefType = null
+      this.onEdgeChange()
+    },
+    flushActiveEditor() {
+      if (!this.activeElement || !this.lf) return
+      if (this.activeElement.baseType === 'edge') {
+        this.persistEdgeConditionDraft()
+        return
+      }
+      if (
+        this.activeElement.type === 'script-task' &&
+        typeof this.lf.getNodeModelById === 'function' &&
+        typeof this.lf.setProperties === 'function'
+      ) {
+        const model = this.lf.getNodeModelById(this.activeElement.id)
+        const current = model ? model.properties || {} : {}
+        this.lf.setProperties(this.activeElement.id, {
+          ...current,
+          actionData: this.currentActionData || [],
+        })
+      }
+    },
+    closePropertyPanel() {
+      this.flushActiveEditor()
+      this.activeElement = null
+      this.hasSelection = false
+      this.selectedBusinessNodeCount = 0
+    },
+    refreshStartNodeState() {
+      if (!this.lf) {
+        this.startNodeExists = false
+        return
+      }
+      const graph = this.lf.getGraphData() || { nodes: [] }
+      this.startNodeExists = (graph.nodes || []).some(
+        (node) => node.type === 'start-event'
+      )
     },
     collectSelectedVarItems() {
       const items = []
@@ -951,9 +1063,7 @@ export default {
       })
       this.lf.on('blank:click', () => {
         this.closeAnchorMenu()
-        this.activeElement = null
-        this.hasSelection = false
-        this.updateSelectedBusinessNodeCount()
+        this.closePropertyPanel()
       })
       this.lf.on('node:dnd-add', ({ data }) => {
         this.$nextTick(() => this.selectNodeData(data))
@@ -994,6 +1104,8 @@ export default {
     },
 
     onGraphRendered() {
+      if (typeof this.refreshStartNodeState === 'function')
+        this.refreshStartNodeState()
       const miniMap = this.lf && this.lf.extension.miniMap
       if (!miniMap || !this.miniMapVisible) return
       if (miniMap.isShow) miniMap.hide()
@@ -1084,6 +1196,7 @@ export default {
     },
 
     selectNodeData(data) {
+      this.flushActiveEditor()
       const model = this.lf.getNodeModelById(data.id)
       if (!model) return
       this.activeElement = {
@@ -1122,15 +1235,19 @@ export default {
     },
 
     selectEdgeData(data) {
+      this.flushActiveEditor()
+      const model =
+        this.lf && typeof this.lf.getEdgeModelById === 'function'
+          ? this.lf.getEdgeModelById(data.id)
+          : null
+      const properties = model ? model.properties || {} : data.properties || {}
       this.activeElement = {
         id: data.id,
         type: data.type,
         baseType: 'edge',
         sourceNodeId: data.sourceNodeId,
         targetNodeId: data.targetNodeId,
-        properties: data.properties
-          ? JSON.parse(JSON.stringify(data.properties))
-          : {},
+        properties: JSON.parse(JSON.stringify(properties)),
       }
       this.edgeProps = {
         conditionName: this.activeElement.properties.conditionName || '',
@@ -1243,6 +1360,11 @@ export default {
 
     addNode(type) {
       this.pendingConnectedNode = null
+      if (type === 'start-event') this.refreshStartNodeState()
+      if (type === 'start-event' && this.startNodeExists) {
+        this.$message.warning('开始节点只能有一个')
+        return
+      }
       if (type === 'end-event') {
         this.endNodeScopeVisible = true
         return
@@ -1266,11 +1388,20 @@ export default {
     },
 
     addNodeToCanvas(type, terminationScope) {
-      const xPos = 300 + Math.random() * 200
-      const yPos = 200 + Math.random() * 150
+      const graph =
+        this.lf && typeof this.lf.getGraphData === 'function'
+          ? getBusinessGraphData(getPersistableGraphData(this.lf))
+          : { nodes: [] }
+      const position = findToolbarNodePosition(graph.nodes)
       this.lf.addNode(
-        createFlowNodeData(type, { x: xPos, y: yPos, terminationScope })
+        createFlowNodeData(type, {
+          x: position.x,
+          y: position.y,
+          terminationScope,
+        })
       )
+      if (typeof this.refreshStartNodeState === 'function')
+        this.refreshStartNodeState()
     },
 
     deleteSelected() {
@@ -1282,6 +1413,7 @@ export default {
       }
       this.activeElement = null
       this.hasSelection = false
+      this.refreshStartNodeState()
       this.updateSelectedBusinessNodeCount()
     },
 
@@ -1292,6 +1424,7 @@ export default {
           this.lf.deleteNode(this.activeElement.id)
           this.activeElement = null
           this.hasSelection = false
+          this.refreshStartNodeState()
           this.updateSelectedBusinessNodeCount()
         })
         .catch(() => {})
@@ -1438,56 +1571,11 @@ export default {
     },
 
     handleValidate() {
-      const errors = []
       const canvasGraph = getPersistableGraphData(this.lf)
       const graphData = getBusinessGraphData(canvasGraph)
-      const nodes = graphData.nodes || []
-      const edges = graphData.edges || []
-
-      const starts = nodes.filter((n) => n.type === 'start-event')
-      if (starts.length === 0) errors.push('缺少开始节点')
-      if (starts.length > 1) errors.push('开始节点只能有一个')
-
-      nodes
-        .filter((n) => n.type === 'exclusive-gateway')
-        .forEach((gw) => {
-          const outEdges = edges.filter((e) => e.sourceNodeId === gw.id)
-          if (outEdges.length < 2) {
-            errors.push(
-              '条件判断节点「' +
-                ((gw.properties && gw.properties.nodeName) || gw.id) +
-                '」至少需要两个出口'
-            )
-          }
-        })
-
-      nodes
-        .filter((n) => n.type === 'join-gateway')
-        .forEach((jn) => {
-          errors.push(
-            '决策树不允许使用聚合节点「' +
-              ((jn.properties && jn.properties.nodeName) || jn.id) +
-              '」，请使用决策流'
-          )
-        })
-
-      nodes
-        .filter((n) => n.type !== 'start-event')
-        .forEach((n) => {
-          const inEdges = edges.filter((e) => e.targetNodeId === n.id)
-          if (inEdges.length > 1) {
-            errors.push(
-              '节点「' +
-                ((n.properties && n.properties.nodeName) || n.id) +
-                '」有多条入边，决策树不允许分支汇合'
-            )
-          }
-        })
-
-      if (starts.length === 1) {
-        const startOut = edges.filter((e) => e.sourceNodeId === starts[0].id)
-        if (startOut.length === 0) errors.push('开始节点没有出边')
-      }
+      const errors = validateDesignerGraphStructure(graphData, {
+        treeMode: true,
+      })
 
       if (errors.length === 0) {
         this.$message.success('验证通过！')
@@ -1532,6 +1620,7 @@ export default {
           this.lf.setDefaultEdgeType('polyline')
           this.lf.render(getDefaultFlowData())
         }
+        this.refreshStartNodeState()
         this.updateZoom()
         this.$nextTick(() => this._syncModelVarRefs())
       } catch (e) {
@@ -1645,6 +1734,9 @@ export default {
         properties: {
           conditionName: e.conditionExpression || '',
           conditionExpr: e.conditionExpression || '',
+          priority: Number.isFinite(Number(e.priority))
+            ? Number(e.priority)
+            : (i + 1) * 10,
         },
       }))
       return { nodes: lfNodes, edges: lfEdges }
@@ -1662,6 +1754,7 @@ export default {
     },
 
     buildBackendModel() {
+      if (typeof this.flushActiveEditor === 'function') this.flushActiveEditor()
       // 保存前将当前编辑中的 actionData 同步到 LogicFlow 模型，确保配置不丢失
       if (
         this.activeElement &&
@@ -1716,8 +1809,17 @@ export default {
         return backendNode
       })
 
+      const edgeCountBySource = {}
+      const edgePriorityById = {}
       const edges = (graphData.edges || []).map((e) => {
         const props = e.properties || {}
+        const sourceIndex = edgeCountBySource[e.sourceNodeId] || 0
+        edgeCountBySource[e.sourceNodeId] = sourceIndex + 1
+        const storedPriority = Number(props.priority)
+        const priority = Number.isFinite(storedPriority)
+          ? storedPriority
+          : (sourceIndex + 1) * 10
+        edgePriorityById[e.id] = priority
         return {
           id: e.id,
           source: e.sourceNodeId,
@@ -1725,6 +1827,7 @@ export default {
           conditionExpression: props.conditionExpr || '',
           conditionConfig: props.conditionConfig || null,
           name: props.conditionName || '',
+          priority,
           // 变量引用 ID（用于连线条件的变量选择器）
           leftVarId: props.leftVarId || null,
           leftRefType: props.leftRefType || null,
@@ -1743,11 +1846,21 @@ export default {
         }
         return base
       })
+      const logicflowEdges = (canvasGraph.edges || []).map((edge) => ({
+        ...edge,
+        properties: {
+          ...(edge.properties || {}),
+          priority:
+            edgePriorityById[edge.id] !== undefined
+              ? edgePriorityById[edge.id]
+              : this.edgePriority(edge),
+        },
+      }))
       return {
         nodes,
         edges,
         defaultEdgeLineType: this.globalEdgeLineType,
-        logicflow: { nodes: logicflowNodes, edges: canvasGraph.edges || [] },
+        logicflow: { nodes: logicflowNodes, edges: logicflowEdges },
       }
     },
 
@@ -2400,6 +2513,15 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.edge-priority {
+  flex-shrink: 0;
+  color: #64748b;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.out-edge-item :deep(.el-button) {
+  padding: 0 2px;
 }
 .hint-box {
   font-size: 12px;

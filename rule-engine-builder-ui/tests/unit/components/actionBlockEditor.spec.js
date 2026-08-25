@@ -1,6 +1,9 @@
 vi.unmock('@/components/flow/ActionBlockEditor.vue')
 
+import { shallowMount } from '@test-utils'
+
 const ActionBlockEditor = (await vi.importActual('@/components/flow/ActionBlockEditor.vue')).default
+const ActionAssignmentRow = (await vi.importActual('@/components/flow/ActionAssignmentRow.vue')).default
 
 function createEditorContext(blocks, extra = {}) {
   const ctx = {
@@ -33,6 +36,33 @@ function createEditorContext(blocks, extra = {}) {
 }
 
 describe('ActionBlockEditor', () => {
+  test('赋值右值默认类型跟随数字目标字段', () => {
+    const targetOperand = {
+      kind: 'REFERENCE', code: 'amount', valueType: 'NUMBER',
+      refId: 7, refType: 'VARIABLE', resolved: true,
+    }
+    const actionEditor = {
+      vars: [], selectedVars: [], functions: [], writeKinds: [], valueKinds: [],
+      operandType: ActionBlockEditor.methods.operandType,
+      setOperand: vi.fn(),
+    }
+    const wrapper = shallowMount(ActionAssignmentRow, {
+      props: { action: { type: 'assign', targetOperand, valueOperand: null } },
+      global: { provide: { actionEditor } },
+      stubs: {
+        OperandPicker: {
+          name: 'OperandPicker',
+          props: ['value', 'expectedType'],
+          template: '<div class="operand-picker-stub" />',
+        },
+      },
+    })
+
+    const pickers = wrapper.findAllComponents({ name: 'OperandPicker' })
+    expect(pickers[1].props('expectedType')).toBe('NUMBER')
+    wrapper.unmount()
+  })
+
   test('setOperand 原样写入目标 Operand 并触发更新', () => {
     const ctx = createEditorContext([{ type: 'assign', targetOperand: null, valueOperand: null }])
     const operand = { kind: 'REFERENCE', code: 'decision', refId: 2, refType: 'VARIABLE' }

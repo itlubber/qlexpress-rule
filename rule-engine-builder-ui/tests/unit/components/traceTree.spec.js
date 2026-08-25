@@ -497,6 +497,62 @@ describe('TraceTree', () => {
     expect(conditionNode.props('node').children[0]).toMatchObject({ actualText: '1', thresholdText: '1' })
   })
 
+  test('规则集事件优先校准命中状态且非命中规则不展示动作', () => {
+    const missInfo = { ruleCode: 'R0001', ruleName: '黑名单规则', priority: 10, order: 1 }
+    const hitInfo = { ruleCode: 'R0002', ruleName: '额度规则', priority: 1, order: 2 }
+    const missTrace = ruleSetIfNode(
+      compareNode('black_hit', '==', 0, 1, false),
+      false,
+      null
+    )
+    missTrace.children[1].evaluated = true
+    missTrace.children[1].children = [assignNode('_ruleSetHit', missInfo)]
+    const wrapper = mountTraceTree({
+      modelType: 'RULE_SET',
+      definitionModel: {
+        executionMode: 'SERIAL',
+        rules: [
+          {
+            ruleCode: 'R0001',
+            ruleName: '黑名单规则',
+            priority: 10,
+            conditionRoot: {
+              type: 'group',
+              op: 'AND',
+              children: [{ type: 'leaf', varCode: 'black_hit', operator: '==', value: '1' }]
+            },
+            actionData: [{ type: 'assign', target: 'result', value: '101' }]
+          },
+          {
+            ruleCode: 'R0002',
+            ruleName: '额度规则',
+            priority: 1,
+            conditionRoot: {
+              type: 'group',
+              op: 'AND',
+              children: [{ type: 'leaf', varCode: 'amount', operator: '>=', value: '0' }]
+            },
+            actionData: [{ type: 'assign', target: 'amount', value: '5500' }]
+          }
+        ]
+      },
+      traceInfo: JSON.stringify([
+        missTrace,
+        ruleSetIfNode(compareNode('amount', '>=', 5000, 0, true), true, hitInfo)
+      ]),
+      outputResult: JSON.stringify({ result: 100, amount: 5500 }),
+      ruleSetEvents: [
+        { type: 'RULE_SET_ITEM', ruleCode: 'R0001', evaluated: true, hit: false },
+        { type: 'RULE_SET_ITEM', ruleCode: 'R0002', evaluated: true, hit: true }
+      ]
+    })
+
+    expect(wrapper.vm.ruleSetRows[0]).toMatchObject({ status: 'miss', hit: false, actions: [] })
+    expect(wrapper.vm.ruleSetRows[1]).toMatchObject({ status: 'hit', hit: true })
+    expect(wrapper.vm.ruleSetRows[1].actions).toHaveLength(1)
+    expect(wrapper.vm.ruleSetHitRows.map(row => row.ruleCode)).toEqual(['R0002'])
+  })
+
   test('规则集追踪展示统一操作数中的路径与引用阈值', () => {
     const wrapper = mountTraceTree({ inputParams: JSON.stringify({ request: { age: 20 }, adultAge: 18 }) })
     const leaf = {

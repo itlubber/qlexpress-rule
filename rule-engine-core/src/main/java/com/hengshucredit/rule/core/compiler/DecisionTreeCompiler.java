@@ -36,63 +36,14 @@ public class DecisionTreeCompiler implements RuleCompiler {
                 return CompileResult.fail("决策树模型缺少 nodes 或 edges");
             }
 
-            Map<String, JSONObject> nodeMap = new LinkedHashMap<>();
-            Map<String, List<JSONObject>> outEdgeMap = new LinkedHashMap<>();
-
-            for (int i = 0; i < nodes.size(); i++) {
-                JSONObject n = nodes.getJSONObject(i);
-                String id = n.getString("id");
-                nodeMap.put(id, n);
-                outEdgeMap.put(id, new ArrayList<>());
-            }
-
-            for (int i = 0; i < edges.size(); i++) {
-                JSONObject e = edges.getJSONObject(i);
-                String src = e.getString("source");
-                outEdgeMap.computeIfAbsent(src, k -> new ArrayList<>()).add(e);
-            }
-
-            // --- 树形结构校验 ---
-
-            // 禁止聚合（join）节点
-            for (JSONObject n : nodeMap.values()) {
-                if ("join".equals(n.getString("type"))) {
-                    String name = n.getString("name") != null ? n.getString("name") : n.getString("id");
-                    return CompileResult.fail("决策树不允许使用聚合节点 [" + name + "]，请使用决策流");
-                }
-            }
-
-            // 禁止多入边（除 start 外每个节点入边数 <= 1）
-            Map<String, Integer> inEdgeCount = new HashMap<>();
-            for (int i = 0; i < edges.size(); i++) {
-                String target = edges.getJSONObject(i).getString("target");
-                inEdgeCount.merge(target, 1, Integer::sum);
-            }
-            for (Map.Entry<String, Integer> entry : inEdgeCount.entrySet()) {
-                if (entry.getValue() > 1) {
-                    JSONObject n = nodeMap.get(entry.getKey());
-                    if (n != null && !"start".equals(n.getString("type"))) {
-                        String name = n.getString("name") != null ? n.getString("name") : entry.getKey();
-                        return CompileResult.fail("决策树中节点 [" + name + "] 有多条入边，不允许分支汇合");
-                    }
-                }
-            }
-
-            // --- 查找起始节点 ---
-            String startId = null;
-            for (Map.Entry<String, JSONObject> entry : nodeMap.entrySet()) {
-                if ("start".equals(entry.getValue().getString("type"))) {
-                    startId = entry.getKey();
-                    break;
-                }
-            }
-            if (startId == null) {
-                return CompileResult.fail("缺少开始节点");
-            }
+            DecisionGraphValidator.ValidationResult graph =
+                    DecisionGraphValidator.validate(nodes, edges, true);
 
             LinkedHashSet<String> outputVars = new LinkedHashSet<>();
             ActionDataOutputVarCollector.collectFromGraphTaskNodes(nodes, outputVars, varContext);
-            String script = GraphScriptGenerator.generate(nodeMap, outEdgeMap, startId, varContext, outputVars);
+            String script = GraphScriptGenerator.generate(
+                    graph.getNodeMap(), graph.getOutgoing(), graph.getStartId(),
+                    varContext, outputVars);
             StringBuilder sb = new StringBuilder(script);
             if (!outputVars.isEmpty()) {
                 RuleScriptResultCollector.prependOutputNullInits(sb, outputVars);

@@ -11,6 +11,7 @@ import com.hengshucredit.rule.model.entity.RuleExperimentGroup;
 import com.hengshucredit.rule.model.entity.RuleModel;
 import com.hengshucredit.rule.model.entity.RuleModelInputField;
 import com.hengshucredit.rule.model.entity.RuleModelOutputField;
+import com.hengshucredit.rule.model.entity.RuleVariable;
 import org.junit.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -152,6 +153,120 @@ public class FieldDependencyResolverTest {
 
         assertTrue(plan.getExternalInputs().stream().anyMatch(f -> "score_f1_fields.HYBASE_X115".equals(f.getScriptName())));
         assertFalse(plan.getExternalInputs().stream().anyMatch(f -> "DAY".equals(f.getScriptName())));
+    }
+
+    @Test
+    public void ruleSchemaSeparatesListRuntimeNodeFromExternalQueryInputs() {
+        FieldDependencyResolver resolver = new FieldDependencyResolver();
+        ReflectionTestUtils.setField(resolver, "definitionService", new RuleDefinitionService() {
+            @Override
+            public RuleDefinition getById(java.io.Serializable id) {
+                RuleDefinition definition = new RuleDefinition();
+                definition.setId(8L);
+                definition.setProjectId(2L);
+                definition.setModelType("RULE_SET");
+                return definition;
+            }
+
+            @Override
+            public RuleDefinitionContent getContent(Long definitionId) {
+                RuleDefinitionContent content = new RuleDefinitionContent();
+                content.setModelJson("{\"rules\":[]}");
+                return content;
+            }
+        });
+        RuleDefinitionInputField listHit = input("risk_hit", "NUMBER", "VARIABLE");
+        listHit.setVarId(9L);
+        RuleDefinitionInputField idcard = input("idcard_no", "STRING", "VARIABLE");
+        idcard.setVarId(6L);
+        RuleDefinitionInputField mobile = input("mobile_no", "STRING", "VARIABLE");
+        mobile.setVarId(7L);
+        ReflectionTestUtils.setField(resolver, "ruleFieldAnalyzer", new RuleFieldAnalyzer() {
+            @Override
+            public ResolvedFields resolveFields(Long definitionId, String modelJson,
+                                                String modelType, Long projectId) {
+                return new ResolvedFields(
+                        Arrays.asList(idcard, mobile, listHit), Collections.emptyList());
+            }
+        });
+        ReflectionTestUtils.setField(resolver, "variableService", new RuleVariableService() {
+            @Override
+            public RuleVariable getById(java.io.Serializable id) {
+                RuleVariable variable = new RuleVariable();
+                variable.setId(((Number) id).longValue());
+                variable.setStatus(1);
+                variable.setVarSource(Long.valueOf(9L).equals(variable.getId())
+                        ? "LIST" : "INPUT");
+                return variable;
+            }
+        });
+
+        RuleTestSchemaRequest request = new RuleTestSchemaRequest();
+        request.setTargetType("RULE");
+        request.setTargetId(8L);
+        ResolutionPlan plan = resolver.resolve(request);
+
+        assertEquals(Arrays.asList("idcard_no", "mobile_no"),
+                plan.getExternalInputs().stream()
+                        .map(field -> field.getScriptName())
+                        .collect(java.util.stream.Collectors.toList()));
+        assertEquals(1, plan.getRuntimeNodes().size());
+        assertEquals("risk_hit", plan.getRuntimeNodes().get(0).getScriptName());
+        assertEquals("LIST", plan.getRuntimeNodes().get(0).getSourceType());
+    }
+
+    @Test
+    public void ruleSchemaRejectsDisabledRuntimeSourceVariable() {
+        FieldDependencyResolver resolver = new FieldDependencyResolver();
+        ReflectionTestUtils.setField(resolver, "definitionService", new RuleDefinitionService() {
+            @Override
+            public RuleDefinition getById(java.io.Serializable id) {
+                RuleDefinition definition = new RuleDefinition();
+                definition.setId(9L);
+                definition.setProjectId(2L);
+                definition.setModelType("RULE_SET");
+                return definition;
+            }
+
+            @Override
+            public RuleDefinitionContent getContent(Long definitionId) {
+                RuleDefinitionContent content = new RuleDefinitionContent();
+                content.setModelJson("{\"rules\":[]}");
+                return content;
+            }
+        });
+        RuleDefinitionInputField disabledList =
+                input("disabled_list_hit", "NUMBER", "VARIABLE");
+        disabledList.setVarId(99L);
+        ReflectionTestUtils.setField(resolver, "ruleFieldAnalyzer", new RuleFieldAnalyzer() {
+            @Override
+            public ResolvedFields resolveFields(Long definitionId, String modelJson,
+                                                String modelType, Long projectId) {
+                return new ResolvedFields(
+                        Collections.singletonList(disabledList), Collections.emptyList());
+            }
+        });
+        ReflectionTestUtils.setField(resolver, "variableService", new RuleVariableService() {
+            @Override
+            public RuleVariable getById(java.io.Serializable id) {
+                RuleVariable variable = new RuleVariable();
+                variable.setId(99L);
+                variable.setStatus(0);
+                variable.setVarSource("LIST");
+                return variable;
+            }
+        });
+        RuleTestSchemaRequest request = new RuleTestSchemaRequest();
+        request.setTargetType("RULE");
+        request.setTargetId(9L);
+
+        try {
+            resolver.resolve(request);
+            org.junit.Assert.fail("停用的名单来源变量不应进入测试 Schema");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("VARIABLE:99"));
+            assertTrue(e.getMessage().contains("停用"));
+        }
     }
 
     @Test

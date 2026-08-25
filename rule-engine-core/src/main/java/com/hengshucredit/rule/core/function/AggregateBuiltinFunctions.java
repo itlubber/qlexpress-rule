@@ -67,6 +67,12 @@ public class AggregateBuiltinFunctions {
         return best;
     }
 
+    /** QLExpress 可变参数入口：兼容 max(sequence) 与 max(a, b, ...)。 */
+    public BigDecimal maxValues(Object... values) {
+        if (values == null || values.length == 0) return null;
+        return values.length == 1 ? max(values[0]) : max((Object) values);
+    }
+
     /**
      * 取序列中有效数字的最小值。
      *
@@ -85,6 +91,12 @@ public class AggregateBuiltinFunctions {
             }
         }
         return best;
+    }
+
+    /** QLExpress 可变参数入口：兼容 min(sequence) 与 min(a, b, ...)。 */
+    public BigDecimal minValues(Object... values) {
+        if (values == null || values.length == 0) return null;
+        return values.length == 1 ? min(values[0]) : min((Object) values);
     }
 
     /**

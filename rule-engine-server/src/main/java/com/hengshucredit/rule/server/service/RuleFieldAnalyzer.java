@@ -203,7 +203,11 @@ public class RuleFieldAnalyzer {
         preparedOutputFields = deduplicateOutputFields(preparedOutputFields);
         Set<String> retainedLocalOutputs =
                 retainedLocalOutputNames(preparedOutputFields, localRuleCallOutputs);
+        List<RuleDefinitionInputField> runtimeSourceFields =
+                runtimeSourceFields(preparedInputFields, varMetaMap);
         preparedInputFields = expandModelInputFields(preparedInputFields, varMetaMap);
+        preparedInputFields = mergeRuntimeSourceFields(
+                preparedInputFields, runtimeSourceFields);
         preparedInputFields = removeOutputFields(preparedInputFields, preparedOutputFields);
         for (RuleDefinitionInputField field : preparedInputFields) {
             RuleDefinitionInputField existing = existingInputFieldMap.get(inputFieldKey(field));
@@ -280,8 +284,12 @@ public class RuleFieldAnalyzer {
                 scriptFields.getInputFields(), projectId,
                 diagnostics, inputPropertySchemas);
         Map<String, Map<String, Object>> varMetaMap = buildVarMetaMap(projectId);
+        List<RuleDefinitionInputField> runtimeSourceFields =
+                runtimeSourceFields(scriptFields.getInputFields(), varMetaMap);
         List<RuleDefinitionInputField> preparedInputFields =
                 expandStableScriptInputFields(scriptFields.getInputFields(), varMetaMap);
+        preparedInputFields = mergeRuntimeSourceFields(
+                preparedInputFields, runtimeSourceFields);
         List<RuleDefinitionOutputField> preparedOutputFields =
                 deduplicateOutputFields(new ArrayList<>(scriptFields.getOutputFields()));
         Map<String, RuleDefinitionInputField> existingInputFieldMap = definitionId == null
@@ -1314,6 +1322,37 @@ public class RuleFieldAnalyzer {
         return result;
     }
 
+    private List<RuleDefinitionInputField> runtimeSourceFields(
+            List<RuleDefinitionInputField> inputFields,
+            Map<String, Map<String, Object>> varMetaMap) {
+        List<RuleDefinitionInputField> result = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (RuleDefinitionInputField field : inputFields) {
+            Map<String, Object> meta = findFieldMeta(field, varMetaMap);
+            String source = meta == null
+                    ? null : normalizeRefType((String) meta.get("varSource"));
+            if ("LIST".equals(source) || "API".equals(source)
+                    || "DB".equals(source)) {
+                addInputFieldIfAbsent(result, seen, field);
+            }
+        }
+        return result;
+    }
+
+    private List<RuleDefinitionInputField> mergeRuntimeSourceFields(
+            List<RuleDefinitionInputField> inputFields,
+            List<RuleDefinitionInputField> runtimeSourceFields) {
+        List<RuleDefinitionInputField> result = new ArrayList<>(inputFields);
+        Set<String> seen = new LinkedHashSet<>();
+        for (RuleDefinitionInputField field : result) {
+            seen.add(inputFieldKey(field));
+        }
+        for (RuleDefinitionInputField field : runtimeSourceFields) {
+            addInputFieldIfAbsent(result, seen, field);
+        }
+        return result;
+    }
+
     private List<RuleDefinitionInputField> loadRuleCallInputFields(String modelJson) {
         List<RuleDefinitionInputField> result = new ArrayList<>();
         if (inputFieldMapper == null || modelJson == null || modelJson.isEmpty()) {
@@ -1508,15 +1547,15 @@ public class RuleFieldAnalyzer {
             return;
         }
 
-        // 名单查询变量：保留源字段，并展开其查询依赖字段（与既有行为一致）
+        // 名单查询变量展开为查询依赖；仅无法解析依赖时保留源字段
         if ("VARIABLE".equals(refType) && "LIST".equals(varSource)) {
-            RuleDefinitionInputField listDependency = buildListDependencyField(field, varMetaMap);
-            int before = result.size();
-            if (listDependency != null) {
+            List<RuleDefinitionInputField> listDependencies =
+                    buildListDependencyFields(field, varMetaMap);
+            for (RuleDefinitionInputField listDependency : listDependencies) {
                 enrichFieldFromMeta(listDependency, varMetaMap, Collections.emptyMap(), Collections.emptyMap());
                 expandFieldRecursive(listDependency, varMetaMap, seen, visited, result);
             }
-            if (result.size() == before) {
+            if (listDependencies.isEmpty()) {
                 addInputFieldIfAbsent(result, seen, field);
             }
             visited.remove(visitKey);
@@ -1660,6 +1699,7 @@ public class RuleFieldAnalyzer {
             variable.setSourceConfig(sourceConfig);
             depNames.addAll(variableSourceResolver.collectVariableDependencies(variable));
         }
+        int before = result.size();
         for (String depName : depNames) {
             RuleDefinitionInputField depField = new RuleDefinitionInputField();
             depField.setScriptName(depName);
@@ -1682,6 +1722,9 @@ public class RuleFieldAnalyzer {
             }
             expandFieldRecursive(depField, varMetaMap, seen, visited, result);
         }
+        if ("COMPUTED".equals(varSource) && result.size() == before) {
+            addInputFieldIfAbsent(result, seen, field);
+        }
     }
 
     private void applySampleValuesFromMeta(RuleDefinitionInputField field, Map<String, Object> meta) {
@@ -1694,6 +1737,57 @@ public class RuleFieldAnalyzer {
         if ((field.getExampleValue() == null || field.getExampleValue().isEmpty()) && meta.get("exampleValue") instanceof String) {
             field.setExampleValue((String) meta.get("exampleValue"));
         }
+    }
+
+    private List<RuleDefinitionInputField> buildListDependencyFields(
+            RuleDefinitionInputField field,
+            Map<String, Map<String, Object>> varMetaMap) {
+        Map<String, Object> meta = findFieldMeta(field, varMetaMap);
+        if (meta == null || !"LIST".equals(meta.get("varSource"))) {
+            return Collections.emptyList();
+        }
+        JSONObject config = parseObject((String) meta.get("sourceConfig"));
+        JSONArray operands = config.getJSONArray("queryOperands");
+        List<RuleDefinitionInputField> dependencies = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        if (operands != null) {
+            for (int i = 0; i < operands.size(); i++) {
+                JSONObject operand = operands.getJSONObject(i);
+                if (operand == null) continue;
+                for (JSONObject reference
+                        : OperandValueResolver.collectReferences(
+                                operand.toJSONString())) {
+                    String refType = normalizeRefType(
+                            reference.getString("refType"));
+                    if ("CONSTANT".equals(refType)) continue;
+                    String path = firstNonBlank(
+                            reference.getString("value"),
+                            reference.getString("code"));
+                    if (path == null || !seen.add(path.toLowerCase())) continue;
+                    RuleDefinitionInputField dependency =
+                            new RuleDefinitionInputField();
+                    dependency.setFieldName(path);
+                    dependency.setFieldLabel(firstNonBlank(
+                            reference.getString("label"), path));
+                    dependency.setScriptName(path);
+                    dependency.setFieldType(firstNonBlank(
+                            reference.getString("valueType"), "STRING"));
+                    dependency.setVarId(reference.getLong("refId"));
+                    dependency.setRefType(refType);
+                    dependency.setStatus(1);
+                    dependency.setCreateTime(LocalDateTime.now());
+                    dependencies.add(dependency);
+                }
+            }
+        }
+        if (!dependencies.isEmpty()) {
+            return dependencies;
+        }
+        RuleDefinitionInputField legacy =
+                buildListDependencyField(field, varMetaMap);
+        return legacy == null
+                ? Collections.emptyList()
+                : Collections.singletonList(legacy);
     }
 
     private RuleDefinitionInputField buildListDependencyField(RuleDefinitionInputField field,

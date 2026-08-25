@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -12,6 +13,13 @@ import com.hengshucredit.rule.server.governance.GovernanceApprovalService;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Result<Void>> handleNoResourceFound(
+            NoResourceFoundException ignored) {
+        return ResponseEntity.status(404)
+                .body(Result.fail(404, "资源不存在"));
+    }
 
     @ExceptionHandler(RuleGovernanceException.class)
     public ResponseEntity<R<Map<String, Object>>> handleRuleGovernance(

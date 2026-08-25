@@ -1,4 +1,6 @@
 import { getEndNodeAppearance, normalizeEndScope } from '@/utils/endNodeScope'
+import { hasUsableConditionLeaf } from '@/utils/decisionConditionTree'
+import { graphContainsDirectedCycle } from '@/utils/flowGraphCycle'
 
 export const FLOW_THEME_COLOR = '#2639E9'
 export const ANCHOR_CLICK_TOLERANCE = 10
@@ -32,7 +34,16 @@ const DEFAULT_LAYOUT_OPTIONS = {
   horizontalGap: 240,
   verticalGap: 140,
   collisionGap: 36,
-  maxCollisionAttempts: 100
+  maxCollisionAttempts: 100,
+  rootColumns: 3,
+}
+
+const TOOLBAR_LAYOUT = {
+  originX: 400,
+  originY: 300,
+  columns: 4,
+  horizontalGap: 220,
+  verticalGap: 140,
 }
 
 function getPointerPosition(payload) {
@@ -175,6 +186,13 @@ function findNearestIncomingEdge(node, edges, originalPositions) {
   return nearest ? nearest.edge : null
 }
 
+function compactGridPosition(index, origin, columns, horizontalGap, verticalGap) {
+  return {
+    x: origin.x + (index % columns) * horizontalGap,
+    y: origin.y + Math.floor(index / columns) * verticalGap,
+  }
+}
+
 function getStableTopologicalOrder(nodes, edges) {
   const stableOrder = new Map(nodes.map((node, index) => [node.id, index]))
   const indegree = new Map(nodes.map(node => [node.id, 0]))
@@ -249,6 +267,11 @@ export function layoutGraphByAnchors(graph, layoutOptions = {}) {
   edges.forEach(edge => incoming.get(edge.targetNodeId).push(edge))
   const positions = new Map()
   const placed = []
+  const rootOrigin = businessNodes.reduce((origin, node) => ({
+    x: Math.min(origin.x, node.x),
+    y: Math.min(origin.y, node.y),
+  }), { x: Number.POSITIVE_INFINITY, y: Number.POSITIVE_INFINITY })
+  let rootIndex = 0
 
   getStableTopologicalOrder(businessNodes, edges).forEach(node => {
     const primaryEdge = findNearestIncomingEdge(node, incoming.get(node.id), originalPositions)
@@ -261,7 +284,13 @@ export function layoutGraphByAnchors(graph, layoutOptions = {}) {
           x: sourcePosition.x + direction.x * options.horizontalGap,
           y: sourcePosition.y + direction.y * options.verticalGap
         }
-      : { x: node.x, y: node.y }
+      : compactGridPosition(
+          rootIndex++,
+          rootOrigin,
+          options.rootColumns,
+          options.horizontalGap,
+          options.verticalGap
+        )
     const layoutDirection = hasPrimaryPosition ? direction : { x: 0, y: 0 }
     const position = findNonOverlappingPosition(base, node, placed, layoutDirection, options)
     node.x = position.x
@@ -273,6 +302,32 @@ export function layoutGraphByAnchors(graph, layoutOptions = {}) {
   refreshDynamicGroupBounds(result.nodes || [])
   ;(result.edges || []).forEach(clearEdgeGeometry)
   return result
+}
+
+export function findToolbarNodePosition(nodes, layoutOptions = {}) {
+  const options = { ...TOOLBAR_LAYOUT, ...layoutOptions }
+  const graphNodes = nodes || []
+  for (let index = 0; index < 200; index++) {
+    const candidate = compactGridPosition(
+      index,
+      { x: options.originX, y: options.originY },
+      options.columns,
+      options.horizontalGap,
+      options.verticalGap
+    )
+    const occupied = graphNodes.some(node =>
+      Math.abs(node.x - candidate.x) < 180 &&
+      Math.abs(node.y - candidate.y) < 100
+    )
+    if (!occupied) return candidate
+  }
+  return compactGridPosition(
+    graphNodes.length,
+    { x: options.originX, y: options.originY },
+    options.columns,
+    options.horizontalGap,
+    options.verticalGap
+  )
 }
 
 export function findAvailableNodePosition(nodes, sourceNode, direction, distance = 180) {
@@ -427,4 +482,77 @@ export function getBusinessGraphData(graph) {
     nodes,
     edges: (graph.edges || []).filter(edge => nodeIds.has(edge.sourceNodeId) && nodeIds.has(edge.targetNodeId))
   }
+}
+
+function designerNodeName(node) {
+  return (node.properties && node.properties.nodeName) || node.id
+}
+
+function edgeHasCondition(edge) {
+  const properties = edge.properties || {}
+  if (String(properties.conditionExpr || '').trim()) return true
+  return hasUsableConditionLeaf(properties.conditionConfig)
+}
+
+export function validateDesignerGraphStructure(graph, { treeMode = false } = {}) {
+  const nodes = (graph && graph.nodes) || []
+  const edges = (graph && graph.edges) || []
+  const errors = []
+  const starts = nodes.filter(node => node.type === 'start-event')
+  if (starts.length === 0) errors.push('缺少开始节点')
+  if (starts.length > 1) errors.push('开始节点只能有一个')
+  const incoming = new Map(nodes.map(node => [node.id, []]))
+  const outgoing = new Map(nodes.map(node => [node.id, []]))
+  edges.forEach(edge => {
+    if (outgoing.has(edge.sourceNodeId)) outgoing.get(edge.sourceNodeId).push(edge)
+    if (incoming.has(edge.targetNodeId)) incoming.get(edge.targetNodeId).push(edge)
+  })
+
+  nodes.forEach(node => {
+    const inputEdges = incoming.get(node.id) || []
+    const outputEdges = outgoing.get(node.id) || []
+    const name = designerNodeName(node)
+    if (node.type === 'start-event') {
+      if (inputEdges.length) errors.push(`开始节点「${name}」不能有入边`)
+      if (outputEdges.length !== 1)
+        errors.push(`节点「${name}」必须且只能有一条出边`)
+    } else if (node.type === 'script-task' || node.type === 'join-gateway') {
+      if (outputEdges.length !== 1)
+        errors.push(`节点「${name}」必须且只能有一条出边`)
+    } else if (node.type === 'end-event') {
+      if (outputEdges.length) errors.push(`结束节点「${name}」不能有出边`)
+    } else if (node.type === 'exclusive-gateway') {
+      if (outputEdges.length < 2)
+        errors.push(`条件判断节点「${name}」至少需要两个出口`)
+      const defaults = outputEdges.filter(edge => !edgeHasCondition(edge))
+      if (defaults.length > 1)
+        errors.push(`条件判断节点「${name}」最多只能有一个默认分支`)
+    }
+    if (treeMode && node.type === 'join-gateway')
+      errors.push(`决策树不允许使用聚合节点「${name}」，请使用决策流`)
+    if (!treeMode && node.type === 'join-gateway' && inputEdges.length < 2)
+      errors.push(`聚合节点「${name}」至少需要两个入边`)
+    if (treeMode && node.type !== 'start-event' && inputEdges.length > 1)
+      errors.push(`节点「${name}」有多条入边，决策树不允许分支汇合`)
+  })
+
+  const nodeIds = nodes.map(node => node.id)
+  if (graphContainsDirectedCycle(edges, nodeIds))
+    errors.push(`${treeMode ? '决策树' : '决策流'}不允许存在有向环路`)
+  if (starts.length === 1) {
+    const reachable = new Set()
+    const queue = [starts[0].id]
+    while (queue.length) {
+      const id = queue.shift()
+      if (reachable.has(id)) continue
+      reachable.add(id)
+      ;(outgoing.get(id) || []).forEach(edge => queue.push(edge.targetNodeId))
+    }
+    const unreachable = nodes.filter(node => !reachable.has(node.id))
+    if (unreachable.length)
+      errors.push(`存在从开始节点不可达的节点：${unreachable.map(designerNodeName).join('、')}`)
+    if (!nodes.some(node => reachable.has(node.id) && node.type === 'end-event'))
+      errors.push('缺少从开始节点可达的结束节点')
+  }
+  return errors
 }

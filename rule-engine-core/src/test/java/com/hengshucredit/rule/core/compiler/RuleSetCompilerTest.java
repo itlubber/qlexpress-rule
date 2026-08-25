@@ -74,6 +74,18 @@ public class RuleSetCompilerTest {
     }
 
     @Test
+    public void serialModeGeneratedScriptGrowsLinearlyWithRuleCount() {
+        CompileResult twentyRules = compiler.compile(serialRuleSet(20));
+        CompileResult fortyRules = compiler.compile(serialRuleSet(40));
+
+        assertTrue(twentyRules.getErrorMessage(), twentyRules.isSuccess());
+        assertTrue(fortyRules.getErrorMessage(), fortyRules.isSuccess());
+        assertTrue("串行规则集生成脚本不应随规则数量呈平方或更高阶增长",
+                fortyRules.getCompiledScript().length()
+                        < twentyRules.getCompiledScript().length() * 3);
+    }
+
+    @Test
     public void testParallelModeReturnsAllHitsByPriorityThenOrder() {
         CompileResult compiled = compiler.compile("{\n" +
                 "  \"executionMode\":\"PARALLEL\",\n" +
@@ -96,6 +108,22 @@ public class RuleSetCompilerTest {
         assertEquals("R0002", ((Map<?, ?>) hits.get(0)).get("ruleCode"));
         assertEquals("R0003", ((Map<?, ?>) hits.get(1)).get("ruleCode"));
         assertEquals("R0001", ((Map<?, ?>) hits.get(2)).get("ruleCode"));
+    }
+
+    private String serialRuleSet(int ruleCount) {
+        StringBuilder json = new StringBuilder(
+                "{\"executionMode\":\"SERIAL\",\"rules\":[");
+        for (int i = 0; i < ruleCount; i++) {
+            if (i > 0) json.append(',');
+            json.append("{\"ruleCode\":\"R")
+                    .append(i)
+                    .append("\",\"priority\":")
+                    .append(ruleCount - i)
+                    .append(",\"conditionRoot\":{\"type\":\"leaf\","
+                            + "\"varCode\":\"score\",\"varType\":\"NUMBER\","
+                            + "\"operator\":\">\",\"value\":\"1000\"}}" );
+        }
+        return json.append("]}").toString();
     }
 
     @After

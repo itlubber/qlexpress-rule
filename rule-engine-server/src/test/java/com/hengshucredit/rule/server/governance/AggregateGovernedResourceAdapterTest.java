@@ -308,6 +308,54 @@ public class AggregateGovernedResourceAdapterTest {
     }
 
     @Test
+    public void ruleDataObjectFieldDependencyTargetsGovernedRootObject() {
+        RuleDefinition definition = new RuleDefinition();
+        definition.setId(9L);
+        definition.setRuleCode("R001");
+        definition.setRuleName("准入规则");
+        definition.setModelType("RULE_SET");
+        definition.setStatus(1);
+        RuleDefinitionContent content = new RuleDefinitionContent();
+        content.setDefinitionId(9L);
+        content.setModelJson("{\"leftOperand\":{\"kind\":\"REFERENCE\","
+                + "\"refType\":\"DATA_OBJECT\",\"refId\":37,"
+                + "\"code\":\"request.score\"}}");
+        RuleDataObjectField field = new RuleDataObjectField();
+        field.setId(37L);
+        field.setObjectId(12L);
+        field.setProjectId(2L);
+        field.setScope("PROJECT");
+        field.setStatus(1);
+        RuleDataObjectFieldMapper fieldMapper =
+                mapper(RuleDataObjectFieldMapper.class,
+                        Map.of("selectById", field), new ArrayList<>());
+        RuleGovernedResourceAdapter adapter =
+                new RuleGovernedResourceAdapter(
+                        store(definition, RuleDefinition::setId),
+                        codec(), new RuleLifecycleService(), null,
+                        mapper(RuleDefinitionContentMapper.class,
+                                Map.of("selectOne", content),
+                                new ArrayList<>()),
+                        mapper(RuleDefinitionInputFieldMapper.class,
+                                Map.of("selectList", List.of()),
+                                new ArrayList<>()),
+                        mapper(RuleDefinitionOutputFieldMapper.class,
+                                Map.of("selectList", List.of()),
+                                new ArrayList<>()),
+                        fieldMapper);
+
+        List<ResourceDependencyRef> dependencies =
+                adapter.collectDependencies(adapter.loadEffective(9L));
+
+        Assert.assertTrue(dependencies.stream().anyMatch(ref ->
+                "DATA_OBJECT".equals(ref.targetResourceType())
+                        && Long.valueOf(12L).equals(ref.targetResourceId())));
+        Assert.assertFalse(dependencies.stream().anyMatch(ref ->
+                "DATA_OBJECT".equals(ref.targetResourceType())
+                        && Long.valueOf(37L).equals(ref.targetResourceId())));
+    }
+
+    @Test
     public void ruleRejectionKeepsOfflineEffectiveStatus() {
         RuleDefinition definition = new RuleDefinition();
         definition.setId(9L);
@@ -366,6 +414,56 @@ public class AggregateGovernedResourceAdapterTest {
         Assert.assertEquals(2, ((Number) CanonicalJson.readMap(
                 adapter.loadEffective(9L).snapshotJson())
                 .get("status")).intValue());
+    }
+
+    @Test
+    public void ruleApprovalReportsActiveStatusAfterAutomaticPublish() {
+        RuleDefinition definition = new RuleDefinition();
+        definition.setId(9L);
+        definition.setRuleCode("R001");
+        definition.setRuleName("准入规则");
+        definition.setModelType("RULE_SET");
+        definition.setStatus(0);
+        RuleRevision approved = new RuleRevision();
+        approved.setId(8L);
+        approved.setDefinitionId(9L);
+        approved.setState("APPROVED");
+        approved.setArtifactId(99L);
+        RuleLifecycleService lifecycle = new RuleLifecycleService() {
+            @Override
+            public List<RuleRevision> listRevisions(Long definitionId) {
+                return List.of(approved);
+            }
+
+            @Override
+            public RuleRevision publish(Long revisionId,
+                                        RuleLifecycleActionRequest request) {
+                approved.setState("PUBLISHED");
+                return approved;
+            }
+        };
+        RuleGovernedResourceAdapter adapter =
+                new RuleGovernedResourceAdapter(
+                        store(definition, RuleDefinition::setId), codec(),
+                        lifecycle, null,
+                        mapper(RuleDefinitionContentMapper.class,
+                                Map.of(),
+                                new ArrayList<>()),
+                        mapper(RuleDefinitionInputFieldMapper.class,
+                                Map.of("selectList", List.of()),
+                                new ArrayList<>()),
+                        mapper(RuleDefinitionOutputFieldMapper.class,
+                                Map.of("selectList", List.of()),
+                                new ArrayList<>()));
+
+        AppliedResource result = adapter.afterAggregateApplied(
+                new ApprovalApplyContext(1L, 9L, 1, "UPDATE",
+                        ResourceSnapshot.ofJson("{\"id\":9}"),
+                        "admin", null),
+                new AppliedResource(9L, 1, "DISABLED", null));
+
+        Assert.assertEquals("ACTIVE", result.effectiveStatus());
+        Assert.assertEquals(Long.valueOf(99L), result.artifactId());
     }
 
     @Test

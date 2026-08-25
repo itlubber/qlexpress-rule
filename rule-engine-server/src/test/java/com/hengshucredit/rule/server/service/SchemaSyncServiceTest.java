@@ -263,6 +263,52 @@ public class SchemaSyncServiceTest {
     }
 
     @Test
+    public void compiledScriptColumnsAreUpgradedForLargeDecisionArtifacts() throws Exception {
+        SchemaSyncService service = new SchemaSyncService();
+        FakeJdbcTemplate jdbcTemplate = new FakeJdbcTemplate();
+        jdbcTemplate.nonLongTextColumns.add("rule_definition_content.compiled_script");
+        jdbcTemplate.nonLongTextColumns.add("rule_definition_version.compiled_script");
+        jdbcTemplate.nonLongTextColumns.add("rule_published.compiled_script");
+        setField(service, "jdbcTemplate", jdbcTemplate);
+
+        Method method = SchemaSyncService.class.getDeclaredMethod(
+                "ensureCompiledScriptCapacity");
+        method.setAccessible(true);
+        method.invoke(service);
+
+        assertTrue(containsSql(jdbcTemplate.sqlList,
+                "ALTER TABLE `rule_definition_content` MODIFY COLUMN `compiled_script` LONGTEXT DEFAULT NULL"));
+        assertTrue(containsSql(jdbcTemplate.sqlList,
+                "ALTER TABLE `rule_definition_version` MODIFY COLUMN `compiled_script` LONGTEXT DEFAULT NULL"));
+        assertTrue(containsSql(jdbcTemplate.sqlList,
+                "ALTER TABLE `rule_published` MODIFY COLUMN `compiled_script` LONGTEXT NOT NULL"));
+
+        String schema = service.readSchema();
+        assertTrue(schema.contains("`compiled_script` LONGTEXT DEFAULT NULL             COMMENT '编译后脚本'"));
+        assertTrue(schema.contains("`compiled_script` LONGTEXT     DEFAULT NULL             COMMENT '版本快照 - 编译后脚本'"));
+        assertTrue(schema.contains("`compiled_script` LONGTEXT     NOT NULL                COMMENT '编译后脚本'"));
+    }
+
+    @Test
+    public void publishedRulesRepairStaleGovernanceEffectiveStatus() throws Exception {
+        SchemaSyncService service = new SchemaSyncService();
+        FakeJdbcTemplate jdbcTemplate = new FakeJdbcTemplate();
+        setField(service, "jdbcTemplate", jdbcTemplate);
+
+        Method method = SchemaSyncService.class.getDeclaredMethod(
+                "ensureRuleGovernanceEffectiveStatus");
+        method.setAccessible(true);
+        method.invoke(service);
+
+        assertTrue(containsSql(jdbcTemplate.sqlList,
+                "UPDATE `governed_resource` gr JOIN `rule_definition` rd"));
+        assertTrue(containsSql(jdbcTemplate.sqlList,
+                "SET gr.`effective_status` = 'ACTIVE'"));
+        assertTrue(containsSql(jdbcTemplate.sqlList,
+                "rd.`status` = 1"));
+    }
+
+    @Test
     public void traceSchemaCreatesRegistryAndAddsLinkColumns() throws Exception {
         SchemaSyncService service = new SchemaSyncService();
         FakeJdbcTemplate jdbcTemplate = new FakeJdbcTemplate(
@@ -376,9 +422,12 @@ public class SchemaSyncServiceTest {
                 return requiredType.cast(Integer.valueOf(0));
             }
             if (sql.contains("INFORMATION_SCHEMA.COLUMNS") && sql.contains("DATA_TYPE = ?")
-                    && args != null && args.length > 2
-                    && nonLongTextColumns.contains(String.valueOf(args[1]))) {
-                return requiredType.cast(Integer.valueOf(0));
+                    && args != null && args.length > 2) {
+                String columnKey = String.valueOf(args[0]) + "." + String.valueOf(args[1]);
+                if (nonLongTextColumns.contains(columnKey)
+                        || nonLongTextColumns.contains(String.valueOf(args[1]))) {
+                    return requiredType.cast(Integer.valueOf(0));
+                }
             }
             if (sql.contains("INFORMATION_SCHEMA.COLUMNS") && args != null && args.length > 1
                     && missingColumns.contains(String.valueOf(args[1]))) {

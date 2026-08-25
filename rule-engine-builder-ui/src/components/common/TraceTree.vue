@@ -137,6 +137,7 @@
           :execute-time-ms="ruleTraceFrame.durationMs"
           :model-data="ruleDefinitionModel"
           :definition-model="ruleDefinitionModel"
+          :rule-set-events="ruleTraceFrame.events || []"
           :function-name-map="functionNameMap"
         />
       </div>
@@ -983,6 +984,13 @@ export default {
     modelData: { type: Object, default: null },
     /** 规则完整 modelJson 对象（交叉表矩阵高亮依赖 rowHeaders/cells 等） */
     definitionModel: { type: Object, default: null },
+    /** 规则集运行时逐条评估事件，优先于表达式追踪推断命中状态 */
+    ruleSetEvents: {
+      type: Array,
+      default: function () {
+        return []
+      },
+    },
     /** 函数编码 → 中文名称（项目自定义函数，来自执行日志页加载） */
     functionNameMap: {
       type: Object,
@@ -1388,6 +1396,24 @@ export default {
       }
       return hits
     },
+    ruleSetEventStatuses: function () {
+      if (!Array.isArray(this.ruleSetEvents)) return null
+      var statuses = {}
+      var found = false
+      for (var i = 0; i < this.ruleSetEvents.length; i++) {
+        var event = this.ruleSetEvents[i]
+        if (!event || event.type !== 'RULE_SET_ITEM' || !event.ruleCode)
+          continue
+        found = true
+        statuses[String(event.ruleCode)] =
+          event.evaluated === false
+            ? 'skipped'
+            : event.hit === true
+            ? 'hit'
+            : 'miss'
+      }
+      return found ? statuses : null
+    },
     ruleSetRows: function () {
       var rules = this.ruleSetModelRules
       var rows = []
@@ -1397,7 +1423,14 @@ export default {
         var ruleCode = rule.ruleCode || 'R' + String(i + 1).padStart(4, '0')
         var traceStatus = this._ruleSetRowStatus(ifNode)
         var status = traceStatus
-        if (this.ruleSetOutputHits !== null) {
+        if (this.ruleSetEventStatuses !== null) {
+          status = Object.prototype.hasOwnProperty.call(
+            this.ruleSetEventStatuses,
+            String(ruleCode)
+          )
+            ? this.ruleSetEventStatuses[String(ruleCode)]
+            : 'skipped'
+        } else if (this.ruleSetOutputHits !== null) {
           status = this.ruleSetOutputHits[String(ruleCode)]
             ? 'hit'
             : traceStatus === 'skipped'
@@ -1429,7 +1462,10 @@ export default {
             rule.conditionRoot,
             this._ruleSetConditionNode(ifNode)
           ),
-          actions: this._buildRuleSetActionItems(rule.actionData),
+          actions:
+            status === 'hit'
+              ? this._buildRuleSetActionItems(rule.actionData)
+              : [],
         })
       }
       return rows

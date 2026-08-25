@@ -150,10 +150,10 @@ test('Element Plus 日期控件统一使用 Day.js 大写年份格式', () => {
 test('窄容器条件组会换行且不会裁掉右值和删除操作', () => {
   const editor = source('src/components/decision/ConditionGroupEditor.vue')
   expect(editor).toContain('container-type: inline-size')
-  expect(editor).toContain('@container (max-width: 560px)')
+  expect(editor).toContain('@container (max-width: 820px)')
   expect(editor).toContain('overflow-x: visible')
   expect(editor).toMatch(
-    /grid-template-columns:\s*minmax\(0,\s*2fr\)\s+96px\s+minmax\(0,\s*2fr\)\s+auto/
+    /grid-template-columns:\s*minmax\(220px,\s*1\.35fr\)\s+minmax\(96px,\s*120px\)\s+minmax\(340px,\s*1\.75fr\)\s+auto/
   )
 })
 

@@ -21,7 +21,10 @@ export default {
     },
     locateGraphNavigationItem(key) {
       const item = this.graphNavigationOptions.find(option => option.key === key)
-      if (item) this.locateGraphElement(item)
+      if (item) {
+        this.locateGraphElement(item)
+        this.graphNavigationTarget = ''
+      }
     },
     locateGraphElement(item) {
       if (!this.lf || !item || !item.elementId) return

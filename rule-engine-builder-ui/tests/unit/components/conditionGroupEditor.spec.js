@@ -147,3 +147,17 @@ describe('ConditionGroupEditor', () => {
     expect(wrapper.findAllComponents(OperandPickerStub)).toHaveLength(1)
   })
 })
+describe('ConditionGroupEditor change contract', () => {
+  test('emits changed whenever the visual condition tree is mutated', () => {
+    const wrapper = mountEditor()
+    const group = wrapper.props('group')
+
+    wrapper.vm.setGroupOp('OR')
+    wrapper.vm.addLeaf()
+    wrapper.vm.removeChild(0)
+
+    expect(wrapper.emitted('changed')).toHaveLength(3)
+    expect(group.op).toBe('OR')
+    wrapper.unmount()
+  })
+})

@@ -417,4 +417,26 @@ describe('flowDesignerGraph', () => {
 
     expect(result.nodes[1].x).toBeLessThan(result.nodes[0].x)
   })
+
+  test('没有连线的工具栏节点使用紧凑网格排布而不是向画布边缘发散', () => {
+    const graph = {
+      nodes: Array.from({ length: 6 }, (_, index) => ({
+        id: `node-${index}`,
+        type: index === 0 ? 'start-event' : 'script-task',
+        x: 400,
+        y: 300,
+        properties: {},
+      })),
+      edges: [],
+    }
+
+    const result = layoutGraphByAnchors(graph)
+    const xs = result.nodes.map(node => node.x)
+    const ys = result.nodes.map(node => node.y)
+    const positions = new Set(result.nodes.map(node => `${node.x}:${node.y}`))
+
+    expect(positions.size).toBe(6)
+    expect(Math.max(...xs) - Math.min(...xs)).toBeLessThanOrEqual(480)
+    expect(Math.max(...ys) - Math.min(...ys)).toBeLessThanOrEqual(280)
+  })
 })

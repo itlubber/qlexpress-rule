@@ -91,4 +91,33 @@ public class AggregateBuiltinFunctionsTest {
         assertTrue(functions.hasMapValue(map, "GOLD"));
         assertEquals(2L, functions.sizeOfValue(Arrays.asList("A", "B")));
     }
+
+    @Test
+    public void v115CreditLimitFormulaExecutesWithScalarMaxAndMin() {
+        QLExpressEngine engine = new QLExpressEngine();
+        String script = "amount = max(2000, min((min(max(monthly_successful_repayment_amount, "
+                + "credit_amount), 9000) * risk_factor * 0.5 + risk_limit * 0.5), 7000)) / 100 * 100;\n"
+                + "_result = {\"amount\": amount};\n_result";
+
+        assertFormulaAmount(engine, script, 3000, 5000, 1.0d, 4000, 4500d);
+        assertFormulaAmount(engine, script, 100, 100, 0.6d, 100, 2000d);
+        assertFormulaAmount(engine, script, 10000, 10000, 1.2d, 9000, 7000d);
+    }
+
+    private void assertFormulaAmount(QLExpressEngine engine, String script,
+                                     int repaymentAmount, int creditAmount,
+                                     double riskFactor, int riskLimit,
+                                     double expected) {
+        Map<String, Object> context = new LinkedHashMap<>();
+        context.put("monthly_successful_repayment_amount", repaymentAmount);
+        context.put("credit_amount", creditAmount);
+        context.put("risk_factor", riskFactor);
+        context.put("risk_limit", riskLimit);
+
+        RuleResult result = engine.execute(script, context);
+
+        assertTrue(result.getErrorMessage(), result.isSuccess());
+        Map<?, ?> output = (Map<?, ?>) result.getResult();
+        assertEquals(expected, ((Number) output.get("amount")).doubleValue(), 0.000001d);
+    }
 }

@@ -137,3 +137,46 @@ test('决策表字段选择器可加载并选择普通变量和对象字段', as
   expect(consoleErrors).toEqual([])
   assertClean()
 })
+
+test('规则集手输阈值在双栏布局中保留可读宽度和紧凑内边距', async ({ page }) => {
+  await page.setViewportSize({ width: 1850, height: 1000 })
+  const { assertClean } = await installDistRoutes(page, {
+    apiData: createDesignerApiData()
+  })
+  await page.goto('http://tianshu.local/index.html#/designer/ruleset/104')
+
+  await page.getByRole('button', { name: '添加规则' }).click()
+  const leftField = page.getByPlaceholder('选择左操作数...')
+  await leftField.click()
+  const leftPopoverId = await leftField.getAttribute('aria-describedby')
+  const leftPopover = page.locator(`[id="${leftPopoverId}"]`)
+  await leftPopover.locator('.vp-cat-item').filter({ hasText: '数据对象' }).click()
+  await leftPopover.locator('.vp-row').filter({ hasText: 'TaxRequest' }).click()
+  await leftPopover.locator('.vp-child-item').filter({ hasText: 'amount' }).click()
+
+  const rightField = page.getByPlaceholder('选择右操作数...')
+  await rightField.click()
+  const rightPopoverId = await rightField.getAttribute('aria-describedby')
+  const rightPopover = page.locator(`[id="${rightPopoverId}"]`)
+  await rightPopover.getByRole('button', { name: /手输阈值/ }).click()
+
+  const thresholdInput = page.getByPlaceholder('请输入阈值')
+  await thresholdInput.fill('1234567890')
+  const metrics = await thresholdInput.evaluate(input => {
+    const wrapper = input.closest('.el-input__wrapper')
+    const style = getComputedStyle(wrapper)
+    return {
+      width: input.getBoundingClientRect().width,
+      clientWidth: input.clientWidth,
+      scrollWidth: input.scrollWidth,
+      paddingLeft: parseFloat(style.paddingLeft || '0'),
+      paddingRight: parseFloat(style.paddingRight || '0')
+    }
+  })
+
+  expect(metrics.width).toBeGreaterThanOrEqual(160)
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth)
+  expect(metrics.paddingLeft).toBeLessThanOrEqual(8)
+  expect(metrics.paddingRight).toBeLessThanOrEqual(8)
+  assertClean()
+})

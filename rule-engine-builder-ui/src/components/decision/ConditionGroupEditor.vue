@@ -44,6 +44,7 @@
             :get-var-options-fn="getVarOptionsFn"
             :selected-vars="selectedVars"
             @remove-group="removeChild(idx)"
+            @changed="$emit('changed')"
           />
           <div v-else class="cg-leaf">
             <div class="cg-field cg-field--operand">
@@ -163,6 +164,7 @@ export default {
   methods: {
     setGroupOp(op) {
       this.group['op'] = op
+      this.notifyChanged()
     },
     leftOperandType(leaf) {
       return inferOperandType(leaf && leaf.leftOperand) || 'STRING'
@@ -214,7 +216,7 @@ export default {
       )
       return (option && option.rightValueType) || this.leftOperandType(leaf)
     },
-    onOpChange(leaf) {
+    onOpChange(leaf, notify = true) {
       const type = this.leftOperandType(leaf)
       const operator = normalizeConditionOperator(
         leaf.operator || '==',
@@ -224,6 +226,7 @@ export default {
       if (operator !== leaf.operator) leaf['operator'] = operator
       if (!conditionOperatorRequiresValue(operator, type, leaf.leftOperand)) {
         leaf['rightOperand'] = null
+        if (notify) this.notifyChanged()
         return
       }
       if (
@@ -232,6 +235,7 @@ export default {
       ) {
         leaf['rightOperand'] = null
       }
+      if (notify) this.notifyChanged()
     },
     onLeftOperandChange(leaf, operand) {
       leaf['leftOperand'] = operand || null
@@ -241,26 +245,34 @@ export default {
         type,
         operand
       )
-      this.onOpChange(leaf)
+      this.onOpChange(leaf, false)
+      this.notifyChanged()
     },
     onRightOperandChange(leaf, operand) {
       leaf['rightOperand'] = operand || null
+      this.notifyChanged()
     },
     addLeaf() {
       if (!Array.isArray(this.group.children)) this.group['children'] = []
       this.group.children.push(createEmptyLeaf())
+      this.notifyChanged()
     },
     addSubGroup() {
       if (!Array.isArray(this.group.children)) this.group['children'] = []
       const group = createEmptyGroup('AND')
       group.children.push(createEmptyLeaf())
       this.group.children.push(group)
+      this.notifyChanged()
     },
     removeChild(idx) {
       this.group.children.splice(idx, 1)
+      this.notifyChanged()
+    },
+    notifyChanged() {
+      this.$emit('changed')
     },
   },
-  emits: ['remove-group'],
+  emits: ['remove-group', 'changed'],
 }
 </script>
 
@@ -320,13 +332,17 @@ export default {
 }
 .cg-leaf {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) 96px minmax(0, 2fr) auto;
+  grid-template-columns:
+    minmax(220px, 1.35fr)
+    minmax(96px, 120px)
+    minmax(340px, 1.75fr)
+    auto;
   align-items: center;
   gap: 8px;
   width: 100%;
   min-width: 0;
 }
-@container (max-width: 560px) {
+@container (max-width: 820px) {
   .cg-leaf {
     grid-template-columns: minmax(0, 1fr) 96px auto;
   }

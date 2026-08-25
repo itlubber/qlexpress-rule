@@ -160,13 +160,49 @@ public class FieldDependencyResolver {
     private ResolutionPlan planFromRuleFields(List<RuleDefinitionInputField> inputs,
                                                List<RuleDefinitionOutputField> outputs) {
         ResolutionPlan plan = new ResolutionPlan();
-        plan.setExternalInputs(toResolvedInputs(inputs));
+        List<RuleDefinitionInputField> externalInputs = new ArrayList<>();
+        List<ResolvedField> runtimeNodes = new ArrayList<>();
+        for (RuleDefinitionInputField field : safe(inputs)) {
+            RuleVariable variable = runtimeSourceVariable(field);
+            if (variable == null) {
+                externalInputs.add(field);
+                continue;
+            }
+            ResolvedField runtimeNode = toResolved(field);
+            runtimeNode.setSourceType(variable.getVarSource());
+            runtimeNodes.add(runtimeNode);
+        }
+        plan.setExternalInputs(toResolvedInputs(externalInputs));
+        plan.setRuntimeNodes(runtimeNodes);
         List<ResolvedField> resolvedOutputs = new ArrayList<>();
         for (RuleDefinitionOutputField field : safe(outputs)) {
             resolvedOutputs.add(toResolved(field));
         }
         plan.setOutputs(resolvedOutputs);
         return plan;
+    }
+
+    private RuleVariable runtimeSourceVariable(
+            RuleDefinitionInputField field) {
+        if (field == null || field.getVarId() == null
+                || !"VARIABLE".equalsIgnoreCase(field.getRefType())
+                || variableService == null) {
+            return null;
+        }
+        RuleVariable variable = variableService.getById(field.getVarId());
+        if (variable == null || !hasText(variable.getVarSource())) {
+            return null;
+        }
+        String source = variable.getVarSource().trim().toUpperCase(Locale.ROOT);
+        if (!"LIST".equals(source) && !"API".equals(source)
+                && !"DB".equals(source)) {
+            return null;
+        }
+        if (!Integer.valueOf(1).equals(variable.getStatus())) {
+            throw new IllegalArgumentException(
+                    "运行来源变量已停用: VARIABLE:" + field.getVarId());
+        }
+        return variable;
     }
 
     private List<ResolvedField> toResolvedInputs(List<RuleDefinitionInputField> inputs) {

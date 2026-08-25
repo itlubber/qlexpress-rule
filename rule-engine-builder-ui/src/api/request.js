@@ -63,6 +63,8 @@ service.interceptors.response.use(
     }
     if (res.code !== 200) {
       const error = new Error(res.message || '请求失败')
+      error.response = response
+      error.config = response.config
       showRequestError(error.message, error)
       return Promise.reject(error)
     }

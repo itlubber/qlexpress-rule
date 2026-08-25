@@ -15,7 +15,7 @@ const designers = [
     name: '决策树',
     path: '/designer/tree/102',
     title: '决策树设计器',
-    action: '开始',
+    action: '执行动作',
     itemSelector: '.lf-node',
     loadsVariables: true
   },
@@ -23,7 +23,7 @@ const designers = [
     name: '决策流',
     path: '/designer/flow/103',
     title: '决策流设计器',
-    action: '开始',
+    action: '执行动作',
     itemSelector: '.lf-node',
     loadsVariables: true
   },
@@ -120,7 +120,8 @@ for (const designer of designers.filter(item => ['决策树', '决策流'].inclu
     })
     await page.goto(`http://tianshu.local/index.html#${designer.path}`)
 
-    await page.getByRole('button', { name: '开始', exact: true }).click()
+    await expect(page.getByRole('button', { name: '开始', exact: true })).toBeDisabled()
+    await page.getByRole('button', { name: '执行动作', exact: true }).click()
     const canvasClass = designer.name === '决策树' ? '.tree-canvas' : '.flow-canvas'
     const node = page.locator(
       `${canvasClass} .lf-node:not(.lf-mini-map .lf-node)`

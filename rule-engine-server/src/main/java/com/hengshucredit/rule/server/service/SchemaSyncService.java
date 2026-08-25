@@ -63,6 +63,7 @@ public class SchemaSyncService {
         if (jdbcTemplate == null) return;
         try {
             ensureRefTypeColumns();
+            ensureCompiledScriptCapacity();
             ensureFieldValidationSchema();
             ensureVariableSourceConfigColumn();
             ensureListTables();
@@ -74,6 +75,7 @@ public class SchemaSyncService {
             ensureProjectAuthSchema();
             ensureConsoleRbacSchema();
             ensureGovernanceSchema();
+            ensureRuleGovernanceEffectiveStatus();
             ensureRuleGovernanceLink();
             ensureApiDocScenarioSchema();
             ensureOpenApiContractColumns();
@@ -138,6 +140,37 @@ public class SchemaSyncService {
                 jdbcTemplate.execute("ALTER TABLE `" + table + "` ADD INDEX `idx_ref_type_var_id` (`ref_type`, `var_id`)");
             }
         }
+    }
+
+    /**
+     * 早期统一审批在应用草稿快照后才自动发布规则，导致治理根资源仍保留
+     * 草稿阶段的 DISABLED 状态。以实际已发布规则投影为准修复历史状态。
+     */
+    private void ensureRuleGovernanceEffectiveStatus() {
+        if (!tableExists("governed_resource")
+                || !tableExists("rule_definition")) {
+            return;
+        }
+        jdbcTemplate.execute("UPDATE `governed_resource` gr "
+                + "JOIN `rule_definition` rd ON gr.`resource_type` = 'RULE' "
+                + "AND gr.`resource_id` = rd.`id` "
+                + "SET gr.`effective_status` = 'ACTIVE' "
+                + "WHERE rd.`status` = 1 "
+                + "AND gr.`effective_status` <> 'ACTIVE'");
+    }
+
+    /**
+     * 规则集、决策流等可视化模型在业务规则较多时，编译脚本会自然超过
+     * MySQL TEXT 的 64 KiB 上限。设计态、版本快照和发布态必须使用同一容量，
+     * 否则会在保存、创建版本或发布中的任一步出现截断。
+     */
+    private void ensureCompiledScriptCapacity() {
+        ensureLongTextColumn("rule_definition_content", "compiled_script", true,
+                "编译后脚本");
+        ensureLongTextColumn("rule_definition_version", "compiled_script", true,
+                "版本快照 - 编译后脚本");
+        ensureLongTextColumn("rule_published", "compiled_script", false,
+                "编译后脚本");
     }
 
     private void ensureFieldValidationSchema() {
@@ -879,10 +912,16 @@ public class SchemaSyncService {
     }
 
     private void ensureLongTextColumn(String tableName, String columnName, String comment) {
+        ensureLongTextColumn(tableName, columnName, false, comment);
+    }
+
+    private void ensureLongTextColumn(String tableName, String columnName,
+                                      boolean nullable, String comment) {
         if (columnExists(tableName, columnName)
                 && !columnHasDataType(tableName, columnName, "longtext")) {
             jdbcTemplate.execute("ALTER TABLE `" + tableName + "` MODIFY COLUMN `" + columnName
-                    + "` LONGTEXT NOT NULL COMMENT '" + comment + "'");
+                    + "` LONGTEXT " + (nullable ? "DEFAULT NULL" : "NOT NULL")
+                    + " COMMENT '" + comment + "'");
         }
     }
 

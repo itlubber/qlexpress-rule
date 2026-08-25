@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -103,5 +104,51 @@ public class DecisionTreeCompilerTest {
 
         assertTrue(result.getErrorMessage(), result.isSuccess());
         assertTrue(result.getCompiledScript(), result.getCompiledScript().contains("terminateAllRules()"));
+    }
+
+    @Test
+    public void rejectTreeWithMultipleStartNodes() {
+        CompileResult result = compiler.compile("{"
+                + "\"nodes\":["
+                + "{\"id\":\"startA\",\"type\":\"start\"},"
+                + "{\"id\":\"startB\",\"type\":\"start\"},"
+                + "{\"id\":\"end\",\"type\":\"end\"}],"
+                + "\"edges\":[{\"source\":\"startA\",\"target\":\"end\"}]"
+                + "}");
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getErrorMessage(), result.getErrorMessage().contains("只能有一个"));
+    }
+
+    @Test
+    public void rejectTreeTaskWithMultipleOutgoingEdges() {
+        CompileResult result = compiler.compile("{"
+                + "\"nodes\":["
+                + "{\"id\":\"start\",\"type\":\"start\"},"
+                + "{\"id\":\"task\",\"type\":\"task\"},"
+                + "{\"id\":\"endA\",\"type\":\"end\"},"
+                + "{\"id\":\"endB\",\"type\":\"end\"}],"
+                + "\"edges\":["
+                + "{\"source\":\"start\",\"target\":\"task\"},"
+                + "{\"source\":\"task\",\"target\":\"endA\"},"
+                + "{\"source\":\"task\",\"target\":\"endB\"}]"
+                + "}");
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getErrorMessage(), result.getErrorMessage().contains("只能有一条出边"));
+    }
+
+    @Test
+    public void rejectTreeWithUnreachableNode() {
+        CompileResult result = compiler.compile("{"
+                + "\"nodes\":["
+                + "{\"id\":\"start\",\"type\":\"start\"},"
+                + "{\"id\":\"end\",\"type\":\"end\"},"
+                + "{\"id\":\"orphan\",\"type\":\"task\"}],"
+                + "\"edges\":[{\"source\":\"start\",\"target\":\"end\"}]"
+                + "}");
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getErrorMessage(), result.getErrorMessage().contains("不可达"));
     }
 }

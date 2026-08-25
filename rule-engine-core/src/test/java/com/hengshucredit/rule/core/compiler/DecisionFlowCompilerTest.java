@@ -40,13 +40,106 @@ public class DecisionFlowCompilerTest {
     }
 
     @Test
-    public void compileFlowWithoutEndNodeSuccessfully() {
+    public void rejectFlowWithoutReachableEndNode() {
         CompileResult result = compiler.compile("{"
                 + "\"nodes\":[{\"id\":\"start\",\"type\":\"start\"}],"
                 + "\"edges\":[]"
                 + "}");
 
+        assertFalse(result.isSuccess());
+        assertTrue(result.getErrorMessage(), result.getErrorMessage().contains("结束节点"));
+    }
+
+    @Test
+    public void rejectStartNodeWithMultipleOutgoingEdges() {
+        CompileResult result = compiler.compile("{"
+                + "\"nodes\":["
+                + "{\"id\":\"start\",\"type\":\"start\"},"
+                + "{\"id\":\"a\",\"type\":\"end\"},"
+                + "{\"id\":\"b\",\"type\":\"end\"}],"
+                + "\"edges\":["
+                + "{\"source\":\"start\",\"target\":\"a\"},"
+                + "{\"source\":\"start\",\"target\":\"b\"}]"
+                + "}");
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getErrorMessage(), result.getErrorMessage().contains("只能有一条出边"));
+    }
+
+    @Test
+    public void rejectDecisionWithMultipleDefaultEdges() {
+        CompileResult result = compiler.compile("{"
+                + "\"nodes\":["
+                + "{\"id\":\"start\",\"type\":\"start\"},"
+                + "{\"id\":\"decision\",\"type\":\"decision\"},"
+                + "{\"id\":\"hit\",\"type\":\"end\"},"
+                + "{\"id\":\"fallbackA\",\"type\":\"end\"},"
+                + "{\"id\":\"fallbackB\",\"type\":\"end\"}],"
+                + "\"edges\":["
+                + "{\"source\":\"start\",\"target\":\"decision\"},"
+                + "{\"source\":\"decision\",\"target\":\"hit\",\"conditionExpression\":\"score > 0\"},"
+                + "{\"source\":\"decision\",\"target\":\"fallbackA\"},"
+                + "{\"source\":\"decision\",\"target\":\"fallbackB\"}]"
+                + "}");
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getErrorMessage(), result.getErrorMessage().contains("默认分支"));
+    }
+
+    @Test
+    public void rejectUnreachableBusinessNode() {
+        CompileResult result = compiler.compile("{"
+                + "\"nodes\":["
+                + "{\"id\":\"start\",\"type\":\"start\"},"
+                + "{\"id\":\"end\",\"type\":\"end\"},"
+                + "{\"id\":\"orphan\",\"type\":\"task\",\"qlExpressScript\":\"x = 1\"}],"
+                + "\"edges\":[{\"source\":\"start\",\"target\":\"end\"}]"
+                + "}");
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getErrorMessage(), result.getErrorMessage().contains("不可达"));
+    }
+
+    @Test
+    public void rejectJoinNodeWithSingleIncomingEdge() {
+        CompileResult result = compiler.compile("{"
+                + "\"nodes\":["
+                + "{\"id\":\"start\",\"type\":\"start\"},"
+                + "{\"id\":\"join\",\"type\":\"join\"},"
+                + "{\"id\":\"end\",\"type\":\"end\"}],"
+                + "\"edges\":["
+                + "{\"source\":\"start\",\"target\":\"join\"},"
+                + "{\"source\":\"join\",\"target\":\"end\"}]"
+                + "}");
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getErrorMessage(), result.getErrorMessage().contains("至少两条入边"));
+    }
+
+    @Test
+    public void conditionalBranchesUseExplicitPriorityBeforeArrayOrder() {
+        CompileResult result = compiler.compile("{"
+                + "\"nodes\":["
+                + "{\"id\":\"start\",\"type\":\"start\"},"
+                + "{\"id\":\"decision\",\"type\":\"decision\"},"
+                + "{\"id\":\"firstInArray\",\"type\":\"task\",\"actionData\":[{\"type\":\"assign\",\"target\":\"decisionResult\",\"value\":\"\\\"ARRAY_FIRST\\\"\"}]},"
+                + "{\"id\":\"higherPriority\",\"type\":\"task\",\"actionData\":[{\"type\":\"assign\",\"target\":\"decisionResult\",\"value\":\"\\\"PRIORITY_FIRST\\\"\"}]},"
+                + "{\"id\":\"endA\",\"type\":\"end\"},"
+                + "{\"id\":\"endB\",\"type\":\"end\"}],"
+                + "\"edges\":["
+                + "{\"source\":\"start\",\"target\":\"decision\"},"
+                + "{\"source\":\"decision\",\"target\":\"firstInArray\",\"conditionExpression\":\"score >= 0\",\"priority\":20},"
+                + "{\"source\":\"decision\",\"target\":\"higherPriority\",\"conditionExpression\":\"score >= 0\",\"priority\":10},"
+                + "{\"source\":\"firstInArray\",\"target\":\"endA\"},"
+                + "{\"source\":\"higherPriority\",\"target\":\"endB\"}]"
+                + "}");
+
         assertTrue(result.getErrorMessage(), result.isSuccess());
+        Map<String, Object> params = new HashMap<>();
+        params.put("score", 1);
+        RuleResult executed = engine.execute(result.getCompiledScript(), params);
+        assertTrue(executed.getErrorMessage(), executed.isSuccess());
+        assertEquals("PRIORITY_FIRST", ((Map<?, ?>) executed.getResult()).get("decisionResult"));
     }
 
     @Test

@@ -6,12 +6,14 @@ import com.hengshucredit.rule.model.entity.DecisionArtifactComponent;
 import com.hengshucredit.rule.model.entity.RuleDefinition;
 import com.hengshucredit.rule.model.entity.RuleDefinitionInputField;
 import com.hengshucredit.rule.model.entity.RuleDefinitionOutputField;
+import com.hengshucredit.rule.model.entity.RulePublished;
 import com.hengshucredit.rule.model.entity.RuleRevision;
 import com.hengshucredit.rule.server.service.RuleFieldAnalyzer;
 import org.junit.Assert;
 import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -111,6 +113,54 @@ public class DecisionArtifactServiceTest {
         Assert.assertEquals(first.getArtifactDigest(), second.getArtifactDigest());
         Assert.assertEquals(first.getPackageDigest(), second.getPackageDigest());
         Assert.assertEquals(1, service.insertCount);
+    }
+
+    @Test
+    public void approvedArtifactFieldSnapshotsRoundTripWithIsoDateTimes() {
+        FixtureService service = new FixtureService();
+        RuleDefinitionInputField input = input("frozen_input");
+        RuleDefinitionOutputField output = localOutput("frozen_output");
+        LocalDateTime createdAt = LocalDateTime.of(2026, 8, 25, 9, 10, 11);
+        input.setCreateTime(createdAt);
+        output.setCreateTime(createdAt);
+        service.resolved = new RuleFieldAnalyzer.ResolvedFields(
+                Collections.singletonList(input),
+                Collections.singletonList(output),
+                Collections.emptyList(), Collections.singleton("frozen_output"),
+                Collections.emptyMap(), Collections.emptyMap());
+
+        DecisionArtifact artifact = service.buildApprovedArtifact(200L, "alice");
+        RulePublished published = new RulePublished();
+        published.setDefinitionId(100L);
+        published.setRevisionId(200L);
+        published.setArtifactId(artifact.getId());
+        published.setArtifactDigest(artifact.getArtifactDigest());
+        published.setModelType("SCRIPT");
+        published.setStatus(1);
+        PublishedRuleFieldSnapshotResolver resolver =
+                new PublishedRuleFieldSnapshotResolver() {
+                    @Override
+                    protected RulePublished loadPublishedRule(Long definitionId) {
+                        return published;
+                    }
+
+                    @Override
+                    protected DecisionArtifact loadArtifact(Long artifactId) {
+                        return artifact;
+                    }
+                };
+
+        RuleFieldAnalyzer.ResolvedFields frozen = resolver.resolve(100L);
+
+        Assert.assertTrue(frozen.getDiagnostics().toString(),
+                frozen.getDiagnostics().isEmpty());
+        Assert.assertEquals(createdAt, frozen.getInputFields().get(0).getCreateTime());
+        Assert.assertEquals(createdAt, frozen.getOutputFields().get(0).getCreateTime());
+        String inputJson = componentText(new DecisionArtifactPackageCodec()
+                .decode(artifact.getPackageContent()).getArtifactPackage(),
+                "rule/input-fields.json");
+        Assert.assertTrue(inputJson, inputJson.contains("\"createTime\":\"2026-08-25T09:10:11\""));
+        Assert.assertFalse(inputJson, inputJson.matches(".*\\\"createTime\\\":\\d+.*"));
     }
 
     private static RuleFieldAnalyzer.ResolvedFields resolvedWithLocalOutput(

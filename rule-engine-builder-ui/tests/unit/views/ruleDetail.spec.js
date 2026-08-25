@@ -57,6 +57,15 @@ function mockDraftSave(revision) {
 }
 
 describe('RuleDetail 生命周期治理', () => {
+  test('详情页明确区分内容保存版本、生命周期修订和当前发布版本', async () => {
+    const wrapper = await mountAndWait()
+
+    expect(wrapper.text()).toContain('内容保存版本')
+    expect(wrapper.text()).toContain('生命周期修订')
+    expect(wrapper.text()).toContain('当前发布版本')
+    wrapper.unmount()
+  })
+
   test('生命周期是规则详情第一个 Tab，并承接设计器跳转焦点', async () => {
     const wrapper = await mountAndWait(undefined, undefined, {
       focus: 'lifecycle',
@@ -513,8 +522,14 @@ async function mountAndWait(
     stubs: {
       'el-dialog': makeStub('div'),
       'el-card': makeStub('div'),
-      'el-descriptions': makeStub('div'),
-      'el-descriptions-item': makeStub('div'),
+      'el-descriptions': makeSlotStub('div'),
+      'el-descriptions-item': {
+        props: ['label'],
+        render() {
+          const content = this.$slots.default ? this.$slots.default() : []
+          return h('div', [h('span', this.label), ...content])
+        },
+      },
       'el-form': makeStub('form'),
       'el-form-item': makeStub('div'),
       'el-select': makeStub('select'),

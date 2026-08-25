@@ -129,6 +129,17 @@ describe('varPickerMixin', () => {
     expect(vm.projectRefs.length).toBeGreaterThan(0)
   })
 
+  test('缓存设计器重新激活时刷新项目字段引用', async () => {
+    const refreshProjectRefs = vi.fn().mockResolvedValue()
+
+    await varPickerMixin.activated.call({
+      projectIdForRefs: 1,
+      refreshProjectRefs
+    })
+
+    expect(refreshProjectRefs).toHaveBeenCalledTimes(1)
+  })
+
   test('loadProjectVars 完成后 inputVars 仅包含 INPUT 类型', async () => {
     const vm = createMixinVM()
     await vm.loadProjectVars(1)

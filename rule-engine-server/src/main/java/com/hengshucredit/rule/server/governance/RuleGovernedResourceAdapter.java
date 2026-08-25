@@ -8,16 +8,19 @@ import com.hengshucredit.rule.model.entity.RuleDefinition;
 import com.hengshucredit.rule.model.entity.RuleDefinitionContent;
 import com.hengshucredit.rule.model.entity.RuleDefinitionInputField;
 import com.hengshucredit.rule.model.entity.RuleDefinitionOutputField;
+import com.hengshucredit.rule.model.entity.RuleDataObjectField;
 import com.hengshucredit.rule.model.entity.RuleRevision;
 import com.hengshucredit.rule.model.enums.RuleRevisionState;
 import com.hengshucredit.rule.server.mapper.RuleDefinitionContentMapper;
 import com.hengshucredit.rule.server.mapper.RuleDefinitionInputFieldMapper;
 import com.hengshucredit.rule.server.mapper.RuleDefinitionOutputFieldMapper;
+import com.hengshucredit.rule.server.mapper.RuleDataObjectFieldMapper;
 import com.hengshucredit.rule.server.service.RuleLifecycleService;
 import com.hengshucredit.rule.server.service.RuleDraftService;
 
 import java.util.List;
 import java.util.Map;
+import java.util.ArrayList;
 import java.util.Set;
 
 public class RuleGovernedResourceAdapter
@@ -28,6 +31,7 @@ public class RuleGovernedResourceAdapter
     private final RuleDefinitionInputFieldMapper inputMapper;
     private final RuleDefinitionOutputFieldMapper outputMapper;
     private final RuleDraftService draftService;
+    private final RuleDataObjectFieldMapper dataObjectFieldMapper;
 
     public RuleGovernedResourceAdapter(
             SimpleEntityGovernedResourceAdapter.EntityStore<RuleDefinition>
@@ -38,6 +42,20 @@ public class RuleGovernedResourceAdapter
             RuleDefinitionContentMapper contentMapper,
             RuleDefinitionInputFieldMapper inputMapper,
             RuleDefinitionOutputFieldMapper outputMapper) {
+        this(store, secretCodec, lifecycleService, draftService,
+                contentMapper, inputMapper, outputMapper, null);
+    }
+
+    public RuleGovernedResourceAdapter(
+            SimpleEntityGovernedResourceAdapter.EntityStore<RuleDefinition>
+                    store,
+            GovernanceSecretCodec secretCodec,
+            RuleLifecycleService lifecycleService,
+            RuleDraftService draftService,
+            RuleDefinitionContentMapper contentMapper,
+            RuleDefinitionInputFieldMapper inputMapper,
+            RuleDefinitionOutputFieldMapper outputMapper,
+            RuleDataObjectFieldMapper dataObjectFieldMapper) {
         super(new SimpleEntityGovernedResourceAdapter<>(
                 GovernanceResourceTypes.RULE,
                 RuleDefinition.class,
@@ -54,6 +72,43 @@ public class RuleGovernedResourceAdapter
         this.contentMapper = contentMapper;
         this.inputMapper = inputMapper;
         this.outputMapper = outputMapper;
+        this.dataObjectFieldMapper = dataObjectFieldMapper;
+    }
+
+    @Override
+    public List<ResourceDependencyRef> collectDependencies(
+            ResourceSnapshot draft) {
+        List<ResourceDependencyRef> resolved = new ArrayList<>();
+        for (ResourceDependencyRef dependency
+                : super.collectDependencies(draft)) {
+            resolved.add(resolveGovernedRoot(dependency));
+        }
+        return resolved;
+    }
+
+    private ResourceDependencyRef resolveGovernedRoot(
+            ResourceDependencyRef dependency) {
+        if (dataObjectFieldMapper == null
+                || !GovernanceResourceTypes.DATA_OBJECT.equals(
+                dependency.targetResourceType())
+                || !isFieldReferencePath(dependency.referencePath())) {
+            return dependency;
+        }
+        RuleDataObjectField field = dataObjectFieldMapper.selectById(
+                dependency.targetResourceId());
+        if (field == null || field.getObjectId() == null) {
+            return dependency;
+        }
+        return new ResourceDependencyRef(
+                GovernanceResourceTypes.DATA_OBJECT,
+                field.getObjectId(), GovernanceResourceTypes.DATA_OBJECT,
+                dependency.referencePath(), dependency.relationType(),
+                dependency.required());
+    }
+
+    private boolean isFieldReferencePath(String path) {
+        return path != null
+                && (path.endsWith(".refId") || path.endsWith(".varId"));
     }
 
     @Override
@@ -160,8 +215,12 @@ public class RuleGovernedResourceAdapter
         RuleRevision published = approveAndPublish(
                 applied.resourceId(), context.snapshot(),
                 context.actor());
+        String effectiveStatus = published != null
+                && RuleRevisionState.PUBLISHED.name()
+                .equals(published.getState())
+                ? "ACTIVE" : applied.effectiveStatus();
         return new AppliedResource(applied.resourceId(),
-                applied.versionNo(), applied.effectiveStatus(),
+                applied.versionNo(), effectiveStatus,
                 published == null ? null : published.getArtifactId());
     }
 

@@ -19,6 +19,7 @@
       :functions="actionEditor.functions"
       :selected-vars="actionEditor.selectedVars"
       :allowed-kinds="actionEditor.valueKinds"
+      :expected-type="actionEditor.operandType(action.targetOperand)"
       placeholder="选择值或字段"
       size="small"
       @input="(value) => actionEditor.setOperand(action, 'valueOperand', value)"

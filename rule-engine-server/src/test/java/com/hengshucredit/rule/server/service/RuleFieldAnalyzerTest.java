@@ -864,6 +864,207 @@ public class RuleFieldAnalyzerTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    public void listSourceExpansionUsesEveryStructuredQueryOperand() throws Exception {
+        RuleDefinitionInputField listHit = new RuleDefinitionInputField();
+        listHit.setFieldName("riskHit");
+        listHit.setScriptName("riskHit");
+        listHit.setFieldType("NUMBER");
+        listHit.setVarId(9L);
+        listHit.setRefType("VARIABLE");
+
+        Map<String, Object> meta = new HashMap<>();
+        meta.put("varSource", "LIST");
+        meta.put("sourceConfig", "{\"queryOperands\":["
+                + "{\"kind\":\"REFERENCE\",\"value\":\"idcard_no\",\"code\":\"idcard_no\","
+                + "\"label\":\"身份证号\",\"valueType\":\"STRING\",\"refId\":6,"
+                + "\"refType\":\"VARIABLE\"},"
+                + "{\"kind\":\"REFERENCE\",\"value\":\"mobile_no\",\"code\":\"mobile_no\","
+                + "\"label\":\"手机号\",\"valueType\":\"STRING\",\"refId\":7,"
+                + "\"refType\":\"VARIABLE\"}]}"
+        );
+        Map<String, Map<String, Object>> varMetaMap = new HashMap<>();
+        varMetaMap.put("riskhit", meta);
+
+        Method expand = RuleFieldAnalyzer.class.getDeclaredMethod(
+                "expandModelInputFields", List.class, Map.class);
+        expand.setAccessible(true);
+        List<RuleDefinitionInputField> fields =
+                (List<RuleDefinitionInputField>) expand.invoke(
+                        analyzer, Collections.singletonList(listHit), varMetaMap);
+        List<String> names = fields.stream()
+                .map(RuleDefinitionInputField::getScriptName)
+                .collect(Collectors.toList());
+
+        assertFalse(names.contains("riskHit"));
+        assertEquals(Arrays.asList("idcard_no", "mobile_no"), names);
+        assertEquals(Long.valueOf(6L), fields.get(0).getVarId());
+        assertEquals(Long.valueOf(7L), fields.get(1).getVarId());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void listSourceExpansionDoesNotRestoreDerivedVariableAfterDependencyDeduplication()
+            throws Exception {
+        RuleDefinitionInputField blackHit = new RuleDefinitionInputField();
+        blackHit.setScriptName("blackHit");
+        blackHit.setVarId(9L);
+        blackHit.setRefType("VARIABLE");
+        RuleDefinitionInputField whiteHit = new RuleDefinitionInputField();
+        whiteHit.setScriptName("whiteHit");
+        whiteHit.setVarId(10L);
+        whiteHit.setRefType("VARIABLE");
+
+        String sourceConfig = "{\"queryOperands\":["
+                + "{\"kind\":\"REFERENCE\",\"value\":\"idcard_no\",\"refId\":6,"
+                + "\"refType\":\"VARIABLE\"},"
+                + "{\"kind\":\"REFERENCE\",\"value\":\"mobile_no\",\"refId\":7,"
+                + "\"refType\":\"VARIABLE\"}]}";
+        Map<String, Object> blackMeta = new HashMap<>();
+        blackMeta.put("varSource", "LIST");
+        blackMeta.put("sourceConfig", sourceConfig);
+        Map<String, Object> whiteMeta = new HashMap<>();
+        whiteMeta.put("varSource", "LIST");
+        whiteMeta.put("sourceConfig", sourceConfig);
+        Map<String, Map<String, Object>> varMetaMap = new HashMap<>();
+        varMetaMap.put("blackhit", blackMeta);
+        varMetaMap.put("whitehit", whiteMeta);
+
+        Method expand = RuleFieldAnalyzer.class.getDeclaredMethod(
+                "expandModelInputFields", List.class, Map.class);
+        expand.setAccessible(true);
+        List<RuleDefinitionInputField> fields =
+                (List<RuleDefinitionInputField>) expand.invoke(
+                        analyzer, Arrays.asList(blackHit, whiteHit), varMetaMap);
+        List<String> names = fields.stream()
+                .map(RuleDefinitionInputField::getScriptName)
+                .collect(Collectors.toList());
+
+        assertEquals(Arrays.asList("idcard_no", "mobile_no"), names);
+    }
+
+    @Test
+    public void resolvedRuleFieldsRetainListSourceForRuntimeAlongsideQueryInputs()
+            throws Exception {
+        RuleFieldAnalyzer localAnalyzer = new RuleFieldAnalyzer();
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new Configuration(), ""),
+                RuleModel.class);
+        RuleVariable listHit = new RuleVariable();
+        listHit.setId(9L);
+        listHit.setProjectId(4L);
+        listHit.setScope("PROJECT");
+        listHit.setVarCode("riskHit");
+        listHit.setScriptName("riskHit");
+        listHit.setVarLabel("名单命中");
+        listHit.setVarType("NUMBER");
+        listHit.setVarSource("LIST");
+        listHit.setStatus(1);
+        listHit.setSourceConfig("{\"queryOperands\":["
+                + "{\"kind\":\"REFERENCE\",\"value\":\"idcard_no\",\"refId\":6,"
+                + "\"refType\":\"VARIABLE\"},"
+                + "{\"kind\":\"REFERENCE\",\"value\":\"mobile_no\",\"refId\":7,"
+                + "\"refType\":\"VARIABLE\"}]}");
+        RuleVariable idcard = inputVariable(6L, "idcard_no");
+        RuleVariable mobile = inputVariable(7L, "mobile_no");
+        setField(localAnalyzer, "ruleVariableMapper", mapper(
+                RuleVariableMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Arrays.asList(listHit, idcard, mobile) : null));
+        setField(localAnalyzer, "dataObjectMapper", mapper(
+                RuleDataObjectMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.emptyList() : null));
+        setField(localAnalyzer, "dataObjectFieldMapper", mapper(
+                RuleDataObjectFieldMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.emptyList() : null));
+        setField(localAnalyzer, "modelMapper", mapper(
+                RuleModelMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.emptyList() : null));
+        setField(localAnalyzer, "modelOutputFieldMapper", mapper(
+                RuleModelOutputFieldMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.emptyList() : null));
+
+        RuleFieldAnalyzer.ResolvedFields fields = localAnalyzer.resolveFields(
+                null,
+                "{\"rules\":[{\"conditionRoot\":{\"type\":\"group\","
+                        + "\"op\":\"AND\",\"children\":[{\"type\":\"leaf\","
+                        + "\"leftOperand\":{\"kind\":\"REFERENCE\",\"value\":\"riskHit\","
+                        + "\"refId\":9,\"refType\":\"VARIABLE\"},\"operator\":\"==\","
+                        + "\"rightOperand\":{\"kind\":\"LITERAL\",\"value\":\"1\","
+                        + "\"valueType\":\"NUMBER\"}}]}}]}",
+                "RULE_SET", 4L);
+
+        assertEquals(Arrays.asList("idcard_no", "mobile_no", "riskHit"),
+                names(fields.getInputFields()));
+    }
+
+    @Test
+    public void scriptResolvedFieldsRetainListSourceForRuntimeAlongsideQueryInputs()
+            throws Exception {
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new Configuration(), ""),
+                RuleModel.class);
+        RuleVariable listHit = new RuleVariable();
+        listHit.setId(9L);
+        listHit.setProjectId(4L);
+        listHit.setScope("PROJECT");
+        listHit.setVarCode("riskHit");
+        listHit.setScriptName("riskHit");
+        listHit.setVarLabel("名单命中");
+        listHit.setVarType("NUMBER");
+        listHit.setVarSource("LIST");
+        listHit.setStatus(1);
+        listHit.setSourceConfig("{\"queryOperands\":["
+                + "{\"kind\":\"REFERENCE\",\"value\":\"idcard_no\",\"refId\":6,"
+                + "\"refType\":\"VARIABLE\"},"
+                + "{\"kind\":\"REFERENCE\",\"value\":\"mobile_no\",\"refId\":7,"
+                + "\"refType\":\"VARIABLE\"}]}");
+        RuleVariable idcard = inputVariable(6L, "idcard_no");
+        RuleVariable mobile = inputVariable(7L, "mobile_no");
+        Map<Long, RuleVariable> variables = new HashMap<>();
+        variables.put(9L, listHit);
+        variables.put(6L, idcard);
+        variables.put(7L, mobile);
+        setField(analyzer, "qlScriptFieldResolver", scriptResolver(variables));
+        setField(analyzer, "ruleVariableMapper", mapper(
+                RuleVariableMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Arrays.asList(listHit, idcard, mobile)
+                        : "selectById".equals(method.getName())
+                        ? variables.get(((Number) args[0]).longValue()) : null));
+        setField(analyzer, "dataObjectMapper", mapper(
+                RuleDataObjectMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.emptyList() : null));
+        setField(analyzer, "dataObjectFieldMapper", mapper(
+                RuleDataObjectFieldMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.emptyList() : null));
+        setField(analyzer, "modelMapper", mapper(
+                RuleModelMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.emptyList() : null));
+        setField(analyzer, "modelOutputFieldMapper", mapper(
+                RuleModelOutputFieldMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.emptyList() : null));
+
+        RuleFieldAnalyzer.ResolvedFields fields = analyzer.resolveFields(
+                null,
+                "{\"script\":\"result = riskHit; result\","
+                        + "\"scriptVarRefs\":[{\"refCode\":\"riskHit\","
+                        + "\"varId\":9,\"refType\":\"VARIABLE\"}]}",
+                "SCRIPT", 4L);
+
+        assertEquals(Arrays.asList("idcard_no", "mobile_no", "riskHit"),
+                names(fields.getInputFields()));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     public void modelOutputExpandsToModelInputFieldsRecursively() throws Exception {
         RuleDefinitionInputField scoreF1 = new RuleDefinitionInputField();
         scoreF1.setScriptName("score_f1.score");
@@ -997,6 +1198,32 @@ public class RuleFieldAnalyzerTest {
         assertTrue("计算变量应穿透到表达式引用变量", names(computedResult).contains("idcard_no"));
         assertTrue("计算变量应穿透到表达式引用变量", names(computedResult).contains("age"));
         assertFalse("计算变量本身不应保留为测试入参", names(computedResult).contains("computed_score"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void computedVariableWithoutSourceExpressionRemainsInjectableForStandaloneTest() throws Exception {
+        Map<String, Map<String, Object>> varMetaMap = new HashMap<>();
+        Map<String, Object> computedMeta = new HashMap<>();
+        computedMeta.put("varSource", "COMPUTED");
+        computedMeta.put("scriptName", "risk_factor");
+        computedMeta.put("varType", "DOUBLE");
+        computedMeta.put("varId", 218L);
+        varMetaMap.put("risk_factor", computedMeta);
+        Method expand = RuleFieldAnalyzer.class.getDeclaredMethod(
+                "expandModelInputFields", List.class, Map.class);
+        expand.setAccessible(true);
+        RuleDefinitionInputField field = inputField(
+                "risk_factor", "VARIABLE", "COMPUTED", 218L);
+        field.setFieldType("DOUBLE");
+
+        List<RuleDefinitionInputField> result =
+                (List<RuleDefinitionInputField>) expand.invoke(
+                        analyzer, Collections.singletonList(field), varMetaMap);
+
+        assertEquals(Collections.singletonList("risk_factor"), names(result));
+        assertEquals("DOUBLE", result.get(0).getFieldType());
+        assertEquals(Long.valueOf(218L), result.get(0).getVarId());
     }
 
     @Test
@@ -1476,6 +1703,20 @@ public class RuleFieldAnalyzerTest {
     @SuppressWarnings("unchecked")
     private static <T> T mapper(Class<T> type, InvocationHandler handler) {
         return (T) Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[]{type}, handler);
+    }
+
+    private static RuleVariable inputVariable(Long id, String scriptName) {
+        RuleVariable variable = new RuleVariable();
+        variable.setId(id);
+        variable.setProjectId(0L);
+        variable.setScope("GLOBAL");
+        variable.setVarCode(scriptName);
+        variable.setScriptName(scriptName);
+        variable.setVarLabel(scriptName);
+        variable.setVarType("STRING");
+        variable.setVarSource("INPUT");
+        variable.setStatus(1);
+        return variable;
     }
 
     private static QLScriptFieldResolver scriptResolver(Map<Long, RuleVariable> variables) {

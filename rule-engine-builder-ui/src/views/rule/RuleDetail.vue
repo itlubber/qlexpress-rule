@@ -62,10 +62,10 @@
       <el-descriptions-item label="所属项目">{{
         rule.projectName || '—'
       }}</el-descriptions-item>
-      <el-descriptions-item label="设计版本"
+      <el-descriptions-item label="内容保存版本"
         >v{{ rule.currentVersion }}</el-descriptions-item
       >
-      <el-descriptions-item label="发布版本">{{
+      <el-descriptions-item label="当前发布版本">{{
         rule.publishedVersion ? 'v' + rule.publishedVersion : '-'
       }}</el-descriptions-item>
       <el-descriptions-item label="状态">
@@ -134,7 +134,7 @@
       v-if="revisions.length"
       class="governance-revision-selector"
     >
-      <span>生命周期操作修订</span>
+      <span>生命周期修订</span>
       <el-select
         v-model="lifecycleRevisionId"
         data-testid="lifecycle-revision-selector"

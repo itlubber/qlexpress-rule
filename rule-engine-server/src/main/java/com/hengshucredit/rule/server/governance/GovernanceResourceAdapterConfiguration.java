@@ -144,11 +144,13 @@ public class GovernanceResourceAdapterConfiguration {
             RuleDraftService draftService,
             RuleDefinitionContentMapper contentMapper,
             RuleDefinitionInputFieldMapper inputMapper,
-            RuleDefinitionOutputFieldMapper outputMapper) {
+            RuleDefinitionOutputFieldMapper outputMapper,
+            RuleDataObjectFieldMapper dataObjectFieldMapper) {
         return new RuleGovernedResourceAdapter(
                 store(mapper), secretCodec, lifecycleService,
                 draftService,
-                contentMapper, inputMapper, outputMapper);
+                contentMapper, inputMapper, outputMapper,
+                dataObjectFieldMapper);
     }
 
     @Bean

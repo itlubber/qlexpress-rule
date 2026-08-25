@@ -57,8 +57,8 @@ public final class AggregateBuiltinFunctionRegistry {
         }
         runner.addFunctionOfServiceMethod("sum", DELEGATE, "sum", SINGLE_OBJECT);
         runner.addFunctionOfServiceMethod("count", DELEGATE, "count", SINGLE_OBJECT);
-        runner.addFunctionOfServiceMethod("max", DELEGATE, "max", SINGLE_OBJECT);
-        runner.addFunctionOfServiceMethod("min", DELEGATE, "min", SINGLE_OBJECT);
+        runner.addFunctionOfServiceMethod("max", DELEGATE, "maxValues", OBJECT_VARARGS);
+        runner.addFunctionOfServiceMethod("min", DELEGATE, "minValues", OBJECT_VARARGS);
         runner.addFunctionOfServiceMethod("avg", DELEGATE, "avg", SINGLE_OBJECT);
         runner.addFunctionOfServiceMethod("isNull", DELEGATE, "isNull", SINGLE_OBJECT);
         runner.addFunctionOfServiceMethod("isNotNull", DELEGATE, "isNotNull", SINGLE_OBJECT);

@@ -163,9 +163,12 @@ public class RuleSetCompiler implements RuleCompiler {
                 .append("\", \"ruleName\": \"").append(escape(entry.ruleName))
                 .append("\", \"priority\": ").append(entry.priority)
                 .append(", \"order\": ").append(entry.order).append("};\n");
-        appendHitListAssignment(script, maxPreviousHits);
         if (serial) {
+            script.append("        _ruleSetHits = [_ruleSetHit];\n");
+            script.append("        _ruleSetHitCount = 1;\n");
             script.append("        _ruleSetMatched = true;\n");
+        } else {
+            appendHitListAssignment(script, maxPreviousHits);
         }
         script.append("    }\n");
         if (serial) {

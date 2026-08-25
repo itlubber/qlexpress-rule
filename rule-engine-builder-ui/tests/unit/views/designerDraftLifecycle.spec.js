@@ -848,6 +848,256 @@ describe('九类设计器草稿保护', () => {
     wrapper.unmount()
   })
 
+  test.each([
+    ['DecisionTree', DecisionTree],
+    ['DecisionFlow', DecisionFlow],
+  ])('%s 属性面板关闭按钮会保存当前编辑并清除选中项', async (name, component) => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({
+      data: [{ id: 7, definitionId: 30, revisionNo: 3, state: 'DRAFT', lockVersion: 2, modelJson: '{}' }],
+    })
+    const wrapper = mountDesigner(component)
+    await flushPromises()
+    wrapper.vm.activeElement = {
+      id: 'task-1',
+      type: 'script-task',
+      baseType: 'node',
+      properties: { actionData: [] },
+    }
+    await wrapper.vm.$nextTick()
+
+    await wrapper.get('.prop-close').trigger('click')
+
+    expect(wrapper.vm.activeElement).toBeNull()
+    wrapper.unmount()
+  })
+
+  test.each([
+    ['DecisionTree', DecisionTree],
+    ['DecisionFlow', DecisionFlow],
+  ])('%s 已有开始节点时不会再次添加开始节点', async (name, component) => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({
+      data: [{ id: 7, definitionId: 30, revisionNo: 3, state: 'DRAFT', lockVersion: 2, modelJson: '{}' }],
+    })
+    const wrapper = mountDesigner(component)
+    await flushPromises()
+    const before = wrapper.vm.lf.getGraphData().nodes.filter(node => node.type === 'start-event').length
+
+    wrapper.vm.addNode('start-event')
+
+    const after = wrapper.vm.lf.getGraphData().nodes.filter(node => node.type === 'start-event').length
+    expect(before).toBe(1)
+    expect(after).toBe(1)
+    wrapper.unmount()
+  })
+
+  test.each([
+    ['DecisionTree', DecisionTree],
+    ['DecisionFlow', DecisionFlow],
+  ])('%s 工具栏连续新增节点使用稳定网格位置', async (name, component) => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({
+      data: [{ id: 7, definitionId: 30, revisionNo: 3, state: 'DRAFT', lockVersion: 2, modelJson: '{}' }],
+    })
+    const wrapper = mountDesigner(component)
+    await flushPromises()
+
+    wrapper.vm.addNode('script-task')
+    wrapper.vm.addNode('script-task')
+
+    const tasks = wrapper.vm.lf.getGraphData().nodes.filter(node => node.type === 'script-task')
+    expect(tasks.map(node => ({ x: node.x, y: node.y }))).toEqual([
+      { x: 400, y: 300 },
+      { x: 620, y: 300 },
+    ])
+    wrapper.unmount()
+  })
+
+  test.each([
+    ['DecisionTree', DecisionTree],
+    ['DecisionFlow', DecisionFlow],
+  ])('%s 切换到节点前会自动保存当前可视化连线条件', async (name, component) => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({
+      data: [{ id: 7, definitionId: 30, revisionNo: 3, state: 'DRAFT', lockVersion: 2, modelJson: '{}' }],
+    })
+    const wrapper = mountDesigner(component)
+    await flushPromises()
+    const setProperties = vi.fn()
+    wrapper.vm.lf = {
+      getProperties: vi.fn(() => ({})),
+      setProperties,
+      changeEdgeType: vi.fn(),
+      updateText: vi.fn(),
+      destroy: vi.fn(),
+      getNodeModelById: vi.fn(() => ({
+        type: 'script-task',
+        properties: { actionData: [] },
+      })),
+    }
+    wrapper.vm.activeElement = { id: 'edge-1', type: 'polyline', baseType: 'edge', properties: {} }
+    wrapper.vm.edgeCondMode = 'visual'
+    wrapper.vm.edgeProps = { conditionName: '', conditionExpr: '', conditionConfig: null, edgeLineType: '' }
+    wrapper.vm.edgeConditionRoot = {
+      type: 'group',
+      op: 'AND',
+      children: [{
+        type: 'leaf',
+        operator: '>',
+        leftOperand: {
+          kind: 'REFERENCE', value: 'score', code: 'score', valueType: 'NUMBER',
+          refId: 1, refType: 'VARIABLE', resolved: true,
+        },
+        rightOperand: { kind: 'LITERAL', value: '600', valueType: 'NUMBER' },
+      }],
+    }
+
+    wrapper.vm.selectNodeData({ id: 'task-1' })
+
+    expect(setProperties).toHaveBeenCalledWith('edge-1', expect.objectContaining({
+      conditionExpr: expect.stringContaining('score'),
+      conditionConfig: expect.objectContaining({ type: 'group' }),
+    }))
+    expect(wrapper.vm.activeElement).toMatchObject({ id: 'task-1', baseType: 'node' })
+    wrapper.unmount()
+  })
+
+  test('DecisionFlow 后端模型保留显式分支优先级', async () => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({
+      data: [{ id: 7, definitionId: 30, revisionNo: 3, state: 'DRAFT', lockVersion: 2, modelJson: '{}' }],
+    })
+    const wrapper = mountDesigner(DecisionFlow)
+    await flushPromises()
+    wrapper.vm.activeElement = null
+    wrapper.vm.lf.graph = {
+      nodes: [
+        { id: 'start', type: 'start-event', x: 100, y: 100, properties: { nodeName: '开始' } },
+        { id: 'decision', type: 'exclusive-gateway', x: 300, y: 100, properties: { nodeName: '判断' } },
+        { id: 'end-a', type: 'end-event', x: 500, y: 50, properties: { nodeName: '返回' } },
+        { id: 'end-b', type: 'end-event', x: 500, y: 150, properties: { nodeName: '返回' } },
+      ],
+      edges: [
+        { id: 'start-edge', sourceNodeId: 'start', targetNodeId: 'decision', properties: {} },
+        { id: 'edge-a', sourceNodeId: 'decision', targetNodeId: 'end-a', properties: { conditionExpr: 'score > 0', priority: 20 } },
+        { id: 'edge-b', sourceNodeId: 'decision', targetNodeId: 'end-b', properties: { conditionExpr: 'score > 0', priority: 10 } },
+      ],
+    }
+
+    const model = wrapper.vm.buildBackendModel()
+
+    expect(model.edges.slice(1).map(edge => edge.priority)).toEqual([20, 10])
+    wrapper.unmount()
+  })
+
+  test('DecisionFlow 判断节点可上移分支并重写连续优先级', async () => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({
+      data: [{ id: 7, definitionId: 30, revisionNo: 3, state: 'DRAFT', lockVersion: 2, modelJson: '{}' }],
+    })
+    const wrapper = mountDesigner(DecisionFlow)
+    await flushPromises()
+    const edges = [
+      { id: 'edge-a', sourceNodeId: 'decision', properties: { conditionName: 'A', priority: 10 } },
+      { id: 'edge-b', sourceNodeId: 'decision', properties: { conditionName: 'B', priority: 20 } },
+    ]
+    const setProperties = vi.fn((id, props) => {
+      edges.find(edge => edge.id === id).properties = props
+    })
+    wrapper.vm.lf = {
+      getNodeEdges: vi.fn(() => edges),
+      getProperties: vi.fn(id => edges.find(edge => edge.id === id).properties),
+      setProperties,
+      destroy: vi.fn(),
+    }
+    wrapper.vm.activeElement = {
+      id: 'decision', type: 'exclusive-gateway', baseType: 'node', properties: {},
+    }
+    await wrapper.vm.$nextTick()
+
+    const upButtons = wrapper.findAll('.edge-priority-up')
+    expect(upButtons).toHaveLength(2)
+    await upButtons[1].trigger('click')
+
+    expect(setProperties).toHaveBeenCalledWith('edge-b', expect.objectContaining({ priority: 10 }))
+    expect(setProperties).toHaveBeenCalledWith('edge-a', expect.objectContaining({ priority: 20 }))
+    wrapper.unmount()
+  })
+
+  test('DecisionFlow 前端验证阻止只有开始节点的空流', async () => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({
+      data: [{ id: 7, definitionId: 30, revisionNo: 3, state: 'DRAFT', lockVersion: 2, modelJson: '{}' }],
+    })
+    const wrapper = mountDesigner(DecisionFlow)
+    await flushPromises()
+
+    wrapper.vm.handleValidate()
+
+    expect(wrapper.vm.$alert).toHaveBeenCalledWith(
+      expect.stringMatching(/结束节点|出边/),
+      '验证失败',
+      expect.any(Object)
+    )
+    wrapper.unmount()
+  })
+
+  test('DecisionFlow 前端验证阻止判断节点存在多个默认分支', async () => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({
+      data: [{ id: 7, definitionId: 30, revisionNo: 3, state: 'DRAFT', lockVersion: 2, modelJson: '{}' }],
+    })
+    const wrapper = mountDesigner(DecisionFlow)
+    await flushPromises()
+    wrapper.vm.lf.graph = {
+      nodes: [
+        { id: 'start', type: 'start-event', x: 100, y: 100, properties: { nodeName: '开始' } },
+        { id: 'decision', type: 'exclusive-gateway', x: 300, y: 100, properties: { nodeName: '判断' } },
+        { id: 'end-a', type: 'end-event', x: 500, y: 50, properties: { nodeName: '返回 A' } },
+        { id: 'end-b', type: 'end-event', x: 500, y: 150, properties: { nodeName: '返回 B' } },
+      ],
+      edges: [
+        { id: 'start-edge', sourceNodeId: 'start', targetNodeId: 'decision', properties: {} },
+        { id: 'edge-a', sourceNodeId: 'decision', targetNodeId: 'end-a', properties: {} },
+        { id: 'edge-b', sourceNodeId: 'decision', targetNodeId: 'end-b', properties: {} },
+      ],
+    }
+
+    wrapper.vm.handleValidate()
+
+    expect(wrapper.vm.$alert).toHaveBeenCalledWith(
+      expect.stringContaining('默认分支'),
+      '验证失败',
+      expect.any(Object)
+    )
+    wrapper.unmount()
+  })
+
+  test('DecisionTree 前端验证阻止动作节点多出边和不可达节点', async () => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({
+      data: [{ id: 7, definitionId: 30, revisionNo: 3, state: 'DRAFT', lockVersion: 2, modelJson: '{}' }],
+    })
+    const wrapper = mountDesigner(DecisionTree)
+    await flushPromises()
+    wrapper.vm.lf.graph = {
+      nodes: [
+        { id: 'start', type: 'start-event', x: 100, y: 100, properties: { nodeName: '开始' } },
+        { id: 'task', type: 'script-task', x: 300, y: 100, properties: { nodeName: '动作' } },
+        { id: 'end-a', type: 'end-event', x: 500, y: 50, properties: { nodeName: '返回 A' } },
+        { id: 'end-b', type: 'end-event', x: 500, y: 150, properties: { nodeName: '返回 B' } },
+        { id: 'orphan', type: 'script-task', x: 700, y: 300, properties: { nodeName: '孤立动作' } },
+      ],
+      edges: [
+        { id: 'start-edge', sourceNodeId: 'start', targetNodeId: 'task', properties: {} },
+        { id: 'edge-a', sourceNodeId: 'task', targetNodeId: 'end-a', properties: {} },
+        { id: 'edge-b', sourceNodeId: 'task', targetNodeId: 'end-b', properties: {} },
+      ],
+    }
+
+    wrapper.vm.handleValidate()
+
+    expect(wrapper.vm.$alert).toHaveBeenCalledWith(
+      expect.stringMatching(/只能有一条出边/),
+      '验证失败',
+      expect.any(Object)
+    )
+    expect(wrapper.vm.$alert.mock.calls[0][0]).toContain('不可达')
+    wrapper.unmount()
+  })
+
   test('AdvancedCrossTable 从非空 DRAFT 保留维度 ID 与单元格结构', async () => {
     const referenceOperand = {
       kind: 'REFERENCE',
