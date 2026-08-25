@@ -37,10 +37,38 @@ describe('RuleDraftReadOnly', () => {
 
   test('允许编辑时不渲染遮罩', () => {
     const wrapper = mount(RuleDraftReadOnly, {
-      props: { visible: false, loading: false },
+      props: {
+        visible: false,
+        loading: false,
+        sourceOptions: [
+          { value: 'REVISION:6', label: '待修改修订 v2', group: 'REVISION' },
+        ],
+        selectedSource: 'REVISION:6',
+      },
     })
 
     expect(wrapper.find('[data-testid="draft-read-only"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="designer-version-control"]').exists()).toBe(true)
+  })
+
+  test('查看模式可以直接切换指定规则版本', async () => {
+    const wrapper = mount(RuleDraftReadOnly, {
+      props: {
+        visible: true,
+        loading: false,
+        sourceOptions: [
+          { value: 'REVISION:6', label: '待修改修订 v8', group: 'REVISION' },
+          { value: 'VERSION:9', label: '发布版本 v7', group: 'VERSION' },
+        ],
+        selectedSource: 'VERSION:9',
+      },
+    })
+
+    const selector = wrapper.findComponent({ name: 'RuleDesignerVersionSelect' })
+    selector.vm.$emit('change', 'REVISION:6')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.emitted('change-source')).toEqual([['REVISION:6']])
   })
 })
 
@@ -59,6 +87,23 @@ describe('RuleDraftReadOnly source actions', () => {
     expect(wrapper.text()).toContain('开始编辑')
     await wrapper.get('[data-testid="fork-view-revision"]').trigger('click')
     expect(wrapper.emitted('fork')).toHaveLength(1)
+  })
+
+  test('查看历史版本但已有草稿时明确提示将打开待修改修订', () => {
+    const wrapper = mount(RuleDraftReadOnly, {
+      props: {
+        visible: true,
+        loading: false,
+        revisionLabel: '版本 7',
+        canFork: true,
+        hasEditableDraft: true,
+      },
+    })
+
+    expect(wrapper.text()).toContain('当前正在查看历史版本')
+    expect(wrapper.text()).toContain('规则已有待修改修订')
+    expect(wrapper.get('[data-testid="fork-view-revision"]').text())
+      .toBe('打开待修改版本')
   })
 
   test('tells REVIEW nodes to return through lifecycle instead of forking', () => {

@@ -7,9 +7,14 @@
       :revision-label="viewRevisionLabel"
       :revision-state="viewRevision ? viewRevision.state : ''"
       :can-fork="canForkViewRevision"
+      :has-editable-draft="hasPendingDraft"
+      :source-options="designerSourceOptions"
+      :selected-source="selectedDesignerSource"
+      :source-loading="designerSourcesLoading"
       @go-back="$router.back()"
       @go-lifecycle="goRuleLifecycle"
       @fork="forkViewRevision"
+      @change-source="switchDesignerSource"
     />
     <!-- 顶部工具栏 -->
     <div class="ct-header">

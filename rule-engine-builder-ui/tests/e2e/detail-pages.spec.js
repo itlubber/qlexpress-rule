@@ -1,6 +1,7 @@
 const { expect, test } = require('@playwright/test')
 const { installDistRoutes } = require('./support/distRoutes.cjs')
 const { createDetailApiData } = require('./support/detailFixtures.cjs')
+const { createDocsApiData } = require('./support/docsFixtures.cjs')
 
 async function openDetailPage(page, path) {
   const pageErrors = []
@@ -45,6 +46,25 @@ async function expectTextSelectable(locator, expectedText) {
   expect(selection.userSelect).not.toBe('none')
   expect(selection.inert).toBe(false)
 }
+
+test('规则管理和项目规则的查看入口都按规则定义 ID 打开对应设计器', async ({ page }) => {
+  const { assertClean } = await installDistRoutes(page, {
+    apiData: createDocsApiData()
+  })
+
+  await page.goto('http://tianshu.local/index.html#/rule')
+  const ruleRow = page.getByRole('row', { name: /face_identity_rule/ })
+  await ruleRow.getByTestId('view-rule').click()
+  await expect(page).toHaveURL(/#\/designer\/flow\/101$/)
+
+  await page.goto('http://tianshu.local/index.html#/project/1')
+  await page.getByRole('tab', { name: '项目规则' }).click()
+  const projectRuleRow = page.getByRole('row', { name: /face_identity_rule/ })
+  await projectRuleRow.getByTestId('view-rule').click()
+  await expect(page).toHaveURL(/#\/designer\/flow\/101$/)
+
+  assertClean()
+})
 
 async function expectPrimaryActions(page, names) {
   for (const name of names) {
@@ -250,6 +270,12 @@ test('规则生命周期和版本历史按稳定 ID 打开对应脚本内容', a
   await versionDialog.getByRole('button', { name: '查看设计', exact: true }).click()
   await page.waitForURL(/sourceType=VERSION.*sourceId=81/)
   await expect(page.getByText("result = 'version-81'", { exact: true })).toBeVisible()
+  await expect(
+    page.getByRole('combobox', { name: '选择规则版本' })
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'QL脚本编辑器', exact: true })
+  ).toHaveCount(1)
 
   expect(errors.pageErrors).toEqual([])
   expect(errors.consoleErrors).toEqual([])

@@ -69,15 +69,16 @@ describe('ProjectDetail 规则生命周期入口', () => {
     wrapper.unmount()
   })
 
-  test('项目规则设计入口复用统一命名路由', async () => {
+  test('项目规则查看入口复用统一命名路由', async () => {
     const { wrapper, router } = await mountPage()
 
-    wrapper.vm.go({ id: 30, modelType: 'DECISION_FLOW' })
+    wrapper.vm.viewRule({ id: 30, modelType: 'DECISION_FLOW' })
 
     expect(router.push).toHaveBeenCalledWith({
       name: 'DecisionFlow',
       params: { id: '30' },
     })
+    expect(wrapper.get('[data-testid="view-rule"]').text()).toBe('查看')
     wrapper.unmount()
   })
 

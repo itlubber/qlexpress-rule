@@ -7,9 +7,14 @@
       :revision-label="viewRevisionLabel"
       :revision-state="viewRevision ? viewRevision.state : ''"
       :can-fork="canForkViewRevision"
+      :has-editable-draft="hasPendingDraft"
+      :source-options="designerSourceOptions"
+      :selected-source="selectedDesignerSource"
+      :source-loading="designerSourcesLoading"
       @go-back="$router.back()"
       @go-lifecycle="goRuleLifecycle"
       @fork="forkViewRevision"
+      @change-source="switchDesignerSource"
     />
     <div class="rs-header">
       <div class="rs-title-area">

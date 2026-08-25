@@ -14,15 +14,26 @@ function sessionStorageRef() {
   }
 }
 
+function workspaceTabKey(tab) {
+  const path = tab && typeof tab.path === 'string' ? tab.path : ''
+  if (/^\/designer\/(?!expression\/)[^/]+\/[^/]+$/.test(path)) return path
+  return tab && tab.fullPath
+}
+
 function uniqueTabs(tabs) {
-  const seen = new Set()
-  return (Array.isArray(tabs) ? tabs : []).filter(tab => {
-    if (!tab || typeof tab.fullPath !== 'string' || !tab.fullPath || seen.has(tab.fullPath)) {
-      return false
+  const result = []
+  const indexes = new Map()
+  ;(Array.isArray(tabs) ? tabs : []).forEach(tab => {
+    if (!tab || typeof tab.fullPath !== 'string' || !tab.fullPath) return
+    const key = workspaceTabKey(tab)
+    if (indexes.has(key)) {
+      result[indexes.get(key)] = tab
+      return
     }
-    seen.add(tab.fullPath)
-    return true
+    indexes.set(key, result.length)
+    result.push(tab)
   })
+  return result
 }
 
 export function readWorkspaceTabs(storage = sessionStorageRef()) {
@@ -73,7 +84,8 @@ const mutations = {
     state.refreshVersions = {}
   },
   OPEN(state, tab) {
-    const index = state.tabs.findIndex(item => item.fullPath === tab.fullPath)
+    const tabKey = workspaceTabKey(tab)
+    const index = state.tabs.findIndex(item => workspaceTabKey(item) === tabKey)
     if (index < 0) {
       state.tabs = [...state.tabs, tab]
     } else {

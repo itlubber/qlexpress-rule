@@ -129,6 +129,17 @@ function createDesignerApiData() {
         createTime: '2026-07-23 12:00:00'
       }
     ])
+    routes.set(`/api/rule/definition/versions/${definition.id}`,
+      definition.id === 101
+        ? [{
+            id: 81,
+            definitionId: 101,
+            version: 2,
+            publishBy: 'e2e',
+            publishTime: '2026-07-23 12:00:00',
+            changeLog: '本地版本快照'
+          }]
+        : [])
   }
 
   return routes

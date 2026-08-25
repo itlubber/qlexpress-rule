@@ -433,7 +433,7 @@ describe('九类设计器草稿保护', () => {
     }
   )
 
-  test.each(designers)('%s 将历史节点上下文和派生事件交给真实只读遮罩', async (
+  test.each(designers)('%s 查看历史节点时已有 DRAFT 则从真实只读遮罩切回待修改修订', async (
     _name,
     component
   ) => {
@@ -459,21 +459,6 @@ describe('九类设计器草稿保护', () => {
         modelJson: '{"sourceMarker":"revision-41"}',
       },
     })
-    definitionApi.createDraftFromSource.mockResolvedValueOnce({
-      data: {
-        revision: {
-          id: 52,
-          definitionId: 30,
-          revisionNo: 8,
-          state: 'DRAFT',
-          lockVersion: 0,
-          modelJson: '{"sourceMarker":"revision-41"}',
-        },
-        compileSuccess: true,
-        issues: [],
-      },
-    })
-
     const wrapper = mountDesigner(component, {
       sourceType: 'REVISION',
       sourceId: '41',
@@ -493,11 +478,11 @@ describe('九类设计器草稿保护', () => {
     await readOnly.vm.$emit('fork')
     await flushPromises()
 
-    expect(definitionApi.createDraftFromSource).toHaveBeenCalledWith(30, {
-      sourceType: 'REVISION',
-      sourceId: '41',
+    expect(definitionApi.createDraftFromSource).not.toHaveBeenCalled()
+    expect(wrapper.vm.$router.replace).toHaveBeenCalledWith({
+      query: { sourceType: 'REVISION', sourceId: '6' },
     })
-    expect(wrapper.vm.viewRevision).toMatchObject({ id: 52, state: 'DRAFT' })
+    expect(wrapper.vm.draftRevision).toMatchObject({ id: 6, state: 'DRAFT' })
     wrapper.unmount()
   })
 

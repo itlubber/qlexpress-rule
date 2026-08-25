@@ -204,12 +204,12 @@
               >详情</el-button
             >
             <el-button
-              v-permission="'rule:edit'"
               link
               size="small"
-              type="warning"
-              @click="handleDesign(row)"
-              >设计</el-button
+              type="info"
+              data-testid="view-rule"
+              @click="handleView(row)"
+              >查看</el-button
             >
             <el-button
               v-permission="'rule:edit'"
@@ -612,7 +612,7 @@ export default {
         }
       })
     },
-    handleDesign(row) {
+    handleView(row) {
       const location = ruleDesignerLocation(row)
       if (!location) {
         this.$message.error(`规则模型类型 ${row.modelType || '-'} 暂无可用设计器`)

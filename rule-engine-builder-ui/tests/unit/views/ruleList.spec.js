@@ -306,22 +306,26 @@ describe('RuleList — 规则操作', () => {
     expect(wrapper.vm.$router.push).toHaveBeenCalledWith('/rule/1')
   })
 
-  test('handleDesign 使用命名路由进入正确设计器', () => {
+  test('查看入口使用命名路由进入正确设计器', () => {
     const row = { id: 1, modelType: 'TABLE' }
-    wrapper.vm.handleDesign(row)
+    wrapper.vm.handleView(row)
     expect(wrapper.vm.$router.push).toHaveBeenCalledWith({
       name: 'DecisionTable',
       params: { id: '1' },
     })
   })
 
-  test('handleDesign 跳转到规则集设计器', () => {
+  test('查看入口跳转到规则集设计器', () => {
     const row = { id: 4, modelType: 'RULE_SET' }
-    wrapper.vm.handleDesign(row)
+    wrapper.vm.handleView(row)
     expect(wrapper.vm.$router.push).toHaveBeenCalledWith({
       name: 'RuleSet',
       params: { id: '4' },
     })
+  })
+
+  test('列表将原设计操作显示为查看', () => {
+    expect(wrapper.get('[data-testid="view-rule"]').text()).toBe('查看')
   })
 
   test('列表操作不再重复展示生命周期入口', () => {

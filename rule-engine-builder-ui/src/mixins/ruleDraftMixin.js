@@ -13,6 +13,15 @@ function sourceKey(source) {
   return source ? `${source.sourceType}:${source.sourceId}` : ''
 }
 
+const REVISION_STATE_LABELS = {
+  DRAFT: '待修改',
+  REVIEW: '评审中',
+  REJECTED: '已驳回',
+  APPROVED: '已批准',
+  PUBLISHED: '已发布',
+  OFFLINE: '已下线',
+}
+
 export default {
   data() {
     return {
@@ -24,6 +33,9 @@ export default {
       draftGuardError: null,
       draftGuardNeedsRefresh: false,
       viewRefreshToken: 0,
+      designerRevisions: [],
+      designerVersions: [],
+      designerSourcesLoading: false,
     }
   },
   computed: {
@@ -55,6 +67,47 @@ export default {
       return ['VERSION', 'APPROVED', 'PUBLISHED', 'OFFLINE', 'LEGACY'].includes(
         this.viewRevision?.state
       )
+    },
+    hasPendingDraft() {
+      return this.draftRevision?.state === 'DRAFT'
+    },
+    selectedDesignerSource() {
+      if (this.requestedSource) return sourceKey(this.requestedSource)
+      if (!this.viewRevision || !isSourceId(this.viewRevision.id)) return ''
+      return `REVISION:${String(this.viewRevision.id)}`
+    },
+    designerSourceOptions() {
+      const revisions = this.designerRevisions
+        .filter((item) => item && isSourceId(item.id))
+        .map((item) => ({
+          value: `REVISION:${String(item.id)}`,
+          label: `${REVISION_STATE_LABELS[item.state] || '生命周期'}修订 v${item.revisionNo || '—'}`,
+          group: 'REVISION',
+        }))
+      const versions = this.designerVersions
+        .filter((item) => item && isSourceId(item.id))
+        .map((item) => ({
+          value: `VERSION:${String(item.id)}`,
+          label: `发布版本 v${item.version || '—'}`,
+          group: 'VERSION',
+        }))
+
+      if (this.viewRevision && this.viewRevision.state !== 'LEGACY') {
+        const selectedValue = this.selectedDesignerSource
+        const group = selectedValue.startsWith('VERSION:') ? 'VERSION' : 'REVISION'
+        const options = group === 'VERSION' ? versions : revisions
+        if (selectedValue && !options.some((item) => item.value === selectedValue)) {
+          options.push({
+            value: selectedValue,
+            label:
+              group === 'VERSION'
+                ? `发布版本 v${this.viewRevision.revisionNo || '—'}`
+                : `${REVISION_STATE_LABELS[this.viewRevision.state] || '生命周期'}修订 v${this.viewRevision.revisionNo || '—'}`,
+            group,
+          })
+        }
+      }
+      return [...revisions, ...versions]
     },
   },
   watch: {
@@ -123,7 +176,16 @@ export default {
       this.viewRevision = null
       this.draftIssues = []
       this.draftGuardError = null
+      this.designerSourcesLoading = true
       const listPromise = Promise.resolve().then(() => listRuleRevisions(definitionId))
+      const versionsPromise = Promise.resolve().then(() =>
+        definitionApi.listVersions(definitionId)
+      )
+      this.loadDesignerVersions(
+        versionsPromise,
+        requestedSourceKey,
+        refreshToken
+      )
       try {
         if (source) {
           const exactSourcePromise = Promise.resolve().then(() =>
@@ -146,8 +208,10 @@ export default {
             )
             this.draftRevision =
               revisions.find((item) => item.state === 'DRAFT') || null
+            this.designerRevisions = revisions
+          } else {
+            this.designerRevisions = []
           }
-
           if (sourceResult.status !== 'fulfilled') {
             this.viewRevision = null
             this.draftGuardError = sourceResult.reason
@@ -179,6 +243,7 @@ export default {
         )
         this.draftRevision =
           revisions.find((item) => item.state === 'DRAFT') || null
+        this.designerRevisions = revisions
         this.viewRevision = this.draftRevision || revisions[0] || null
         if (!this.viewRevision) {
           const contentResponse = await definitionApi.getContent(definitionId)
@@ -214,11 +279,58 @@ export default {
         }
       }
     },
+    loadDesignerVersions(versionsPromise, requestedSourceKey, refreshToken) {
+      return Promise.resolve(versionsPromise)
+        .then((response) => {
+          if (!this.isCurrentSource(requestedSourceKey, refreshToken)) return
+          this.designerVersions = this.normalizeDesignerVersions(response)
+        })
+        .catch(() => {
+          if (!this.isCurrentSource(requestedSourceKey, refreshToken)) return
+          this.designerVersions = []
+        })
+        .finally(() => {
+          if (!this.isCurrentSource(requestedSourceKey, refreshToken)) return
+          this.designerSourcesLoading = false
+        })
+    },
+    normalizeDesignerVersions(response) {
+      const data = unwrap(response)
+      return (Array.isArray(data) ? [...data] : []).sort(
+        (left, right) => Number(right.version || 0) - Number(left.version || 0)
+      )
+    },
+    switchDesignerSource(value) {
+      const match = /^(REVISION|VERSION):([1-9]\d*)$/.exec(String(value || ''))
+      if (!match || value === this.selectedDesignerSource) return
+      this.$router.replace({
+        query: {
+          ...(this.$route?.query || {}),
+          sourceType: match[1],
+          sourceId: match[2],
+        },
+      })
+    },
     async forkViewRevision() {
       if (!this.canForkViewRevision) {
         throw new Error('当前节点不允许派生草稿')
       }
       const definitionId = this.definitionId || this.$route.params.id
+      if (
+        this.draftRevision?.state === 'DRAFT' &&
+        String(this.draftRevision.id) !== String(this.viewRevision.id)
+      ) {
+        await this.$router.replace({
+          query: {
+            sourceType: 'REVISION',
+            sourceId: String(this.draftRevision.id),
+          },
+        })
+        if (this.$message?.info) {
+          this.$message.info('规则已有待修改修订，已为你打开该版本')
+        }
+        return { revision: this.draftRevision }
+      }
       const action = {
         sourceKey: sourceKey(this.requestedSource),
         refreshToken: this.viewRefreshToken,

@@ -42,6 +42,25 @@ describe('workspaceTabs store', () => {
     ])
   })
 
+  test('同一规则设计器切换版本时复用页签并保留最新来源地址', async() => {
+    const store = createTestStore()
+    await store.dispatch(
+      'workspaceTabs/open',
+      tab('/designer/script/45?sourceType=VERSION&sourceId=15')
+    )
+    await store.dispatch(
+      'workspaceTabs/open',
+      tab('/designer/script/45?sourceType=REVISION&sourceId=75')
+    )
+
+    expect(store.getters['workspaceTabs/tabs'].map(item => item.fullPath)).toEqual([
+      '/designer/script/45?sourceType=REVISION&sourceId=75'
+    ])
+    expect(store.getters['workspaceTabs/activePath']).toBe(
+      '/designer/script/45?sourceType=REVISION&sourceId=75'
+    )
+  })
+
   test('打开和关闭后把页签与活动路径写入 sessionStorage', async() => {
     const store = createTestStore()
     await store.dispatch('workspaceTabs/open', tab('/project', '项目管理'))
@@ -80,6 +99,21 @@ describe('workspaceTabs store', () => {
     })
 
     expect(store.getters['workspaceTabs/tabs']).toEqual([tab('/rule')])
+  })
+
+  test('恢复同一设计器的多个历史来源时以当前来源替换旧页签', async() => {
+    const store = createTestStore()
+    const current = tab('/designer/script/45?sourceType=REVISION&sourceId=75')
+    await store.dispatch('workspaceTabs/restore', {
+      cachedTabs: [
+        tab('/designer/script/45?sourceType=VERSION&sourceId=15'),
+        tab('/designer/script/45?sourceType=VERSION&sourceId=16')
+      ],
+      currentTab: current
+    })
+
+    expect(store.getters['workspaceTabs/tabs']).toEqual([current])
+    expect(store.getters['workspaceTabs/activePath']).toBe(current.fullPath)
   })
 
   test.each([

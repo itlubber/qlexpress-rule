@@ -206,8 +206,13 @@
             <el-button link size="small" type="primary" @click="detail(row)"
               >详情</el-button
             >
-            <el-button link size="small" type="warning" @click="go(row)"
-              >设计</el-button
+            <el-button
+              link
+              size="small"
+              type="info"
+              data-testid="view-rule"
+              @click="viewRule(row)"
+              >查看</el-button
             >
             <el-button
               link
@@ -634,7 +639,7 @@ export default {
       const s = String(date.getSeconds()).padStart(2, '0')
       return `${y}-${m}-${d} ${h}:${min}:${s}`
     },
-    go(r) {
+    viewRule(r) {
       const location = ruleDesignerLocation(r)
       if (!location) {
         this.$message.error(`规则模型类型 ${r.modelType || '-'} 暂无可用设计器`)

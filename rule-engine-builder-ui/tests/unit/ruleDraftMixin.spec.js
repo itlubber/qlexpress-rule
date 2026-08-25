@@ -635,6 +635,97 @@ describe('ruleDraftMixin stable source loading', () => {
     wrapper.unmount()
   })
 
+  test('查看历史版本时已有 DRAFT 则直接切回待修改修订而不重复建草稿', async () => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({
+      data: [{ id: 6, revisionNo: 8, state: 'DRAFT', lockVersion: 2 }],
+    })
+    definitionApi.getVersionById.mockResolvedValueOnce({
+      data: { id: 9, version: 7, modelJson: '{"source":"snapshot"}' },
+    })
+    const wrapper = mountWithRoute({ sourceType: 'VERSION', sourceId: '9' })
+    await flushPromises()
+
+    const result = await wrapper.vm.forkViewRevision()
+
+    expect(definitionApi.createDraftFromSource).not.toHaveBeenCalled()
+    expect(result).toEqual({ revision: expect.objectContaining({ id: 6, state: 'DRAFT' }) })
+    expect(wrapper.vm.$router.replace).toHaveBeenCalledWith({
+      query: { sourceType: 'REVISION', sourceId: '6' },
+    })
+    wrapper.unmount()
+  })
+
+  test('设计器同时提供生命周期修订和发布版本并可按稳定 ID 切换', async () => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({
+      data: [
+        { id: 6, revisionNo: 8, state: 'DRAFT', lockVersion: 2 },
+        { id: 5, revisionNo: 7, state: 'PUBLISHED' },
+      ],
+    })
+    definitionApi.listVersions.mockResolvedValueOnce({
+      data: [{ id: 9, version: 7 }],
+    })
+    definitionApi.getVersionById.mockResolvedValueOnce({
+      data: { id: 9, version: 7, modelJson: '{"source":"snapshot"}' },
+    })
+    const wrapper = mountWithRoute({ sourceType: 'VERSION', sourceId: '9' })
+    await flushPromises()
+
+    expect(wrapper.vm.designerSourceOptions).toEqual([
+      {
+        value: 'REVISION:6',
+        label: '待修改修订 v8',
+        group: 'REVISION',
+      },
+      {
+        value: 'REVISION:5',
+        label: '已发布修订 v7',
+        group: 'REVISION',
+      },
+      {
+        value: 'VERSION:9',
+        label: '发布版本 v7',
+        group: 'VERSION',
+      },
+    ])
+    expect(wrapper.vm.selectedDesignerSource).toBe('VERSION:9')
+
+    wrapper.vm.switchDesignerSource('REVISION:6')
+
+    expect(wrapper.vm.$router.replace).toHaveBeenCalledWith({
+      query: { sourceType: 'REVISION', sourceId: '6' },
+    })
+    wrapper.unmount()
+  })
+
+  test('发布版本列表较慢时不阻塞当前 DRAFT 进入可编辑状态', async () => {
+    let resolveVersions
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({
+      data: [{ id: 6, revisionNo: 8, state: 'DRAFT', lockVersion: 2 }],
+    })
+    definitionApi.listVersions.mockReturnValueOnce(new Promise((resolve) => {
+      resolveVersions = resolve
+    }))
+
+    const wrapper = mountWithRoute({})
+    await flushPromises()
+
+    expect(wrapper.vm.draftGuardLoaded).toBe(true)
+    expect(wrapper.vm.canEditDraft).toBe(true)
+    expect(wrapper.vm.designerSourcesLoading).toBe(true)
+
+    resolveVersions({ data: [{ id: 9, version: 7 }] })
+    await flushPromises()
+
+    expect(wrapper.vm.designerSourcesLoading).toBe(false)
+    expect(wrapper.vm.designerSourceOptions).toContainEqual({
+      value: 'VERSION:9',
+      label: '发布版本 v7',
+      group: 'VERSION',
+    })
+    wrapper.unmount()
+  })
+
   test('preserves the current node when fork conflicts and never saves its model', async () => {
     definitionApi.listRuleRevisions.mockResolvedValueOnce({ data: [] })
     definitionApi.getVersionById.mockResolvedValueOnce({
