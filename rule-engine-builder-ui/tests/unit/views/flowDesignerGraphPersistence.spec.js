@@ -128,7 +128,7 @@ describe.each(DESIGNERS)('%s画布持久化', (name, designer) => {
   })
 })
 
-describe('决策流锚点连线提示', () => {
+describe.each(DESIGNERS)('%s锚点连线提示', (name, designer) => {
   test('轻微拖动命中原节点时不提示不允许添加连线', () => {
     const context = {
       anchorGesture: null,
@@ -137,12 +137,12 @@ describe('决策流锚点连线提示', () => {
     }
     const payload = { data: { id: 'task_1' }, nodeModel: { id: 'task' }, e: { clientX: 106, clientY: 100 } }
 
-    DecisionFlow.methods.onAnchorMouseDown.call(context, {
+    designer.methods.onAnchorMouseDown.call(context, {
       ...payload,
       e: { clientX: 100, clientY: 100 }
     })
-    DecisionFlow.methods.onAnchorDrag.call(context, payload)
-    DecisionFlow.methods.handleConnectionNotAllowed.call(context, { msg: '不允许添加连线' })
+    designer.methods.onAnchorDrag.call(context, payload)
+    designer.methods.handleConnectionNotAllowed?.call(context, { msg: '不允许添加连线' })
 
     expect(context.$message.warning).not.toHaveBeenCalled()
   })
@@ -155,12 +155,12 @@ describe('决策流锚点连线提示', () => {
     }
     const payload = { data: { id: 'task_1' }, nodeModel: { id: 'task' }, e: { clientX: 120, clientY: 100 } }
 
-    DecisionFlow.methods.onAnchorMouseDown.call(context, {
+    designer.methods.onAnchorMouseDown.call(context, {
       ...payload,
       e: { clientX: 100, clientY: 100 }
     })
-    DecisionFlow.methods.onAnchorDrag.call(context, payload)
-    DecisionFlow.methods.handleConnectionNotAllowed.call(context, { msg: '不允许添加连线' })
+    designer.methods.onAnchorDrag.call(context, payload)
+    designer.methods.handleConnectionNotAllowed?.call(context, { msg: '不允许添加连线' })
 
     expect(context.$message.warning).toHaveBeenCalledWith('不允许添加连线')
   })

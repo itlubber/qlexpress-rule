@@ -36,6 +36,13 @@
         >
       </div>
       <div class="rs-toolbar">
+        <rule-designer-version-select
+          v-if="canEditDraft && designerSourceOptions.length"
+          :options="designerSourceOptions"
+          :model-value="selectedDesignerSource"
+          :loading="designerSourcesLoading"
+          @change="switchDesignerSource"
+        />
         <span class="toolbar-label">执行模式</span>
         <el-select
           v-model="model.executionMode"
@@ -389,6 +396,7 @@ import ruleDraftMixin from '@/mixins/ruleDraftMixin'
 import ScriptPanel from '@/components/common/ScriptPanel.vue'
 import DesignerTestDialog from '@/components/common/DesignerTestDialog.vue'
 import RuleDraftReadOnly from '@/components/rule/RuleDraftReadOnly.vue'
+import RuleDesignerVersionSelect from '@/components/rule/RuleDesignerVersionSelect.vue'
 import OperandPicker from '@/components/common/OperandPicker.vue'
 import ConditionGroupEditor from '@/components/decision/ConditionGroupEditor.vue'
 import ActionBlockEditor from '@/components/flow/ActionBlockEditor.vue'
@@ -446,6 +454,7 @@ export default {
   },
   components: {
     RuleDraftReadOnly,
+    RuleDesignerVersionSelect,
     DesignerTestDialog,
     ScriptPanel,
     OperandPicker,

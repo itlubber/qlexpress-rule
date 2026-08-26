@@ -34,6 +34,13 @@
         >
       </div>
       <div class="asc-toolbar">
+        <rule-designer-version-select
+          v-if="canEditDraft && designerSourceOptions.length"
+          :options="designerSourceOptions"
+          :model-value="selectedDesignerSource"
+          :loading="designerSourcesLoading"
+          @change="switchDesignerSource"
+        />
         <el-button size="small" :icon="ElIconPlus" @click="addGroup"
           >添加维度组</el-button
         >
@@ -542,6 +549,7 @@ import OperandPicker from '@/components/common/OperandPicker.vue'
 import ScriptPanel from '@/components/common/ScriptPanel.vue'
 import DesignerTestDialog from '@/components/common/DesignerTestDialog.vue'
 import RuleDraftReadOnly from '@/components/rule/RuleDraftReadOnly.vue'
+import RuleDesignerVersionSelect from '@/components/rule/RuleDesignerVersionSelect.vue'
 import {
   addCode,
   buildSampleParamsFromCodes,
@@ -607,6 +615,7 @@ export default {
   },
   components: {
     RuleDraftReadOnly,
+    RuleDesignerVersionSelect,
     DesignerTestDialog,
     OperandPicker,
     ScriptPanel,

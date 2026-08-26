@@ -34,6 +34,13 @@
         >
       </div>
       <div class="se-toolbar">
+        <rule-designer-version-select
+          v-if="canEditDraft && designerSourceOptions.length"
+          :options="designerSourceOptions"
+          :model-value="selectedDesignerSource"
+          :loading="designerSourcesLoading"
+          @change="switchDesignerSource"
+        />
         <el-button size="small" :icon="ElIconDocument" @click="handleSave"
           >临时保存脚本</el-button
         >
@@ -335,6 +342,7 @@ import ruleDraftMixin from '@/mixins/ruleDraftMixin'
 import MonacoEditor from '@/components/MonacoEditor'
 import DesignerTestDialog from '@/components/common/DesignerTestDialog.vue'
 import RuleDraftReadOnly from '@/components/rule/RuleDraftReadOnly.vue'
+import RuleDesignerVersionSelect from '@/components/rule/RuleDesignerVersionSelect.vue'
 import {
   buildSampleParamsFromCodes,
   collectScriptInputCodes,
@@ -387,6 +395,7 @@ export default {
   },
   components: {
     RuleDraftReadOnly,
+    RuleDesignerVersionSelect,
     DesignerTestDialog,
     MonacoEditor,
     ElIconEditOutline,

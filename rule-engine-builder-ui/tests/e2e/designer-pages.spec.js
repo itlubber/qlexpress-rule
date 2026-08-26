@@ -82,6 +82,56 @@ async function expectDesignerShell(page, title, saveButtonName) {
   expect(metrics.body).toBeLessThanOrEqual(metrics.viewport + 1)
 }
 
+function createConnectedGraphModel() {
+  const logicflow = {
+    nodes: [
+      {
+        id: 'start',
+        type: 'start-event',
+        x: 260,
+        y: 300,
+        properties: { nodeName: '开始', nodeCode: 'START', nodeDesc: '流程开始节点' }
+      },
+      {
+        id: 'task',
+        type: 'script-task',
+        x: 560,
+        y: 300,
+        properties: { nodeName: '执行动作', nodeCode: 'TASK', actionData: [] }
+      }
+    ],
+    edges: [
+      {
+        id: 'edge-1',
+        type: 'polyline',
+        sourceNodeId: 'start',
+        targetNodeId: 'task',
+        sourceAnchorId: 'start_1',
+        targetAnchorId: 'task_3',
+        properties: { conditionName: '已有分支', priority: 10 }
+      }
+    ]
+  }
+  return {
+    nodes: [
+      { id: 'start', type: 'start', name: '开始', x: 260, y: 300, actionData: [] },
+      { id: 'task', type: 'task', name: '执行动作', x: 560, y: 300, actionData: [] }
+    ],
+    edges: [
+      {
+        id: 'edge-1',
+        source: 'start',
+        target: 'task',
+        name: '已有分支',
+        conditionExpression: '',
+        priority: 10
+      }
+    ],
+    defaultEdgeLineType: 'polyline',
+    logicflow
+  }
+}
+
 for (const designer of designers) {
   test(`${designer.name}设计器可加载变量、显示工具栏并新增配置项`, async ({ page }) => {
     const pageErrors = []
@@ -146,6 +196,90 @@ for (const designer of designers.filter(item => ['决策树', '决策流'].inclu
     expect(Math.abs(deltaX) + Math.abs(deltaY)).toBeGreaterThan(0)
     expect(deltaX % 20).toBe(0)
     expect(deltaY % 20).toBe(0)
+    assertClean()
+  })
+}
+
+for (const designer of designers.filter(item => ['决策树', '决策流'].includes(item.name))) {
+  test(`${designer.name}可调整已有连线的目标锚点并持久化`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    const definitionId = designer.name === '决策树' ? 102 : 103
+    const canvasClass = designer.name === '决策树' ? '.tree-canvas' : '.flow-canvas'
+    let modelJson = JSON.stringify(createConnectedGraphModel())
+    let savedPayload = null
+    const apiData = createDesignerApiData()
+    apiData.set(`/api/rule/definition/content/${definitionId}`, () => ({
+      definitionId,
+      modelJson,
+      scriptMode: 'visual'
+    }))
+    apiData.set(`/api/rule/definition/${definitionId}/revisions`, () => [
+      {
+        id: 2000 + definitionId,
+        definitionId,
+        revisionNo: 1,
+        state: 'DRAFT',
+        lockVersion: 0,
+        modelJson,
+        createTime: '2026-07-23 12:00:00'
+      }
+    ])
+    apiData.set('POST /api/rule/definition/save', async ({ request }) => {
+      savedPayload = JSON.parse(request.postData())
+      modelJson = savedPayload.modelJson
+      return {
+        revision: {
+          id: 2000 + definitionId,
+          definitionId,
+          revisionNo: 1,
+          state: 'DRAFT',
+          lockVersion: 1,
+          modelJson: savedPayload.modelJson
+        },
+        issues: []
+      }
+    })
+    const { assertClean } = await installDistRoutes(page, { apiData })
+    await page.goto(`http://tianshu.local/index.html#${designer.path}`)
+
+    const edge = page.locator(`${canvasClass} .lf-edge:not(.lf-mini-map .lf-edge)`).first()
+    await expect(edge).toBeVisible()
+    await edge.locator('.lf-edge-append').click({ force: true })
+
+    const adjustPoints = page.locator(`${canvasClass} .lf-edge-adjust-point`)
+    await expect(adjustPoints).toHaveCount(2)
+    await expect(page.getByText('拖动连线两端的圆点，可切换节点的连接锚点')).toBeVisible()
+    const targetNode = page.locator(`${canvasClass} .lf-node:not(.lf-mini-map .lf-node)`).filter({ hasText: '执行动作' })
+    const targetBox = await targetNode.boundingBox()
+    const targetHandleBox = await adjustPoints.nth(1).boundingBox()
+    expect(targetBox).toBeTruthy()
+    expect(targetHandleBox).toBeTruthy()
+
+    await page.mouse.move(
+      targetHandleBox.x + targetHandleBox.width / 2,
+      targetHandleBox.y + targetHandleBox.height / 2
+    )
+    await page.mouse.down()
+    await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y, { steps: 10 })
+    await page.mouse.up()
+
+    await page.getByRole('button', { name: '临时保存配置' }).click()
+    await expect.poll(() => savedPayload).not.toBeNull()
+    const savedModel = JSON.parse(savedPayload.modelJson)
+    expect(savedModel.logicflow.edges[0]).toMatchObject({
+      id: 'edge-1',
+      sourceAnchorId: 'start_1',
+      targetAnchorId: 'task_0',
+      properties: { conditionName: '已有分支', priority: 10 }
+    })
+
+    await page.reload()
+    const reloadedEdge = page.locator(`${canvasClass} .lf-edge:not(.lf-mini-map .lf-edge)`).first()
+    await expect(reloadedEdge).toBeVisible()
+    await reloadedEdge.locator('.lf-edge-append path').first().click({ force: true })
+    const reloadedTargetHandle = page.locator(`${canvasClass} .lf-edge-adjust-point`).nth(1)
+    await expect(reloadedTargetHandle).toHaveAttribute('cx', '560')
+    await expect(reloadedTargetHandle).toHaveAttribute('cy', '279')
     assertClean()
   })
 }

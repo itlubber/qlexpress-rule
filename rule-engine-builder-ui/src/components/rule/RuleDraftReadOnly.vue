@@ -76,14 +76,6 @@
         </div>
       </div>
     </div>
-    <div v-else-if="sourceOptions.length" class="rule-draft-current-source">
-      <rule-designer-version-select
-        :options="sourceOptions"
-        :model-value="selectedSource"
-        :loading="sourceLoading"
-        @change="$emit('change-source', $event)"
-      />
-    </div>
   </div>
 </template>
 
@@ -179,14 +171,6 @@ export default {
   span {
     font-size: 13px;
   }
-}
-
-.rule-draft-current-source {
-  display: flex;
-  justify-content: flex-end;
-  padding: 8px 16px;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
 }
 
 .rule-draft-read-only__actions {

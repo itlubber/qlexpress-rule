@@ -61,6 +61,16 @@ describe('workspaceTabs store', () => {
     )
   })
 
+  test('同一规则设计器切换版本时复用同一个缓存视图实例', () => {
+    const store = createTestStore()
+    const viewKey = store.getters['workspaceTabs/viewKey']
+
+    expect(viewKey('/designer/script/45?sourceType=VERSION&sourceId=15'))
+      .toBe('/designer/script/45::0')
+    expect(viewKey('/designer/script/45?sourceType=REVISION&sourceId=75'))
+      .toBe('/designer/script/45::0')
+  })
+
   test('打开和关闭后把页签与活动路径写入 sessionStorage', async() => {
     const store = createTestStore()
     await store.dispatch('workspaceTabs/open', tab('/project', '项目管理'))

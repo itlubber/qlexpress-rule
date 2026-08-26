@@ -28,6 +28,11 @@ function session(overrides = {}) {
     context: 'READ_EXPRESSION',
     expectedType: 'NUMBER',
     title: '配置授信额度',
+    returnRoute: {
+      name: 'DecisionTable',
+      params: { id: '9' },
+      query: { sourceType: 'REVISION', sourceId: '21' }
+    },
     ...overrides
   }
 }
@@ -35,12 +40,13 @@ function session(overrides = {}) {
 function mountPage(current = session(), options = {}) {
   const dispatch = vi.fn().mockResolvedValue()
   const back = vi.fn()
+  const push = vi.fn().mockResolvedValue()
   const route = options.route || { params: { ruleId: '9', sessionId: 'session-1' } }
   const sessionGetter = options.sessionGetter || (() => current)
   const wrapper = shallowMount(ExpressionEditorPage, {
     mocks: {
       $route: route,
-      $router: { back },
+      $router: { back, push },
       $store: {
         getters: { 'expressionSessions/sessionById': sessionGetter },
         dispatch
@@ -65,7 +71,7 @@ function mountPage(current = session(), options = {}) {
     },
     directives: { loading: () => {} }
   })
-  return { wrapper, dispatch, back }
+  return { wrapper, dispatch, back, push }
 }
 
 afterEach(() => vi.clearAllMocks())
@@ -121,7 +127,7 @@ describe('ExpressionEditorPage', () => {
     expressionApi.compileExpression.mockResolvedValue({
       data: { success: true, compiledScript: '8' }
     })
-    const { wrapper, dispatch, back } = mountPage()
+    const { wrapper, dispatch, back, push } = mountPage()
 
     await wrapper.vm.saveAndCompile()
 
@@ -136,7 +142,25 @@ describe('ExpressionEditorPage', () => {
       operand: draft,
       compiledScript: '8'
     })
-    expect(back).toHaveBeenCalled()
+    expect(push).toHaveBeenCalledWith({
+      name: 'DecisionTable',
+      params: { id: '9' },
+      query: { sourceType: 'REVISION', sourceId: '21' }
+    })
+    expect(back).not.toHaveBeenCalled()
+  })
+
+  test('返回始终打开会话所属设计器而不是依赖浏览器历史', () => {
+    const { wrapper, back, push } = mountPage()
+
+    wrapper.vm.goBack()
+
+    expect(push).toHaveBeenCalledWith({
+      name: 'DecisionTable',
+      params: { id: '9' },
+      query: { sourceType: 'REVISION', sourceId: '21' }
+    })
+    expect(back).not.toHaveBeenCalled()
   })
 
   test('切换朔源模式先确认费用风险并按后端字段生成测试输入', async() => {

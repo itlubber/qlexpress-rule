@@ -152,6 +152,13 @@
         </el-select>
       </div>
       <div class="toolbar-right">
+        <rule-designer-version-select
+          v-if="canEditDraft && designerSourceOptions.length"
+          :options="designerSourceOptions"
+          :model-value="selectedDesignerSource"
+          :loading="designerSourcesLoading"
+          @change="switchDesignerSource"
+        />
         <el-button size="small" :icon="ElIconCircleCheck" @click="handleValidate"
           >验证</el-button
         >
@@ -246,6 +253,10 @@
                   />
                 </el-form-item>
               </el-form>
+              <div class="hint-box">
+                <el-icon><el-icon-info /></el-icon>
+                拖动连线两端的圆点，可切换节点的连接锚点
+              </div>
             </div>
 
             <div class="prop-section">
@@ -554,6 +565,7 @@ import ruleDraftMixin from '@/mixins/ruleDraftMixin'
 import ScriptPanel from '@/components/common/ScriptPanel.vue'
 import DesignerTestDialog from '@/components/common/DesignerTestDialog.vue'
 import RuleDraftReadOnly from '@/components/rule/RuleDraftReadOnly.vue'
+import RuleDesignerVersionSelect from '@/components/rule/RuleDesignerVersionSelect.vue'
 import EndNodeScopeDialog from '@/components/flow/EndNodeScopeDialog.vue'
 import ActionBlockEditor from '@/components/flow/ActionBlockEditor.vue'
 import ConditionGroupEditor from '@/components/decision/ConditionGroupEditor.vue'
@@ -666,6 +678,7 @@ export default {
   },
   components: {
     RuleDraftReadOnly,
+    RuleDesignerVersionSelect,
     DesignerTestDialog,
     EndNodeScopeDialog,
     FlowNodeAddMenu,
@@ -984,6 +997,7 @@ export default {
           ],
         },
         edgeType: this.globalEdgeLineType,
+        adjustEdgeStartAndEnd: true,
         snapline: true,
         history: true,
         style: {
@@ -1084,6 +1098,9 @@ export default {
       this.lf.on('selection:selected', () =>
         this.updateSelectedBusinessNodeCount()
       )
+      this._connectionNotAllowedHandler = (payload) =>
+        this.handleConnectionNotAllowed(payload)
+      this.lf.on('connection:not-allowed', this._connectionNotAllowedHandler)
 
       // 决策树禁止分支汇合：连线完成后检测目标节点入边数，超过1条则自动撤销
       this.lf.on('edge:add', ({ data }) => {
@@ -1115,6 +1132,20 @@ export default {
       if (!miniMap || !this.miniMapVisible) return
       if (miniMap.isShow) miniMap.hide()
       miniMap.show()
+    },
+
+    /**
+     * LogicFlow 连线规则校验失败时提示用户（如禁止构成有向环）
+     */
+    handleConnectionNotAllowed(payload) {
+      if (isAnchorClickGesture(this.anchorGesture)) return
+      const msg =
+        (payload && (payload.msg || payload.message)) ||
+        (payload &&
+          payload.data &&
+          (payload.data.msg || payload.data.message)) ||
+        '该连线不被允许'
+      this.$message.warning(msg)
     },
 
     onAnchorMouseDown(payload) {
@@ -2518,6 +2549,10 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tree-toolbar :deep(.rule-designer-version-select) {
+  color: #fff;
 }
 .edge-priority {
   flex-shrink: 0;

@@ -32,6 +32,9 @@ export default {
       draftIssues: [],
       draftGuardError: null,
       draftGuardNeedsRefresh: false,
+      draftGuardActive: true,
+      draftGuardDefinitionId: null,
+      draftGuardRouteKey: '',
       viewRefreshToken: 0,
       designerRevisions: [],
       designerVersions: [],
@@ -112,22 +115,49 @@ export default {
   },
   watch: {
     '$route.query'() {
+      if (!this.draftGuardActive || !this.isOwnDesignerRoute()) return
+      const routeKey = this.currentDesignerRouteKey()
+      if (!routeKey || routeKey === this.draftGuardRouteKey) return
+      this.draftGuardRouteKey = routeKey
       this.startViewedRevisionRefresh(true)
     },
   },
   created() {
+    this.draftGuardDefinitionId = String(this.$route?.params?.id || '')
+    this.draftGuardRouteKey = this.currentDesignerRouteKey()
     this.startViewedRevisionRefresh(false)
   },
   activated() {
-    if (!this.draftGuardNeedsRefresh) return
+    this.draftGuardActive = true
+    if (!this.draftGuardNeedsRefresh || !this.isOwnDesignerRoute()) return
     this.draftGuardNeedsRefresh = false
     this.startViewedRevisionRefresh(true)
   },
   deactivated() {
-    this.draftGuardNeedsRefresh = true
+    this.draftGuardActive = false
+    this.draftGuardNeedsRefresh = !this.isOwnExpressionRoute()
   },
   methods: {
+    currentDesignerRouteKey() {
+      if (!this.isOwnDesignerRoute()) return ''
+      return `${this.draftGuardDefinitionId}:${sourceKey(this.requestedSource)}`
+    },
+    isOwnDesignerRoute(route = this.$route) {
+      const routeId = route?.params?.id
+      return (
+        routeId != null &&
+        String(routeId) === String(this.draftGuardDefinitionId || '')
+      )
+    },
+    isOwnExpressionRoute(route = this.$route) {
+      return (
+        route?.name === 'ExpressionEditor' &&
+        String(route?.params?.ruleId || '') ===
+          String(this.draftGuardDefinitionId || '')
+      )
+    },
     startViewedRevisionRefresh(reloadContent) {
+      if (!this.isOwnDesignerRoute()) return Promise.resolve(null)
       const refreshPromise = this.refreshViewedRevision()
       this.draftGuardPromise = refreshPromise
       if (reloadContent) {

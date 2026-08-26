@@ -155,6 +155,13 @@
         </el-select>
       </div>
       <div class="toolbar-right">
+        <rule-designer-version-select
+          v-if="canEditDraft && designerSourceOptions.length"
+          :options="designerSourceOptions"
+          :model-value="selectedDesignerSource"
+          :loading="designerSourcesLoading"
+          @change="switchDesignerSource"
+        />
         <el-button size="small" :icon="ElIconCircleCheck" @click="handleValidate"
           >验证</el-button
         >
@@ -249,6 +256,10 @@
                   />
                 </el-form-item>
               </el-form>
+              <div class="hint-box">
+                <el-icon><el-icon-info /></el-icon>
+                拖动连线两端的圆点，可切换节点的连接锚点
+              </div>
             </div>
 
             <div class="prop-section">
@@ -568,6 +579,7 @@ import ruleDraftMixin from '@/mixins/ruleDraftMixin'
 import ScriptPanel from '@/components/common/ScriptPanel.vue'
 import DesignerTestDialog from '@/components/common/DesignerTestDialog.vue'
 import RuleDraftReadOnly from '@/components/rule/RuleDraftReadOnly.vue'
+import RuleDesignerVersionSelect from '@/components/rule/RuleDesignerVersionSelect.vue'
 import EndNodeScopeDialog from '@/components/flow/EndNodeScopeDialog.vue'
 import ActionBlockEditor from '@/components/flow/ActionBlockEditor.vue'
 import ConditionGroupEditor from '@/components/decision/ConditionGroupEditor.vue'
@@ -682,6 +694,7 @@ export default {
   },
   components: {
     RuleDraftReadOnly,
+    RuleDesignerVersionSelect,
     DesignerTestDialog,
     EndNodeScopeDialog,
     FlowNodeAddMenu,
@@ -1000,6 +1013,7 @@ export default {
           ],
         },
         edgeType: this.globalEdgeLineType,
+        adjustEdgeStartAndEnd: true,
         snapline: true,
         history: true,
         style: {
@@ -2540,6 +2554,10 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.flow-toolbar :deep(.rule-designer-version-select) {
+  color: #fff;
 }
 .edge-priority {
   flex-shrink: 0;

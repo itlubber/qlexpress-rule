@@ -35,7 +35,7 @@ describe('RuleDraftReadOnly', () => {
     expect(wrapper.emitted('go-lifecycle')).toHaveLength(1)
   })
 
-  test('允许编辑时不渲染遮罩', () => {
+  test('允许编辑时不渲染遮罩且版本选择器交由设计器工具栏承载', () => {
     const wrapper = mount(RuleDraftReadOnly, {
       props: {
         visible: false,
@@ -48,7 +48,7 @@ describe('RuleDraftReadOnly', () => {
     })
 
     expect(wrapper.find('[data-testid="draft-read-only"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="designer-version-control"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="designer-version-control"]').exists()).toBe(false)
   })
 
   test('查看模式可以直接切换指定规则版本', async () => {

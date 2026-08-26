@@ -475,7 +475,11 @@ export default {
       }
     },
     goBack() {
-      this.$router.back()
+      const returnRoute = this.activeSession && this.activeSession.returnRoute
+      if (returnRoute && (returnRoute.name || returnRoute.path)) {
+        return this.$router.push(returnRoute)
+      }
+      return this.$router.back()
     },
   },
 }

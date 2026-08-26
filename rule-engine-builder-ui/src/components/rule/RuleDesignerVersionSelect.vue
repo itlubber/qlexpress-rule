@@ -61,6 +61,6 @@ export default {
 }
 
 .rule-designer-version-select .el-select {
-  width: 220px;
+  width: 184px;
 }
 </style>

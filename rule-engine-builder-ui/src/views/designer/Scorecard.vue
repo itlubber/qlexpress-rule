@@ -34,6 +34,13 @@
         >
       </div>
       <div class="sc-toolbar">
+        <rule-designer-version-select
+          v-if="canEditDraft && designerSourceOptions.length"
+          :options="designerSourceOptions"
+          :model-value="selectedDesignerSource"
+          :loading="designerSourcesLoading"
+          @change="switchDesignerSource"
+        />
         <el-button size="small" :icon="ElIconPlus" @click="addScoreItem"
           >添加评分项</el-button
         >
@@ -411,6 +418,7 @@ import DesignerTestDialog from '@/components/common/DesignerTestDialog.vue'
 import OperandPicker from '@/components/common/OperandPicker.vue'
 import ScriptPanel from '@/components/common/ScriptPanel.vue'
 import RuleDraftReadOnly from '@/components/rule/RuleDraftReadOnly.vue'
+import RuleDesignerVersionSelect from '@/components/rule/RuleDesignerVersionSelect.vue'
 import { addCode, buildSampleParamsFromCodes } from '@/utils/testSampleParams'
 import {
   collectOperandReferences,
@@ -481,6 +489,7 @@ export default {
   },
   components: {
     RuleDraftReadOnly,
+    RuleDesignerVersionSelect,
     DesignerTestDialog,
     OperandPicker,
     ScriptPanel,

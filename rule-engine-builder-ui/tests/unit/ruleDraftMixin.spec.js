@@ -510,6 +510,95 @@ describe('ruleDraftMixin', () => {
     expect(definitionApi.createDraftRevision).not.toHaveBeenCalled()
     wrapper.unmount()
   })
+
+  test('缓存设计器忽略其他规则的版本路由变化', async () => {
+    const route = reactive({
+      name: 'DecisionTable',
+      path: '/designer/table/30',
+      params: { id: '30' },
+      query: {},
+    })
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({
+      data: [{ id: 6, definitionId: 30, revisionNo: 2, state: 'DRAFT' }],
+    })
+    const wrapper = mount({
+      name: 'RouteBoundRuleDraftMixinHost',
+      mixins: [ruleDraftMixin],
+      data() {
+        return { definitionId: null }
+      },
+      created() {
+        this.definitionId = this.$route.params.id
+      },
+      template: '<div />',
+    }, {
+      mocks: {
+        $route: route,
+        $router: { push: vi.fn(), replace: vi.fn() },
+      },
+    })
+    await flushPromises()
+    vi.clearAllMocks()
+
+    route.name = 'RuleSet'
+    route.path = '/designer/ruleset/40'
+    route.params.id = '40'
+    route.query = { sourceType: 'VERSION', sourceId: '54' }
+    ruleDraftMixin.watch['$route.query'].call(wrapper.vm)
+    await flushPromises()
+
+    expect(definitionApi.listRuleRevisions).not.toHaveBeenCalled()
+    expect(definitionApi.getVersionById).not.toHaveBeenCalled()
+    expect(definitionApi.getRuleRevision).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  test('进入同一规则表达式页面时不标记设计器返回后重载', async () => {
+    const route = reactive({
+      name: 'DecisionTable',
+      path: '/designer/table/30',
+      params: { id: '30' },
+      query: {},
+    })
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({
+      data: [{ id: 6, definitionId: 30, revisionNo: 2, state: 'DRAFT' }],
+    })
+    const wrapper = mount({
+      name: 'ExpressionRoundTripRuleDraftMixinHost',
+      mixins: [ruleDraftMixin],
+      data() {
+        return { definitionId: null }
+      },
+      created() {
+        this.definitionId = this.$route.params.id
+      },
+      template: '<div />',
+    }, {
+      mocks: {
+        $route: route,
+        $router: { push: vi.fn(), replace: vi.fn() },
+      },
+    })
+    await flushPromises()
+    vi.clearAllMocks()
+
+    route.name = 'ExpressionEditor'
+    route.path = '/designer/expression/30/session-30'
+    route.params = { ruleId: '30', sessionId: 'session-30' }
+    ruleDraftMixin.deactivated.call(wrapper.vm)
+
+    route.name = 'DecisionTable'
+    route.path = '/designer/table/30'
+    route.params = { id: '30' }
+    route.query = {}
+    ruleDraftMixin.watch['$route.query'].call(wrapper.vm)
+    ruleDraftMixin.activated.call(wrapper.vm)
+    await flushPromises()
+
+    expect(wrapper.vm.draftGuardNeedsRefresh).toBe(false)
+    expect(definitionApi.listRuleRevisions).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
 })
 
 describe('ruleDraftMixin stable source loading', () => {

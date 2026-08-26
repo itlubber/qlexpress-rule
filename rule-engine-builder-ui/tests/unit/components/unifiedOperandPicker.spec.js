@@ -65,7 +65,14 @@ describe('统一 OperandPicker', () => {
     const source = { kind: 'LITERAL', value: '100', valueType: 'NUMBER' }
     const wrapper = mountPicker({ value: source }, {
       mocks: {
-        $route: { path: '/designer/table/7', params: { id: '7' }, meta: { title: '决策表设计器' } },
+        $route: {
+          name: 'DecisionTable',
+          path: '/designer/table/7',
+          fullPath: '/designer/table/7?sourceType=REVISION&sourceId=19',
+          params: { id: '7' },
+          query: { sourceType: 'REVISION', sourceId: '19' },
+          meta: { title: '决策表设计器' }
+        },
         $router: { push },
         $store: { dispatch, getters: {} }
       }
@@ -78,7 +85,12 @@ describe('统一 OperandPicker', () => {
       ruleId: 7,
       sourceKey: wrapper.vm.expressionSourceKey,
       title: '决策表 · 表达式',
-      draft: source
+      draft: source,
+      returnRoute: {
+        name: 'DecisionTable',
+        params: { id: '7' },
+        query: { sourceType: 'REVISION', sourceId: '19' }
+      }
     }))
     expect(payload.sourceKey).not.toContain('undefined')
     expect(payload.draft).not.toBe(source)
@@ -105,6 +117,52 @@ describe('统一 OperandPicker', () => {
     const sourceKeys = dispatch.mock.calls.map(call => call[1].sourceKey)
     expect(new Set(sourceKeys).size).toBe(2)
     expect(sourceKeys.every(sourceKey => !sourceKey.includes('undefined'))).toBe(true)
+  })
+
+  test('多个规则设计器会话分别记录自己的精确返回位置', async() => {
+    const dispatch = vi.fn().mockResolvedValue()
+    const first = mountPicker({}, {
+      mocks: {
+        $route: {
+          name: 'DecisionTable',
+          path: '/designer/table/7',
+          params: { id: '7' },
+          query: { sourceType: 'VERSION', sourceId: '17' },
+          meta: { title: '决策表设计器' }
+        },
+        $router: { push: vi.fn() },
+        $store: { dispatch, getters: {} }
+      }
+    })
+    const second = mountPicker({}, {
+      mocks: {
+        $route: {
+          name: 'RuleSet',
+          path: '/designer/ruleset/8',
+          params: { id: '8' },
+          query: { sourceType: 'REVISION', sourceId: '28' },
+          meta: { title: '规则集设计器' }
+        },
+        $router: { push: vi.fn() },
+        $store: { dispatch, getters: {} }
+      }
+    })
+
+    await first.vm.openEditor()
+    await second.vm.openEditor()
+
+    expect(dispatch.mock.calls.map(call => call[1].returnRoute)).toEqual([
+      {
+        name: 'DecisionTable',
+        params: { id: '7' },
+        query: { sourceType: 'VERSION', sourceId: '17' }
+      },
+      {
+        name: 'RuleSet',
+        params: { id: '8' },
+        query: { sourceType: 'REVISION', sourceId: '28' }
+      }
+    ])
   })
 
   test('缓存设计器恢复后只回填一次最新编译修订', async() => {

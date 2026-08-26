@@ -236,6 +236,7 @@ export default {
         allowedKinds: this.allowedKinds,
         context: this.editorContext,
         expectedType: this.expectedType,
+        returnRoute: this.designerReturnRoute(),
         title: createExpressionSessionTitle(
           routeTitle,
           this.editorTitle,
@@ -248,6 +249,14 @@ export default {
         name: 'ExpressionEditor',
         params: { ruleId: String(ruleId), sessionId },
       })
+    },
+    designerReturnRoute() {
+      const route = this.$route || {}
+      return {
+        name: route.name,
+        params: { ...(route.params || {}) },
+        query: { ...(route.query || {}) },
+      }
     },
     designerRuleId() {
       const route = this.$route

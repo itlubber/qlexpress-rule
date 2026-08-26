@@ -20,6 +20,14 @@ function workspaceTabKey(tab) {
   return tab && tab.fullPath
 }
 
+function workspaceViewKey(fullPath) {
+  const value = String(fullPath || '')
+  const path = value.split('?')[0]
+  return /^\/designer\/(?!expression\/)[^/]+\/[^/]+$/.test(path)
+    ? path
+    : value
+}
+
 function uniqueTabs(tabs) {
   const result = []
   const indexes = new Map()
@@ -72,7 +80,8 @@ const state = () => ({
 const getters = {
   tabs: state => state.tabs,
   activePath: state => state.activePath,
-  viewKey: state => fullPath => `${fullPath}::${state.refreshVersions[fullPath] || 0}`
+  viewKey: state => fullPath =>
+    `${workspaceViewKey(fullPath)}::${state.refreshVersions[fullPath] || 0}`
 }
 
 const mutations = {

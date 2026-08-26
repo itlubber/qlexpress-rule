@@ -100,6 +100,18 @@ const designers = [
   ['AdvancedScorecard', AdvancedScorecard],
 ]
 
+const designerToolbars = [
+  ['ScriptEditor', ScriptEditor, '.se-header'],
+  ['DecisionTable', DecisionTable, '.dt-header'],
+  ['DecisionTree', DecisionTree, '.tree-toolbar'],
+  ['DecisionFlow', DecisionFlow, '.flow-toolbar'],
+  ['RuleSet', RuleSet, '.rs-header'],
+  ['CrossTable', CrossTable, '.ct-header'],
+  ['Scorecard', Scorecard, '.sc-header'],
+  ['AdvancedCrossTable', AdvancedCrossTable, '.act-header'],
+  ['AdvancedScorecard', AdvancedScorecard, '.asc-header'],
+]
+
 const explicitRevisionSources = [
   {
     name: 'ScriptEditor',
@@ -830,6 +842,35 @@ describe('九类设计器草稿保护', () => {
         }),
       }),
     })
+    wrapper.unmount()
+  })
+
+  test.each(designerToolbars)('%s 将规则版本选择器放在顶部工具栏内', async (
+    _name,
+    component,
+    toolbarSelector
+  ) => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({
+      data: [
+        {
+          id: 6,
+          definitionId: 30,
+          revisionNo: 2,
+          state: 'DRAFT',
+          lockVersion: 0,
+          modelJson: '{}',
+        },
+      ],
+    })
+
+    const wrapper = mountDesigner(component)
+    await flushPromises()
+
+    expect(
+      wrapper.get(toolbarSelector)
+        .find('[data-testid="designer-version-control"]')
+        .exists()
+    ).toBe(true)
     wrapper.unmount()
   })
 
