@@ -286,7 +286,7 @@ export default {
 }
 .cg--nested {
   padding-left: 8px;
-  border-left: 2px solid #e8e8e8;
+  border-left: 2px solid var(--tianshu-border-subtle);
 }
 .cg-head {
   display: flex;
@@ -297,7 +297,7 @@ export default {
 }
 .cg-title {
   font-weight: 600;
-  color: #333;
+  color: var(--tianshu-text-primary);
   margin-right: 4px;
 }
 .cg-remove-group {
@@ -376,7 +376,7 @@ export default {
   width: 96px;
 }
 .cg-field--any {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 .cg-field--actions {

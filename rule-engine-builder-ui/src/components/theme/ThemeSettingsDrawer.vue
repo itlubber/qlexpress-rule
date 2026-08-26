@@ -1,0 +1,627 @@
+<template>
+  <el-drawer
+    :model-value="modelValue"
+    class="theme-settings-drawer"
+    title="主题设置"
+    direction="rtl"
+    :size="drawerSize"
+    :before-close="handleBeforeClose"
+    append-to-body
+  >
+    <div class="theme-settings">
+      <section class="theme-section" aria-labelledby="theme-style-title">
+        <h3 id="theme-style-title">整体风格</h3>
+        <div class="option-grid option-grid--two">
+          <button
+            v-for="option in schemeOptions"
+            :key="option.value"
+            type="button"
+            class="preview-card"
+            :class="{ 'is-active': draft.colorScheme === option.value }"
+            :data-theme-scheme="option.value"
+            :aria-label="option.label"
+            :aria-pressed="draft.colorScheme === option.value"
+            @click="patchDraft({ colorScheme: option.value })"
+          >
+            <span class="style-preview" :class="option.previewClass">
+              <span class="style-preview__sidebar" />
+              <span class="style-preview__body">
+                <span />
+                <span />
+              </span>
+            </span>
+            <span>{{ option.label }}</span>
+            <span
+              v-if="draft.colorScheme === option.value"
+              class="selection-check"
+              aria-hidden="true"
+            >
+              <el-icon><el-icon-check /></el-icon>
+            </span>
+          </button>
+        </div>
+      </section>
+
+      <section class="theme-section" aria-labelledby="theme-accent-title">
+        <h3 id="theme-accent-title">主题色</h3>
+        <p class="section-hint">选择纯色或固定渐变色卡</p>
+        <div class="swatch-group">
+          <span class="swatch-group__label">纯色</span>
+          <div class="swatch-grid">
+            <button
+              v-for="preset in solidPresets"
+              :key="preset.id"
+              type="button"
+              class="theme-swatch"
+              :class="{ 'is-active': draft.accentPreset === preset.id }"
+              :data-accent="preset.id"
+              :data-accent-kind="preset.kind"
+              :aria-label="preset.name"
+              :aria-pressed="draft.accentPreset === preset.id"
+              :style="swatchStyle(preset)"
+              @click="patchDraft({ accentPreset: preset.id })"
+            >
+              <el-icon v-if="draft.accentPreset === preset.id">
+                <el-icon-check />
+              </el-icon>
+            </button>
+          </div>
+        </div>
+        <div class="swatch-group">
+          <span class="swatch-group__label">渐变</span>
+          <div class="gradient-grid">
+            <button
+              v-for="preset in gradientPresets"
+              :key="preset.id"
+              type="button"
+              class="gradient-swatch"
+              :class="{ 'is-active': draft.accentPreset === preset.id }"
+              :data-accent="preset.id"
+              :data-accent-kind="preset.kind"
+              :aria-label="preset.name"
+              :aria-pressed="draft.accentPreset === preset.id"
+              :style="swatchStyle(preset)"
+              @click="patchDraft({ accentPreset: preset.id })"
+            >
+              <span>{{ preset.name }}</span>
+              <el-icon v-if="draft.accentPreset === preset.id">
+                <el-icon-check />
+              </el-icon>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="theme-section" aria-labelledby="sidebar-style-title">
+        <h3 id="sidebar-style-title">侧栏风格</h3>
+        <div class="option-grid option-grid--two">
+          <button
+            v-for="option in sidebarOptions"
+            :key="option.value"
+            type="button"
+            class="preview-card preview-card--compact"
+            :class="{ 'is-active': draft.sidebarTheme === option.value }"
+            :data-sidebar-theme="option.value"
+            :aria-label="option.label"
+            :aria-pressed="draft.sidebarTheme === option.value"
+            @click="patchDraft({ sidebarTheme: option.value })"
+          >
+            <span class="sidebar-preview" :class="option.previewClass">
+              <span />
+              <i />
+              <i />
+              <i />
+            </span>
+            <span>{{ option.label }}</span>
+            <span
+              v-if="draft.sidebarTheme === option.value"
+              class="selection-check"
+              aria-hidden="true"
+            >
+              <el-icon><el-icon-check /></el-icon>
+            </span>
+          </button>
+        </div>
+      </section>
+
+      <section class="theme-section" aria-labelledby="content-layout-title">
+        <h3 id="content-layout-title">内容区域</h3>
+        <div class="setting-row">
+          <span>内容区宽度</span>
+          <div class="segmented-control" aria-label="内容区宽度">
+            <button
+              v-for="option in contentWidthOptions"
+              :key="option.value"
+              type="button"
+              :class="{ 'is-active': draft.contentWidth === option.value }"
+              :data-content-width="option.value"
+              :aria-pressed="draft.contentWidth === option.value"
+              @click="patchDraft({ contentWidth: option.value })"
+            >
+              {{ option.label }}
+            </button>
+          </div>
+        </div>
+        <label class="setting-row">
+          <span>固定侧栏</span>
+          <el-switch
+            v-model="draft.fixedSidebar"
+            aria-label="固定侧栏"
+            @change="emitPreview"
+          />
+        </label>
+      </section>
+
+      <section class="theme-section" aria-labelledby="other-settings-title">
+        <h3 id="other-settings-title">其他设置</h3>
+        <label class="setting-row">
+          <span>色弱模式</span>
+          <el-switch
+            v-model="draft.colorWeak"
+            aria-label="色弱模式"
+            @change="emitPreview"
+          />
+        </label>
+      </section>
+
+      <button
+        type="button"
+        class="restore-button"
+        data-action="restore-default"
+        :disabled="saving"
+        @click="restoreDefault"
+      >
+        <el-icon><el-icon-refresh-left /></el-icon>
+        <span>恢复默认</span>
+      </button>
+    </div>
+
+    <template #footer>
+      <div class="drawer-actions">
+        <button
+          type="button"
+          class="drawer-button drawer-button--secondary"
+          data-action="cancel"
+          :disabled="saving"
+          @click="requestClose"
+        >
+          取消
+        </button>
+        <button
+          type="button"
+          class="drawer-button drawer-button--primary"
+          data-action="save"
+          :disabled="saving"
+          @click="submit"
+        >
+          {{ saving ? '保存中…' : '保存设置' }}
+        </button>
+      </div>
+    </template>
+  </el-drawer>
+</template>
+
+<script>
+import {
+  Check as ElIconCheck,
+  RefreshLeft as ElIconRefreshLeft,
+} from '@element-plus/icons-vue'
+import {
+  ACCENT_PRESETS,
+  DEFAULT_THEME_CONFIG,
+  normalizeThemeConfig,
+} from '@/theme/themeConfig'
+
+function cloneTheme(value) {
+  return normalizeThemeConfig(value)
+}
+
+export default {
+  name: 'ThemeSettingsDrawer',
+  components: { ElIconCheck, ElIconRefreshLeft },
+  props: {
+    modelValue: { type: Boolean, default: false },
+    config: { type: Object, default: () => ({ ...DEFAULT_THEME_CONFIG }) },
+    saving: { type: Boolean, default: false },
+  },
+  emits: ['update:modelValue', 'preview', 'save', 'cancel'],
+  data() {
+    const initial = cloneTheme(this.config)
+    return {
+      draft: initial,
+      openedSnapshot: cloneTheme(initial),
+      accentPresets: ACCENT_PRESETS,
+      schemeOptions: [
+        { value: 'LIGHT', label: '白天模式', previewClass: 'is-light' },
+        { value: 'DARK', label: '夜间模式', previewClass: 'is-dark' },
+      ],
+      sidebarOptions: [
+        { value: 'DARK', label: '深色侧栏', previewClass: 'is-dark' },
+        { value: 'LIGHT', label: '浅色侧栏', previewClass: 'is-light' },
+      ],
+      contentWidthOptions: [
+        { value: 'FLUID', label: '流式' },
+        { value: 'FIXED', label: '定宽' },
+      ],
+    }
+  },
+  computed: {
+    drawerSize() {
+      return 'min(336px, 100vw)'
+    },
+    solidPresets() {
+      return this.accentPresets.filter(item => item.kind === 'solid')
+    },
+    gradientPresets() {
+      return this.accentPresets.filter(item => item.kind === 'gradient')
+    },
+  },
+  watch: {
+    modelValue(open) {
+      if (!open) return
+      this.openedSnapshot = cloneTheme(this.config)
+      this.draft = cloneTheme(this.config)
+    },
+    config: {
+      deep: true,
+      handler(value) {
+        if (this.modelValue) return
+        this.draft = cloneTheme(value)
+      },
+    },
+  },
+  methods: {
+    swatchStyle(preset) {
+      return {
+        background: preset.background,
+        color: preset.foreground,
+      }
+    },
+    patchDraft(patch) {
+      if (this.saving) return
+      this.draft = cloneTheme({ ...this.draft, ...patch })
+      this.emitPreview()
+    },
+    emitPreview() {
+      if (this.saving) return
+      this.$emit('preview', cloneTheme(this.draft))
+    },
+    restoreDefault() {
+      if (this.saving) return
+      this.draft = cloneTheme(DEFAULT_THEME_CONFIG)
+      this.emitPreview()
+    },
+    submit() {
+      if (this.saving) return
+      this.$emit('save', cloneTheme(this.draft))
+    },
+    requestClose() {
+      if (this.saving) return
+      this.$emit('cancel', cloneTheme(this.openedSnapshot))
+      this.$emit('update:modelValue', false)
+    },
+    handleBeforeClose(done) {
+      if (this.saving) return
+      this.$emit('cancel', cloneTheme(this.openedSnapshot))
+      this.$emit('update:modelValue', false)
+      if (typeof done === 'function') done()
+    },
+  },
+}
+</script>
+
+<style lang="scss" scoped>
+.theme-settings {
+  display: flex;
+  min-height: 100%;
+  padding: 0 4px 16px;
+  flex-direction: column;
+  color: var(--tianshu-text-primary, #1e293b);
+}
+
+.theme-section {
+  padding: 0 0 24px;
+  margin: 0 0 24px;
+  border-bottom: 1px solid var(--tianshu-border-subtle, #e2e8f0);
+
+  h3 {
+    margin: 0 0 12px;
+    color: var(--tianshu-text-primary, #1e293b);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+  }
+}
+
+.section-hint {
+  margin: -8px 0 12px;
+  color: var(--tianshu-text-tertiary, #64748b);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.option-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.option-grid--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.preview-card {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  padding: 8px;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--tianshu-text-secondary, #475569);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  background: var(--tianshu-bg-surface, #ffffff);
+  border: 1px solid var(--tianshu-border, #cbd5e1);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+
+  &:hover,
+  &:focus-visible,
+  &.is-active {
+    border-color: var(--el-color-primary, #2639e9);
+    outline: none;
+    box-shadow: 0 0 0 2px var(--tianshu-focus-ring, rgba(38, 57, 233, 0.16));
+  }
+}
+
+.preview-card--compact {
+  align-items: center;
+}
+
+.style-preview {
+  display: flex;
+  width: 100%;
+  height: 52px;
+  overflow: hidden;
+  background: #f4f6fa;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+
+  &.is-dark {
+    background: #111827;
+
+    .style-preview__body {
+      background: #1e293b;
+
+      span {
+        background: #334155;
+      }
+    }
+  }
+}
+
+.style-preview__sidebar {
+  width: 18px;
+  background: #191f3a;
+}
+
+.style-preview__body {
+  display: flex;
+  padding: 10px 8px;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+
+  span {
+    height: 7px;
+    background: #ffffff;
+    border-radius: 2px;
+  }
+}
+
+.sidebar-preview {
+  display: flex;
+  width: 48px;
+  height: 58px;
+  padding: 8px 7px;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 5px;
+
+  span,
+  i {
+    display: block;
+    height: 5px;
+    background: currentColor;
+    border-radius: 3px;
+    opacity: 0.62;
+  }
+
+  span {
+    height: 8px;
+    margin-bottom: 2px;
+    opacity: 0.9;
+  }
+
+  &.is-dark {
+    color: #dbe4f0;
+    background: #191f3a;
+  }
+
+  &.is-light {
+    color: #64748b;
+    background: #ffffff;
+  }
+}
+
+.selection-check {
+  position: absolute;
+  right: 8px;
+  bottom: 7px;
+  color: var(--el-color-primary, #2639e9);
+  font-size: 14px;
+}
+
+.swatch-group + .swatch-group {
+  margin-top: 16px;
+}
+
+.swatch-group__label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--tianshu-text-tertiary, #64748b);
+  font-size: 12px;
+}
+
+.swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 24px);
+  gap: 8px;
+}
+
+.theme-swatch {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.18);
+
+  &:hover,
+  &:focus-visible,
+  &.is-active {
+    border-color: var(--tianshu-bg-elevated, #ffffff);
+    outline: 2px solid var(--el-color-primary, #2639e9);
+    outline-offset: 1px;
+  }
+}
+
+.gradient-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.gradient-swatch {
+  display: flex;
+  min-height: 40px;
+  padding: 8px 10px;
+  align-items: center;
+  justify-content: space-between;
+  color: #ffffff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible,
+  &.is-active {
+    border-color: var(--tianshu-bg-elevated, #ffffff);
+    outline: 2px solid var(--el-color-primary, #2639e9);
+    outline-offset: 1px;
+  }
+}
+
+.setting-row {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--tianshu-text-secondary, #475569);
+}
+
+.setting-row + .setting-row {
+  margin-top: 8px;
+}
+
+.segmented-control {
+  display: inline-flex;
+  padding: 3px;
+  background: var(--tianshu-bg-muted, #f1f5f9);
+  border-radius: 6px;
+
+  button {
+    min-width: 48px;
+    padding: 4px 8px;
+    color: var(--tianshu-text-tertiary, #64748b);
+    font: inherit;
+    font-size: 12px;
+    background: transparent;
+    border: 0;
+    border-radius: 4px;
+    cursor: pointer;
+
+    &.is-active {
+      color: var(--tianshu-text-primary, #1e293b);
+      background: var(--tianshu-bg-elevated, #ffffff);
+      box-shadow: 0 1px 3px var(--tianshu-shadow-color, rgba(15, 23, 42, 0.12));
+    }
+  }
+}
+
+.restore-button {
+  display: flex;
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 12px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--tianshu-text-secondary, #475569);
+  font: inherit;
+  background: var(--tianshu-bg-surface, #ffffff);
+  border: 1px solid var(--tianshu-border, #cbd5e1);
+  border-radius: 6px;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--el-color-primary, #2639e9);
+    border-color: var(--el-color-primary, #2639e9);
+    outline: none;
+  }
+}
+
+.drawer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.drawer-button {
+  min-width: 88px;
+  min-height: 36px;
+  padding: 8px 16px;
+  font: inherit;
+  border-radius: 6px;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.58;
+  }
+}
+
+.drawer-button--secondary {
+  color: var(--tianshu-text-secondary, #475569);
+  background: var(--tianshu-bg-surface, #ffffff);
+  border: 1px solid var(--tianshu-border, #cbd5e1);
+}
+
+.drawer-button--primary {
+  color: var(--tianshu-brand-foreground, #ffffff);
+  background: var(--tianshu-brand-background, #2639e9);
+  border: 1px solid var(--el-color-primary, #2639e9);
+}
+</style>

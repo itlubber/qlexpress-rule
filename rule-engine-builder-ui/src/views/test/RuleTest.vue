@@ -183,7 +183,7 @@
           </ul>
           <div
             v-if="params.length === 0 && inputLoadState !== 'LOADING'"
-            style="color: #64748b; padding: 12px 0; text-align: center"
+            style="color: var(--tianshu-text-tertiary); padding: 12px 0; text-align: center"
           >
             {{
               selectedRule
@@ -347,7 +347,7 @@
         </div>
 
         <div style="margin-top: 16px; text-align: center">
-          <span style="margin-right: 6px; color: #606266">页面请求超时</span>
+          <span style="margin-right: 6px; color: var(--tianshu-text-secondary)">页面请求超时</span>
           <el-input-number
             v-model="requestTimeoutMs"
             :min="1000"
@@ -356,7 +356,7 @@
             size="small"
             style="width: 150px; margin-right: 6px"
           />
-          <span style="margin-right: 12px; color: #64748b">毫秒</span>
+          <span style="margin-right: 12px; color: var(--tianshu-text-tertiary)">毫秒</span>
           <el-button
             type="primary"
             :loading="executing"
@@ -377,7 +377,7 @@
             <el-icon style="font-size: 48px; color: #ddd"
               ><el-icon-video-play
             /></el-icon>
-            <p style="color: #64748b; margin-top: 12px">
+            <p style="color: var(--tianshu-text-tertiary); margin-top: 12px">
               点击「执行测试」查看结果
             </p>
           </div>
@@ -385,10 +385,10 @@
             v-else-if="executing"
             style="text-align: center; padding: 60px 0"
           >
-            <el-icon style="font-size: 32px; color: #2639e9"
+            <el-icon style="font-size: 32px; color: var(--el-color-primary)"
               ><el-icon-loading
             /></el-icon>
-            <p style="color: #64748b; margin-top: 12px">规则执行中...</p>
+            <p style="color: var(--tianshu-text-tertiary); margin-top: 12px">规则执行中...</p>
           </div>
           <div v-else class="test-result-content">
             <el-alert
@@ -1697,7 +1697,7 @@ export default {
   padding-bottom: 8px;
 }
 .fixed-case-empty {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
   line-height: 20px;
 }
@@ -1709,7 +1709,7 @@ export default {
 }
 .case-state {
   padding: 12px 0;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   text-align: center;
 }
 .case-state-error {
@@ -1744,7 +1744,7 @@ export default {
   align-items: center;
   flex: 0 0 auto;
   gap: 8px;
-  color: #606266;
+  color: var(--tianshu-text-secondary);
   font-size: 12px;
 }
 .test-right {
@@ -1811,7 +1811,7 @@ export default {
   padding: 10px 12px;
   border: 1px solid #dce5ef;
   border-radius: 6px;
-  background: #f8fafc;
+  background: var(--tianshu-bg-soft);
 }
 .test-setup-state strong,
 .test-setup-state span,
@@ -1827,7 +1827,7 @@ export default {
 .test-setup-state span,
 .input-load-state span {
   margin-top: 3px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 11px;
   line-height: 1.45;
 }
@@ -1872,7 +1872,7 @@ export default {
 }
 .param-label {
   flex: 0 0 auto;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
   margin-right: 8px;
   white-space: nowrap;
@@ -1895,8 +1895,8 @@ export default {
   color: #282828;
 }
 .result-pre {
-  background: #f5f7fa;
-  border: 1px solid #ebeef5;
+  background: var(--tianshu-bg-muted);
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
   padding: 12px;
   font-size: 13px;

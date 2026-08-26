@@ -21,14 +21,14 @@ describe('flow designer style regressions', () => {
     const flow = readSource('src/views/designer/DecisionFlow.vue')
 
     ;[tree, flow].forEach(source => {
-      const normalized = source.toLowerCase()
       expect(source).toContain('&.el-button--primary {')
-      expect(normalized).toContain('background: #ffffff;')
-      expect(normalized).toContain('color: #1d39c4;')
+      expect(source).toContain('background: var(--tianshu-brand-background);')
+      expect(source).toContain('color: var(--tianshu-brand-foreground) !important;')
+      expect(source).toContain('border-color: var(--el-color-primary) !important;')
       expect(source).toContain('min-width: 88px;')
       expect(source).toContain('&.el-button--primary:hover,')
       expect(source).toContain('&.el-button--primary:focus {')
-      expect(normalized).toContain('background-color: #eef2ff !important;')
+      expect(source).toContain('filter: brightness(1.08);')
       expect(source).toContain('&.el-button--primary:active {')
     })
   })
@@ -38,10 +38,9 @@ describe('flow designer style regressions', () => {
     const flow = readSource('src/views/designer/DecisionFlow.vue')
 
     ;[tree, flow].forEach(source => {
-      const normalized = source.toLowerCase()
       expect(source).toContain('.el-radio-button__orig-radio:checked + .el-radio-button__inner')
-      expect(normalized).toContain('background: #2639e9;')
-      expect(normalized).toContain('color: #ffffff;')
+      expect(source).toContain('background: var(--tianshu-brand-background);')
+      expect(source).toContain('color: var(--tianshu-brand-foreground);')
     })
   })
 

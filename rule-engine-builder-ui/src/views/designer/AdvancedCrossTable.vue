@@ -25,7 +25,7 @@
           aria-label="返回"
           title="返回"
           @click="$router.back()"
-          style="color: #606266"
+          style="color: var(--tianshu-text-secondary)"
         />
         <el-icon class="act-title-icon"><el-icon-data-analysis /></el-icon>
         <span class="act-title">复杂交叉表设计器</span>
@@ -1192,7 +1192,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   border-radius: 4px;
   padding: 14px 20px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -1227,13 +1227,13 @@ export default {
 .act-dim-panel {
   flex: 1;
   min-width: 0;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   border-radius: 6px;
   padding: 12px 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 .act-result-row {
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   border-radius: 6px;
   padding: 12px 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -1268,7 +1268,7 @@ export default {
   gap: 8px;
 }
 .dim-config-card {
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
   margin-bottom: 10px;
   padding: 8px;
@@ -1316,11 +1316,11 @@ export default {
   min-width: 0;
 }
 .seg-sep {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   flex-shrink: 0;
 }
 .act-card {
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   border-radius: 4px;
   padding: 16px 20px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -1329,7 +1329,7 @@ export default {
 .act-card-title {
   font-size: 14px;
   font-weight: bold;
-  color: #333;
+  color: var(--tianshu-text-primary);
   margin-bottom: 14px;
   display: flex;
   align-items: center;
@@ -1341,14 +1341,14 @@ export default {
 .act-matrix-wrap {
   overflow-x: auto;
   border-radius: 6px;
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--tianshu-border-subtle);
 }
 .act-matrix {
   border-collapse: collapse;
   width: 100%;
   th,
   td {
-    border: 1px solid #e8e8e8;
+    border: 1px solid var(--tianshu-border-subtle);
     padding: 6px;
     vertical-align: middle;
     text-align: center;
@@ -1399,7 +1399,7 @@ export default {
   min-width: 90px;
   font-size: 12px;
   font-weight: 600;
-  color: #333;
+  color: var(--tianshu-text-primary);
   white-space: nowrap;
 }
 .col-header-top {
@@ -1410,7 +1410,7 @@ export default {
   min-width: 80px;
   font-size: 12px;
   font-weight: 500;
-  color: #333;
+  color: var(--tianshu-text-primary);
   white-space: nowrap;
 }
 .row-header-first {
@@ -1418,7 +1418,7 @@ export default {
   font-weight: 600;
 }
 .data-cell {
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   min-width: 90px;
 }
 .cell-input :deep(input) {
@@ -1427,7 +1427,7 @@ export default {
 }
 .test-hint {
   font-size: 12px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   margin-bottom: 8px;
 }
 .test-result {

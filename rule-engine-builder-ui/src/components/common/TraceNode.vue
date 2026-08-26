@@ -189,12 +189,12 @@ export default {
   gap: 8px;
   min-height: 34px;
   padding: 6px 12px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   border: 1px solid #d8dee9;
   border-radius: 6px;
   font-size: 12px;
   white-space: nowrap;
-  color: #303133;
+  color: var(--tianshu-text-primary);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 .nd-box:hover {
@@ -205,7 +205,7 @@ export default {
   font-weight: 600;
 }
 .c-name {
-  color: #303133;
+  color: var(--tianshu-text-primary);
 }
 .c-op {
   color: #6b7280;
@@ -227,7 +227,7 @@ export default {
   color: var(--el-color-primary);
 }
 .nd-res.is-skip {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-weight: 400;
 }
 .nd-kids {

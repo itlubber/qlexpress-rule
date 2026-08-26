@@ -55,7 +55,7 @@ export default {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #475569;
+  color: var(--tianshu-text-secondary);
   font-size: 13px;
   white-space: nowrap;
 }

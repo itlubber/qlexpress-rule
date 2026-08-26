@@ -596,14 +596,14 @@ export default {
   margin-bottom: 12px;
 }
 .scenario-title {
-  color: #303133;
+  color: var(--tianshu-text-primary);
   font-size: 15px;
   font-weight: 600;
 }
 .scenario-hint,
 .field-tip,
 .field-path {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 .scenario-alert {
@@ -625,7 +625,7 @@ export default {
 .editor-card {
   min-width: 0;
   overflow: hidden;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--tianshu-border);
   border-radius: 4px;
 }
 .editor-heading {
@@ -634,10 +634,10 @@ export default {
   justify-content: space-between;
   min-height: 44px;
   padding: 0 12px;
-  color: #303133;
+  color: var(--tianshu-text-primary);
   font-weight: 600;
-  background: #f5f7fa;
-  border-bottom: 1px solid #dcdfe6;
+  background: var(--tianshu-bg-muted);
+  border-bottom: 1px solid var(--tianshu-border);
 }
 .request-form {
   height: 360px;
@@ -652,7 +652,7 @@ export default {
 }
 .empty-fields {
   padding: 80px 20px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   text-align: center;
 }
 @media screen and (max-width: 1000px) {

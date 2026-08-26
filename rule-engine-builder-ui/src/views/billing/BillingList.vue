@@ -1251,7 +1251,7 @@ export default {
   }
 
   .hint-text {
-    color: #475569;
+    color: var(--tianshu-text-secondary);
     line-height: 1.5;
   }
 }

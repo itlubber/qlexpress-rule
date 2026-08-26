@@ -1,0 +1,249 @@
+html,
+body,
+#app {
+  min-height: 100%;
+  color: var(--tianshu-text-primary);
+  background: var(--tianshu-bg-page);
+}
+
+body,
+.layout-shell,
+.layout-main,
+.layout-workspace,
+.uiue-list-page,
+.el-card,
+.el-dialog,
+.el-drawer,
+.el-table,
+.el-input__wrapper,
+.el-select__wrapper,
+.el-textarea__inner {
+  transition: color 160ms ease, background-color 160ms ease,
+    border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.theme-content--fixed .layout-main > * {
+  width: 100%;
+  max-width: 1440px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.theme-sidebar--static body {
+  overflow: auto;
+}
+
+.theme-sidebar--static .layout-shell {
+  min-height: 100vh;
+  height: auto;
+  overflow: visible;
+}
+
+.theme-sidebar--static .layout-workspace,
+.theme-sidebar--static .layout-main {
+  overflow: visible;
+}
+
+.theme-sidebar--static .layout-sidebar {
+  min-height: 100vh;
+  height: auto;
+  align-self: stretch;
+}
+
+.theme-color-weak #app {
+  filter: invert(80%);
+}
+
+.theme-settings-drawer,
+.theme-settings-drawer * {
+  filter: none;
+}
+
+.el-button--primary:not(.is-link):not(.is-text):not(.is-plain),
+.drawer-button--primary {
+  color: var(--tianshu-brand-foreground) !important;
+  background-color: var(--el-color-primary) !important;
+  background-image: var(--tianshu-brand-gradient) !important;
+  border-color: var(--el-color-primary) !important;
+}
+
+.el-button--primary:not(.is-link):not(.is-text):not(.is-plain):hover,
+.el-button--primary:not(.is-link):not(.is-text):not(.is-plain):focus {
+  background-color: var(--el-color-primary-dark-1) !important;
+  background-image: var(--tianshu-brand-gradient) !important;
+  filter: brightness(1.08);
+}
+
+.el-button--primary:not(.is-link):not(.is-text):not(.is-plain):active {
+  background-color: var(--el-color-primary-dark-2) !important;
+  background-image: var(--tianshu-brand-gradient) !important;
+  filter: brightness(0.96);
+}
+
+.el-switch.is-checked .el-switch__core,
+.el-checkbox__input.is-checked .el-checkbox__inner,
+.el-radio__input.is-checked .el-radio__inner,
+.el-progress-bar__inner {
+  background-color: var(--el-color-primary) !important;
+  border-color: var(--el-color-primary) !important;
+}
+
+.el-overlay {
+  background: var(--tianshu-mask);
+}
+
+.el-dialog,
+.el-drawer,
+.el-message-box,
+.el-popover,
+.el-popper,
+.el-dropdown__popper,
+.el-select__popper,
+.el-picker-panel {
+  color: var(--tianshu-text-primary);
+  background: var(--tianshu-bg-elevated);
+  border-color: var(--tianshu-border);
+  box-shadow: var(--tianshu-shadow-large);
+}
+
+.el-dialog__header,
+.el-dialog__footer,
+.el-drawer__header,
+.el-drawer__footer {
+  color: var(--tianshu-text-primary);
+  background: var(--tianshu-bg-elevated);
+  border-color: var(--tianshu-border-subtle);
+}
+
+.el-dialog__title,
+.el-drawer__title,
+.el-message-box__title {
+  color: var(--tianshu-text-primary);
+}
+
+.el-card,
+.uiue-list-page,
+.el-input__wrapper,
+.el-select__wrapper,
+.el-textarea__inner,
+.el-date-editor,
+.el-pagination button,
+.el-pager li {
+  color: var(--tianshu-text-primary);
+  background: var(--tianshu-bg-surface);
+  border-color: var(--tianshu-border);
+}
+
+.el-table,
+.el-table tr,
+.el-table th.el-table__cell,
+.el-table td.el-table__cell {
+  color: var(--tianshu-text-secondary);
+  background: var(--tianshu-bg-surface) !important;
+  border-color: var(--tianshu-border-subtle);
+}
+
+.el-table th.el-table__cell {
+  color: var(--tianshu-text-primary);
+  background: var(--tianshu-bg-muted) !important;
+}
+
+.el-table__body tr:hover > td.el-table__cell,
+.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
+  background: var(--tianshu-bg-hover) !important;
+}
+
+.el-tabs__item,
+.el-form-item__label,
+.el-empty__description,
+.el-pagination,
+.el-descriptions__label,
+.el-descriptions__content {
+  color: var(--tianshu-text-secondary);
+}
+
+.el-descriptions__label,
+.el-collapse-item__header,
+.el-collapse-item__wrap {
+  background: var(--tianshu-bg-muted) !important;
+  border-color: var(--tianshu-border-subtle);
+}
+
+.el-tag--success,
+.el-alert--success.is-light {
+  color: var(--tianshu-success-text) !important;
+  background: var(--tianshu-success-bg) !important;
+  border-color: var(--tianshu-success-border) !important;
+}
+
+.el-tag--warning,
+.el-alert--warning.is-light {
+  color: var(--tianshu-warning-text) !important;
+  background: var(--tianshu-warning-bg) !important;
+  border-color: var(--tianshu-warning-border) !important;
+}
+
+.el-tag--danger,
+.el-alert--error.is-light {
+  color: var(--tianshu-danger-text) !important;
+  background: var(--tianshu-danger-bg) !important;
+  border-color: var(--tianshu-danger-border) !important;
+}
+
+.el-tag--info,
+.el-alert--info.is-light {
+  color: var(--tianshu-info-text) !important;
+  background: var(--tianshu-info-bg) !important;
+  border-color: var(--tianshu-info-border) !important;
+}
+
+[data-theme='dark'] :where(
+  .page-container,
+  .page-content,
+  .detail-page,
+  .detail-section,
+  .content-card,
+  .config-card,
+  .panel,
+  .toolbar,
+  .designer-shell,
+  .designer-toolbar,
+  .designer-panel,
+  .property-panel,
+  .node-panel,
+  .canvas-panel,
+  .expression-panel,
+  .matrix-container,
+  .scorecard-container,
+  .rule-set-container,
+  .monaco-editor-container,
+  .monaco-diff-editor
+) {
+  color: var(--tianshu-text-primary);
+  background-color: var(--tianshu-bg-surface);
+  border-color: var(--tianshu-border);
+}
+
+[data-theme='dark'] :where(
+  .toolbar,
+  .designer-toolbar,
+  .panel-header,
+  .section-header,
+  .card-header,
+  .table-header,
+  .property-panel__header
+) {
+  color: var(--tianshu-text-primary);
+  background-color: var(--tianshu-bg-muted);
+  border-color: var(--tianshu-border-subtle);
+}
+
+[data-theme='dark'] .lf-graph,
+[data-theme='dark'] .lf-canvas-overlay,
+[data-theme='dark'] .lf-base {
+  background-color: var(--tianshu-bg-workspace) !important;
+}
+
+[data-theme='dark'] :where(.lf-node-content, .lf-node-text, .lf-html-overlay) {
+  color: var(--tianshu-text-primary);
+}

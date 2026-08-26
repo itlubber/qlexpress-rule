@@ -75,6 +75,6 @@ export default {
   white-space: nowrap;
 }
 .operand-value-empty {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
 }
 </style>

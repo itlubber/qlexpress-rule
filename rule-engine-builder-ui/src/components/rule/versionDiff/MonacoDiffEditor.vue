@@ -74,6 +74,10 @@ export default {
     },
   },
   async mounted() {
+    window.addEventListener(
+      'tianshu-theme-change',
+      this.handleGlobalThemeChange
+    )
     let attempts = 0
     while (!window.monaco && attempts < 100 && !this.destroyed) {
       await new Promise((resolve) => setTimeout(resolve, 100))
@@ -86,6 +90,7 @@ export default {
       return
     }
     this.ensureQlLanguage(window.monaco)
+    this.syncGlobalTheme()
     this.originalModel = markRaw(
       window.monaco.editor.createModel(this.original || '', this.language)
     )
@@ -122,6 +127,10 @@ export default {
     })
   },
   beforeUnmount() {
+    window.removeEventListener(
+      'tianshu-theme-change',
+      this.handleGlobalThemeChange
+    )
     this.destroyed = true
     if (this.diffEditor) this.diffEditor.dispose()
     if (this.originalModel) this.originalModel.dispose()
@@ -131,6 +140,18 @@ export default {
     this.modifiedModel = null
   },
   methods: {
+    handleGlobalThemeChange(event) {
+      const scheme = event && event.detail && event.detail.colorScheme
+      this.syncGlobalTheme(scheme)
+    },
+    syncGlobalTheme(colorScheme) {
+      if (!window.monaco || !window.monaco.editor) return
+      const rootScheme = document.documentElement.dataset.theme
+      const dark = colorScheme
+        ? colorScheme === 'DARK'
+        : rootScheme === 'dark'
+      window.monaco.editor.setTheme(dark ? 'vs-dark' : 'vs')
+    },
     updateModel(model, value) {
       if (!model) return
       const nextValue = value || ''
@@ -208,10 +229,10 @@ export default {
 .monaco-diff-editor {
   position: relative;
   min-height: 320px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--tianshu-border);
   border-radius: 4px;
   overflow: hidden;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
 }
 .monaco-diff-editor-container {
   width: 100%;
@@ -224,7 +245,7 @@ export default {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 13px;
 }
 .monaco-diff-fallback {
@@ -237,7 +258,7 @@ export default {
 }
 .monaco-diff-fallback-title {
   margin-bottom: 8px;
-  color: #606266;
+  color: var(--tianshu-text-secondary);
   font-size: 13px;
   font-weight: 600;
 }
@@ -245,9 +266,9 @@ export default {
   min-height: 280px;
   margin: 0;
   padding: 12px;
-  border: 1px solid #ebeef5;
-  background: #f5f7fa;
-  color: #303133;
+  border: 1px solid var(--tianshu-border-subtle);
+  background: var(--tianshu-bg-muted);
+  color: var(--tianshu-text-primary);
   font: 13px/1.6 Consolas, Monaco, 'Courier New', monospace;
   white-space: pre-wrap;
 }

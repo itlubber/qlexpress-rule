@@ -54,13 +54,13 @@ export default {
   justify-content: center;
   gap: 8px;
   min-height: 180px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
 }
 .is-compact .state-content {
   min-height: 72px;
 }
 .state-loading i {
-  color: #2639e9;
+  color: var(--el-color-primary);
   font-size: 22px;
 }
 .state-error {

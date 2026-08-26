@@ -179,9 +179,9 @@ export default {
 .rule-summary {
   margin-top: 8px;
   padding: 8px 10px;
-  border: 1px solid #e4e7ed;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
-  background: #fafafa;
+  background: var(--tianshu-bg-muted);
 }
 .summary-head,
 .field-summary {
@@ -194,18 +194,18 @@ export default {
   margin-bottom: 6px;
 }
 .rule-name {
-  color: #303133;
+  color: var(--tianshu-text-primary);
   font-size: 13px;
   font-weight: 600;
 }
 .field-summary {
   min-height: 22px;
-  color: #606266;
+  color: var(--tianshu-text-secondary);
   font-size: 12px;
 }
 .field-count {
   width: 46px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
 }
 .field-chip {
   min-width: 0;
@@ -215,7 +215,7 @@ export default {
   white-space: nowrap;
 }
 .field-more {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
 }
 .rule-summary + :deep(.el-alert),
 :deep(.el-alert + .rule-summary) {

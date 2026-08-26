@@ -108,11 +108,11 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-$login-text: #1e293b;
-$login-muted: #64748b;
-$login-border: #e2e8f0;
-$login-primary: $--color-primary;
-$login-primary-soft: rgba(38, 57, 233, 0.1);
+$login-text: var(--tianshu-text-primary);
+$login-muted: var(--tianshu-text-tertiary);
+$login-border: var(--tianshu-border);
+$login-primary: var(--el-color-primary);
+$login-primary-soft: var(--tianshu-focus-ring);
 
 .login-page {
   position: relative;
@@ -130,7 +130,10 @@ $login-primary-soft: rgba(38, 57, 233, 0.1);
   position: fixed;
   inset: 0;
   z-index: 0;
-  background: linear-gradient(145deg, #1c2038 0%, #13152a 50%, #0f1224 100%);
+  background: linear-gradient(145deg, #edf2ff 0%, #f7f5ff 52%, #eef5ff 100%);
+}
+:global([data-theme='dark']) .login-bg {
+  background: linear-gradient(145deg, #11172a 0%, #0b1020 52%, #131127 100%);
 }
 .login-bg__mesh {
   position: absolute;
@@ -138,16 +141,16 @@ $login-primary-soft: rgba(38, 57, 233, 0.1);
   opacity: 0.3;
   background-image: radial-gradient(
       circle at 20% 30%,
-      rgba(38, 57, 233, 0.15) 0%,
+      rgba(var(--el-color-primary-rgb), 0.16) 0%,
       transparent 45%
     ),
     radial-gradient(
       circle at 80% 70%,
-      rgba(38, 57, 233, 0.08) 0%,
+      rgba(var(--el-color-primary-rgb), 0.09) 0%,
       transparent 40%
     ),
-    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    linear-gradient(rgba(var(--el-color-primary-rgb), 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--el-color-primary-rgb), 0.04) 1px, transparent 1px);
   background-size: 100% 100%, 100% 100%, 48px 48px, 48px 48px;
   animation: mesh-drift 28s ease-in-out infinite alternate;
 }
@@ -163,7 +166,7 @@ $login-primary-soft: rgba(38, 57, 233, 0.1);
   height: min(42vw, 360px);
   top: -8%;
   left: -5%;
-  background: rgba(38, 57, 233, 0.25);
+  background: rgba(var(--el-color-primary-rgb), 0.24);
   animation-delay: 0s;
 }
 .login-bg__orb--b {
@@ -171,7 +174,7 @@ $login-primary-soft: rgba(38, 57, 233, 0.1);
   height: min(50vw, 420px);
   bottom: -12%;
   right: -8%;
-  background: rgba(38, 57, 233, 0.15);
+  background: rgba(var(--el-color-primary-rgb), 0.14);
   animation-delay: -6s;
 }
 @keyframes mesh-drift {
@@ -209,9 +212,9 @@ $login-primary-soft: rgba(38, 57, 233, 0.1);
 .login-card {
   padding: 36px 32px 28px;
   border-radius: 20px;
-  background: rgba(28, 32, 56, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3), 0 24px 48px rgba(0, 0, 0, 0.2);
+  background: var(--tianshu-bg-surface);
+  border: 1px solid var(--tianshu-border-subtle);
+  box-shadow: var(--tianshu-shadow-large);
   -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
   animation: card-enter 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -232,7 +235,7 @@ $login-primary-soft: rgba(38, 57, 233, 0.1);
   gap: 16px;
   margin-bottom: 28px;
   padding-bottom: 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--tianshu-border-subtle);
 }
 .login-brand__icon {
   flex-shrink: 0;
@@ -242,8 +245,8 @@ $login-primary-soft: rgba(38, 57, 233, 0.1);
   align-items: center;
   justify-content: center;
   border-radius: 14px;
-  background: rgba(38, 57, 233, 0.15);
-  border: 1px solid rgba(38, 57, 233, 0.25);
+  background: rgba(var(--el-color-primary-rgb), 0.12);
+  border: 1px solid rgba(var(--el-color-primary-rgb), 0.24);
   overflow: hidden;
   transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
@@ -253,21 +256,21 @@ $login-primary-soft: rgba(38, 57, 233, 0.1);
   object-fit: contain;
 }
 .login-card:hover .login-brand__icon {
-  box-shadow: 0 8px 20px rgba(38, 57, 233, 0.25);
+  box-shadow: 0 8px 20px var(--tianshu-primary-shadow);
 }
 .login-brand__title {
   margin: 0;
   font-size: 1.375rem;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: #ffffff;
+  color: var(--tianshu-text-primary);
   line-height: 1.25;
 }
 .login-brand__subtitle {
   margin: 6px 0 0;
   font-size: 0.8125rem;
   font-weight: 500;
-  color: #94a3b8;
+  color: var(--tianshu-text-tertiary);
   line-height: 1.4;
 }
 .login-form {
@@ -292,17 +295,17 @@ $login-primary-soft: rgba(38, 57, 233, 0.1);
   line-height: 1.3;
   font-weight: 600;
   font-size: 13px;
-  color: #e2e8f0;
+  color: var(--tianshu-text-secondary);
 }
 :deep(.login-form .el-input__wrapper) {
   min-height: 44px;
   border-radius: 12px;
-  background: #ffffff;
+  background: var(--tianshu-bg-elevated);
   box-shadow: 0 0 0 1px $login-border inset;
   transition: box-shadow 0.2s ease;
 }
 :deep(.login-form .el-input__wrapper:hover) {
-  box-shadow: 0 0 0 1px rgba(38, 57, 233, 0.5) inset;
+  box-shadow: 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.5) inset;
 }
 :deep(.login-form .el-input__wrapper.is-focus) {
   box-shadow: 0 0 0 1px $login-primary inset,
@@ -319,10 +322,10 @@ $login-primary-soft: rgba(38, 57, 233, 0.1);
   caret-color: $login-primary;
 }
 :deep(.login-form .el-input__inner::placeholder) {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
 }
 :deep(.login-form .el-input__suffix) {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
 }
 .login-btn {
   width: 100%;
@@ -333,16 +336,18 @@ $login-primary-soft: rgba(38, 57, 233, 0.1);
   font-weight: 600 !important;
   letter-spacing: 0.02em;
   border-radius: 12px !important;
-  background: $login-primary !important;
-  border-color: $login-primary !important;
+  color: var(--tianshu-brand-foreground) !important;
+  background: var(--tianshu-brand-background) !important;
+  border-color: var(--el-color-primary) !important;
   cursor: pointer;
-  transition: background-color 0.2s ease, box-shadow 0.2s ease,
+  transition: filter 0.2s ease, box-shadow 0.2s ease,
     transform 0.2s ease;
 }
 .login-btn:not(.is-loading):hover {
-  background: #1a2fd8 !important;
-  border-color: #1a2fd8 !important;
-  box-shadow: 0 10px 28px rgba(38, 57, 233, 0.4);
+  background: var(--tianshu-brand-background) !important;
+  border-color: var(--el-color-primary-dark-1) !important;
+  box-shadow: 0 10px 28px var(--tianshu-primary-shadow);
+  filter: brightness(1.08);
 }
 .login-btn:not(.is-loading):active {
   transform: translateY(1px);

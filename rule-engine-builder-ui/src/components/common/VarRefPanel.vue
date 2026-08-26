@@ -86,7 +86,7 @@ export default {
 
 <style scoped>
 .var-ref-panel {
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
   overflow: hidden;
   font-size: 12px;
@@ -99,7 +99,7 @@ export default {
   background: #f5f5f5;
   font-weight: bold;
   color: #555;
-  border-bottom: 1px solid #e8e8e8;
+  border-bottom: 1px solid var(--tianshu-border-subtle);
 }
 .tip-icon {
   color: #bbb;

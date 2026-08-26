@@ -76,11 +76,11 @@ export default {
   gap: 8px;
 }
 .rule-graph-section-head strong {
-  color: #303133;
+  color: var(--tianshu-text-primary);
   font-size: 14px;
 }
 .rule-graph-section-head span:not(.rule-graph-section-icon) {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 .rule-graph-section-icon,
@@ -93,7 +93,7 @@ export default {
   height: 24px;
   border-radius: 50%;
   background: #eef0ff;
-  color: #2639e9;
+  color: var(--el-color-primary);
   font-size: 12px;
   font-weight: 700;
 }
@@ -125,8 +125,8 @@ export default {
 }
 .rule-graph-empty {
   padding: 16px;
-  border: 1px dashed #dcdfe6;
-  color: #64748b;
+  border: 1px dashed var(--tianshu-border);
+  color: var(--tianshu-text-tertiary);
   text-align: center;
   font-size: 13px;
 }

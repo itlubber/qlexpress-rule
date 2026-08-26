@@ -54,7 +54,7 @@ export default {
 <style scoped>
 .rule-matrix-board {
   overflow-x: auto;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
   background: #fafbfc;
   padding: 12px;
@@ -81,20 +81,20 @@ export default {
   font-weight: 700;
 }
 .rule-matrix-section-head strong {
-  color: #303133;
+  color: var(--tianshu-text-primary);
   font-size: 14px;
 }
 .rule-matrix-section-head em {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
   font-style: normal;
 }
 .rule-matrix-empty {
   min-width: 860px;
   padding: 16px;
-  border: 1px dashed #dcdfe6;
-  background: #fff;
-  color: #64748b;
+  border: 1px dashed var(--tianshu-border);
+  background: var(--tianshu-bg-surface);
+  color: var(--tianshu-text-tertiary);
   text-align: center;
   font-size: 13px;
 }

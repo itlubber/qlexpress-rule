@@ -25,7 +25,7 @@
           aria-label="返回"
           title="返回"
           @click="$router.back()"
-          style="color: #606266"
+          style="color: var(--tianshu-text-secondary)"
         />
         <el-icon class="sc-title-icon"><el-icon-data-line /></el-icon>
         <span class="sc-title">评分卡设计器</span>
@@ -439,7 +439,7 @@ import {
 
 const THRESHOLD_COLORS = [
   '#52c41a',
-  '#2639E9',
+  'var(--el-color-primary)',
   '#fa8c16',
   '#f5222d',
   '#722ed1',
@@ -941,7 +941,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   border-radius: 4px;
   padding: 12px 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -969,7 +969,7 @@ export default {
   gap: 6px;
 }
 .sc-card {
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   border-radius: 4px;
   padding: 12px 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -978,7 +978,7 @@ export default {
 .sc-card-title {
   font-size: 14px;
   font-weight: bold;
-  color: #333;
+  color: var(--tianshu-text-primary);
   margin-bottom: 10px;
   display: flex;
   align-items: center;
@@ -1013,14 +1013,14 @@ export default {
 }
 .result-var-switch-btn {
   padding: 4px 8px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   &:hover {
     color: var(--el-color-primary);
   }
 }
 .result-var-label {
   font-size: 12px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   margin-left: 4px;
 }
 .weight-summary {
@@ -1039,7 +1039,7 @@ export default {
   min-width: 36px;
 }
 .tip-icon {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   cursor: pointer;
   &:hover {
     color: var(--el-color-primary);
@@ -1051,7 +1051,7 @@ export default {
   gap: 10px;
 }
 .score-item-card {
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 6px;
   overflow: hidden;
   transition: box-shadow 0.2s;
@@ -1065,8 +1065,8 @@ export default {
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  background: #fafafa;
-  border-bottom: 1px solid #f0f0f0;
+  background: var(--tianshu-bg-muted);
+  border-bottom: 1px solid var(--tianshu-border-subtle);
 }
 .item-index {
   width: 22px;
@@ -1086,7 +1086,7 @@ export default {
 }
 .score-item-body {
   padding: 10px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
 }
 .score-item-row {
   margin-bottom: 8px;
@@ -1167,7 +1167,7 @@ export default {
   }
 }
 .op {
-  color: #475569;
+  color: var(--tianshu-text-secondary);
   font-weight: bold;
   font-size: 13px;
 }
@@ -1185,7 +1185,7 @@ export default {
   font-size: 12px;
 }
 .formula-empty {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-style: italic;
 }
 .threshold-list {
@@ -1199,9 +1199,9 @@ export default {
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border: 1px solid #f0f0f0;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 6px;
-  background: #fafafa;
+  background: var(--tianshu-bg-muted);
 }
 .thresh-color-bar {
   width: 4px;
@@ -1261,7 +1261,7 @@ export default {
 .sc-empty {
   text-align: center;
   padding: 30px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 13px;
 }
 .sc-empty-icon {
@@ -1272,7 +1272,7 @@ export default {
 }
 .test-hint {
   font-size: 12px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   margin-bottom: 8px;
 }
 .test-result {

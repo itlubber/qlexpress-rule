@@ -174,7 +174,7 @@ export default {
   top: 0;
   z-index: 2;
   padding-bottom: 8px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
 }
 .rule-version-side {
   display: grid;
@@ -182,27 +182,27 @@ export default {
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--tianshu-border);
   border-radius: 4px;
   background: #f8f9fb;
-  color: #606266;
+  color: var(--tianshu-text-secondary);
   font-size: 12px;
 }
 .rule-version-side strong {
-  color: #303133;
+  color: var(--tianshu-text-primary);
   font-size: 16px;
 }
 .rule-version-side p {
   grid-column: 1 / -1;
   margin: 0;
-  color: #303133;
+  color: var(--tianshu-text-primary);
   font-size: 13px;
 }
 .rule-version-side-label {
   padding: 2px 6px;
   border-radius: 4px;
   background: #eef0ff;
-  color: #2639e9;
+  color: var(--el-color-primary);
   font-weight: 600;
 }
 .rule-version-diff-summary {
@@ -213,18 +213,18 @@ export default {
   min-width: 860px;
   margin: 4px 0 12px;
   padding: 12px 16px;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
 }
 .rule-version-diff-title {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 .rule-version-diff-title strong {
-  color: #303133;
+  color: var(--tianshu-text-primary);
   font-size: 14px;
 }
 .rule-version-same {
@@ -277,12 +277,12 @@ export default {
 }
 .rule-script-diff-head strong,
 .rule-script-ref-head strong {
-  color: #303133;
+  color: var(--tianshu-text-primary);
   font-size: 14px;
 }
 .rule-script-diff-head span,
 .rule-script-ref-head span {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 .rule-script-ref-diff {

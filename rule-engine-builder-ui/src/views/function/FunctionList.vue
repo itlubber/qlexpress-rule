@@ -161,7 +161,7 @@
               {{ p.name }}: {{ typeLabel(p.type) }}
             </el-tag>
           </span>
-          <span v-else style="color: #64748b">无参</span>
+          <span v-else style="color: var(--tianshu-text-tertiary)">无参</span>
         </template>
       </el-table-column>
       <el-table-column label="更新时间" width="165" align="center">
@@ -1021,9 +1021,9 @@ export default {
 }
 .linkage-hint {
   font-size: 13px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   margin-bottom: 12px;
-  background: #fafafa;
+  background: var(--tianshu-bg-muted);
   padding: 8px 12px;
   border-radius: 4px;
 }
@@ -1038,7 +1038,7 @@ export default {
 }
 .function-empty {
   padding: 40px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   text-align: center;
 }
 .mono-input :deep(textarea) {
@@ -1047,7 +1047,7 @@ export default {
 }
 .function-test-target {
   margin-bottom: 12px;
-  color: #606266;
+  color: var(--tianshu-text-secondary);
   font-size: 13px;
 }
 .version-compare {
@@ -1064,15 +1064,15 @@ export default {
 }
 .version-compare-title {
   font-weight: 600;
-  color: #303133;
+  color: var(--tianshu-text-primary);
 }
 .version-preview {
   margin-top: 10px;
   padding: 10px;
   max-height: 320px;
   overflow: auto;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--tianshu-bg-soft);
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
   font-size: 12px;
   line-height: 1.5;

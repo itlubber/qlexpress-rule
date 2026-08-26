@@ -25,7 +25,7 @@
           aria-label="返回"
           title="返回"
           @click="$router.back()"
-          style="color: #606266"
+          style="color: var(--tianshu-text-secondary)"
         />
         <el-icon class="dt-title-icon"><el-icon-s-grid /></el-icon>
         <span class="dt-title">决策表配置</span>
@@ -77,7 +77,7 @@
 
     <!-- 变量加载状态 -->
     <div v-if="loadingVars || varPickerOptions.length" class="dt-var-status">
-      <span v-if="loadingVars" style="font-size: 12px; color: #64748b"
+      <span v-if="loadingVars" style="font-size: 12px; color: var(--tianshu-text-tertiary)"
         ><el-icon><el-icon-loading /></el-icon> 加载变量库...</span
       >
       <span v-else style="font-size: 12px; color: #087a5d">
@@ -774,7 +774,7 @@ export default {
 <style lang="scss" scoped>
 .dt-designer {
   position: relative;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   border-radius: 4px;
   padding: 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
@@ -816,7 +816,7 @@ export default {
   color: #666;
 }
 .tip-icon {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   cursor: pointer;
   font-size: 14px;
   &:hover {
@@ -835,10 +835,10 @@ export default {
   box-sizing: border-box;
 }
 .dt-rule-card {
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 6px;
   padding: 10px 12px;
-  background: #fafafa;
+  background: var(--tianshu-bg-muted);
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
@@ -866,8 +866,8 @@ export default {
   flex: 1 1 100%;
   width: 100%;
   min-width: 0;
-  background: #fff;
-  border: 1px solid #e8e8e8;
+  background: var(--tianshu-bg-surface);
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 6px;
   padding: 10px 12px;
   box-sizing: border-box;
@@ -889,11 +889,11 @@ export default {
 }
 .dt-act-panel-title {
   font-weight: 600;
-  color: #333;
+  color: var(--tianshu-text-primary);
 }
 .dt-act-panel-hint {
   font-size: 12px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   flex: 1 1 auto;
   min-width: 160px;
 }
@@ -921,7 +921,7 @@ export default {
 .dt-act-title {
   font-size: 13px;
   font-weight: 600;
-  color: #333;
+  color: var(--tianshu-text-primary);
   flex: 1;
   min-width: 120px;
   overflow: hidden;
@@ -1018,7 +1018,7 @@ export default {
 .dt-loading {
   text-align: center;
   padding: 40px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 13px;
   i {
     margin-right: 4px;
@@ -1027,9 +1027,9 @@ export default {
 .dt-empty {
   text-align: center;
   padding: 30px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 13px;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
 }
 .dt-empty-icon {
@@ -1042,7 +1042,7 @@ export default {
   margin-top: 16px;
 }
 .result-pre {
-  background: #f5f7fa;
+  background: var(--tianshu-bg-muted);
   padding: 6px 8px;
   border-radius: 4px;
   font-size: 12px;

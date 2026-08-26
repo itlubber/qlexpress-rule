@@ -105,7 +105,7 @@ export default {
   height: auto;
   min-height: 72px;
   padding: 12px 16px;
-  border: 2px solid #e4e7ed;
+  border: 2px solid var(--tianshu-border-subtle);
   border-radius: 8px;
   align-items: flex-start;
 
@@ -136,14 +136,14 @@ export default {
 }
 .scope-title {
   display: block;
-  color: #303133;
+  color: var(--tianshu-text-primary);
   font-size: 14px;
   font-weight: 600;
   line-height: 1.5;
 }
 .scope-description {
   display: block;
-  color: #606266;
+  color: var(--tianshu-text-secondary);
   font-size: 13px;
   line-height: 1.6;
 }

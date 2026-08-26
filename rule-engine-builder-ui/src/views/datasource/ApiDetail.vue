@@ -3755,7 +3755,7 @@ export default {
   .detail-meta,
   .field-help,
   .panel-subtitle {
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
   }
   .detail-meta {
     font-size: 13px;
@@ -3767,7 +3767,7 @@ export default {
     gap: 8px;
   }
   .detail-form {
-    background: #fff;
+    background: var(--tianshu-bg-surface);
     border: 1px solid #e5e7eb;
     border-radius: 4px;
     padding: 16px;
@@ -3788,7 +3788,7 @@ export default {
   .guide-progress {
     padding: 5px 9px;
     border-radius: 999px;
-    background: #fff;
+    background: var(--tianshu-bg-surface);
     color: var(--el-color-primary);
     font-size: 12px;
     font-weight: 700;
@@ -3807,7 +3807,7 @@ export default {
     border: 1px solid #dce4ef;
     border-radius: 8px;
     background: rgb(255 255 255 / 88%);
-    color: #475569;
+    color: var(--tianshu-text-secondary);
     cursor: pointer;
     text-align: left;
   }
@@ -3863,10 +3863,10 @@ export default {
     flex-direction: column;
     align-items: flex-start;
     padding: 11px 14px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--tianshu-border-subtle);
     border-radius: 7px;
-    background: #fff;
-    color: #64748b;
+    background: var(--tianshu-bg-surface);
+    color: var(--tianshu-text-tertiary);
     cursor: pointer;
     text-align: left;
   }
@@ -3931,17 +3931,17 @@ export default {
     border: 1px solid #e5e7eb;
     border-radius: 4px;
     padding: 10px;
-    background: #f8fafc;
+    background: var(--tianshu-bg-soft);
   }
   .reference-title {
     margin-bottom: 8px;
   }
   .empty-state {
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
     font-size: 12px;
     line-height: 1.6;
-    background: #f8fafc;
-    border: 1px dashed #cbd5e1;
+    background: var(--tianshu-bg-soft);
+    border: 1px dashed var(--tianshu-border);
     border-radius: 4px;
     padding: 10px 12px;
   }
@@ -3950,12 +3950,12 @@ export default {
     border-radius: 4px;
     padding: 12px;
     margin-bottom: 12px;
-    background: #fff;
+    background: var(--tianshu-bg-surface);
   }
   .config-card {
     border: 1px solid #e5e7eb;
     border-radius: 4px;
-    background: #f8fafc;
+    background: var(--tianshu-bg-soft);
     padding: 12px;
     margin-bottom: 14px;
   }
@@ -3976,7 +3976,7 @@ export default {
     text-align: center;
     border-radius: 50%;
     background: #e2e8f0;
-    color: #475569;
+    color: var(--tianshu-text-secondary);
     font-size: 12px;
   }
   .response-condition-head {

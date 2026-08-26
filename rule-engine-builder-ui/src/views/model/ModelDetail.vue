@@ -121,7 +121,7 @@
       <template v-slot:header>
         <div style="font-weight: 600">描述</div>
       </template>
-      <div style="color: #606266; font-size: 14px; line-height: 1.6">
+      <div style="color: var(--tianshu-text-secondary); font-size: 14px; line-height: 1.6">
         {{ model.description }}
       </div>
     </el-card>
@@ -143,7 +143,7 @@
             justify-content: space-between;
           "
         >
-          <span style="color: #64748b; font-size: 12px">
+          <span style="color: var(--tianshu-text-tertiary); font-size: 12px">
             共
             {{ model.inputFields ? model.inputFields.length : 0 }}
             个字段，请关联引擎变量
@@ -288,7 +288,7 @@
         />
         <div
           v-if="!model.inputFields || model.inputFields.length === 0"
-          style="text-align: center; padding: 40px 0; color: #64748b"
+          style="text-align: center; padding: 40px 0; color: var(--tianshu-text-tertiary)"
         >
           暂无输入字段
         </div>
@@ -309,7 +309,7 @@
             justify-content: space-between;
           "
         >
-          <span style="color: #64748b; font-size: 12px">
+          <span style="color: var(--tianshu-text-tertiary); font-size: 12px">
             共
             {{ model.outputFields ? model.outputFields.length : 0 }}
             个字段，请关联引擎变量
@@ -482,7 +482,7 @@
         />
         <div
           v-if="!model.outputFields || model.outputFields.length === 0"
-          style="text-align: center; padding: 40px 0; color: #64748b"
+          style="text-align: center; padding: 40px 0; color: var(--tianshu-text-tertiary)"
         >
           暂无输出字段
         </div>
@@ -781,7 +781,7 @@
           </div>
           <div
             v-else
-            style="text-align: center; padding: 30px 0; color: #64748b"
+            style="text-align: center; padding: 30px 0; color: var(--tianshu-text-tertiary)"
           >
             暂无输入字段，请切换到 JSON 模式手动编辑参数
           </div>
@@ -838,14 +838,14 @@
           </div>
           <div
             v-if="testResult.note"
-            style="color: #64748b; font-size: 12px; margin-bottom: 8px"
+            style="color: var(--tianshu-text-tertiary); font-size: 12px; margin-bottom: 8px"
           >
             {{ testResult.note }}
           </div>
           <pre
             v-if="testResult.hasOutput"
             style="
-              background: #f5f7fa;
+              background: var(--tianshu-bg-muted);
               padding: 12px;
               border-radius: 4px;
               font-size: 13px;
@@ -2355,7 +2355,7 @@ export default {
   white-space: nowrap;
 }
 .binding-meta {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-family: Menlo, Monaco, Consolas, monospace;
   font-size: 11px;
   line-height: 1.4;
@@ -2364,12 +2364,12 @@ export default {
   white-space: nowrap;
 }
 .script-unbound {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-style: italic;
 }
 .default-value-info {
   margin-left: 4px;
-  color: #94a3b8;
+  color: var(--tianshu-text-disabled);
   cursor: help;
 }
 .transform-editor {
@@ -2385,7 +2385,7 @@ export default {
 }
 .transform-param-label {
   overflow: hidden;
-  color: #606266;
+  color: var(--tianshu-text-secondary);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2414,7 +2414,7 @@ export default {
 }
 .var-switch-btn {
   padding: 4px 6px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   flex-shrink: 0;
 }
 .var-switch-btn:hover {
@@ -2441,7 +2441,7 @@ export default {
 .test-form-wrapper {
   max-height: 420px;
   overflow-y: auto;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
   padding: 4px 0;
 }
@@ -2452,16 +2452,16 @@ export default {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: #475569;
+  color: var(--tianshu-text-secondary);
   text-align: center;
 }
 .test-load-state strong {
-  color: #0f172a;
+  color: var(--tianshu-text-primary);
   font-size: 15px;
 }
 .test-load-state span {
   max-width: 560px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 .test-load-state.is-error strong,
@@ -2499,7 +2499,7 @@ export default {
 }
 .test-readiness-main span,
 .test-load-warnings {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -2527,7 +2527,7 @@ export default {
   color: #1d4ed8;
 }
 .test-execution-state span {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 :deep(.model-test-dialog .el-dialog__body) {
@@ -2546,11 +2546,11 @@ export default {
   transition: background-color 0.15s;
 }
 .test-field-cell:hover {
-  background-color: #f5f7fa;
+  background-color: var(--tianshu-bg-muted);
 }
 .test-field-label {
   font-size: 13px;
-  color: #303133;
+  color: var(--tianshu-text-primary);
   font-weight: 500;
   margin-bottom: 6px;
   line-height: 1.3;
@@ -2560,7 +2560,7 @@ export default {
 }
 .test-field-hint {
   font-size: 11px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   margin-top: 4px;
   font-family: 'Courier New', monospace;
   white-space: nowrap;
@@ -2568,7 +2568,7 @@ export default {
   text-overflow: ellipsis;
 }
 .model-digest {
-  color: #475569;
+  color: var(--tianshu-text-secondary);
   font-size: 12px;
   overflow-wrap: anywhere;
 }

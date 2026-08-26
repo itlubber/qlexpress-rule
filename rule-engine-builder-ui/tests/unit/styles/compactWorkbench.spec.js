@@ -27,7 +27,7 @@ describe('compact workbench styles', () => {
     expect(styles).not.toContain('.el-input--suffix .el-input__inner')
     expect(styles).toContain('.el-input-number .el-input__inner')
     expect(styles).toMatch(
-      /\.el-input-number \.el-input__inner\s*\{[\s\S]*?padding-left:\s*0;[\s\S]*?padding-right:\s*0;[\s\S]*?color:\s*#0f172a;/
+      /\.el-input-number \.el-input__inner\s*\{[\s\S]*?padding-left:\s*0;[\s\S]*?padding-right:\s*0;[\s\S]*?color:\s*var\(--tianshu-text-primary\);/
     )
     expect(styles).toContain('.uiue-list-page.uiue-compact-workbench')
   })

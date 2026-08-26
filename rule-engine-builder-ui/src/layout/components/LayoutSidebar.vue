@@ -151,9 +151,9 @@ export default {
   flex-direction: column;
   height: 100vh;
   box-sizing: border-box;
-  color: $menuText;
-  background: $menuBg;
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--tianshu-sidebar-text, #{$menuText});
+  background: var(--tianshu-sidebar-bg, #{$menuBg});
+  border-right: 1px solid var(--tianshu-sidebar-border, rgba(255, 255, 255, 0.06));
   transition: width 180ms ease;
   &.is-resizing {
     transition: none;
@@ -168,7 +168,7 @@ export default {
   min-height: 60px;
   padding: 0 16px;
   overflow: hidden;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--tianshu-sidebar-border, rgba(255, 255, 255, 0.08));
 }
 .sidebar-brand__logo {
   flex: none;
@@ -182,7 +182,7 @@ export default {
   flex-direction: column;
   strong {
     overflow: hidden;
-    color: #ffffff;
+    color: var(--tianshu-sidebar-text-active, #ffffff);
     font-size: 16px;
     font-weight: 600;
     line-height: 22px;
@@ -211,7 +211,7 @@ export default {
   padding: 0;
   align-items: center;
   justify-content: center;
-  color: #94a3b8;
+  color: var(--tianshu-text-disabled);
   background: #262d4f;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 50%;
@@ -241,7 +241,7 @@ export default {
   height: 44px;
   padding: 0 12px;
   align-items: center;
-  color: $menuText;
+  color: var(--tianshu-sidebar-text, #{$menuText});
   font: inherit;
   font-size: 14px;
   text-align: left;
@@ -263,25 +263,25 @@ export default {
 
   &:hover,
   &:focus-visible {
-    color: #ffffff;
-    background: $menuHover;
+    color: var(--tianshu-sidebar-text-active, #ffffff);
+    background: var(--tianshu-sidebar-bg-hover, #{$menuHover});
     outline: none;
   }
 
   &.is-active {
-    color: #ffffff;
+    color: var(--tianshu-sidebar-text-active, #ffffff);
     font-weight: 600;
-    background: rgba($--color-primary, 0.28);
+    background: var(--tianshu-sidebar-bg-active, rgba($--color-primary, 0.28));
 
     &::after {
-      background: #7180ff;
+      background: var(--el-color-primary, #7180ff);
     }
   }
 }
 .menu-icon {
   flex: none;
   width: 24px;
-  color: #94a3b8;
+  color: var(--tianshu-sidebar-text, var(--tianshu-text-disabled));
   font-size: 18px;
   text-align: center;
 }
@@ -301,7 +301,7 @@ export default {
   padding: 12px 16px;
   align-items: center;
   box-sizing: border-box;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--tianshu-sidebar-border, rgba(255, 255, 255, 0.08));
 }
 .account-avatar {
   display: inline-flex;
@@ -314,7 +314,7 @@ export default {
   color: #ffffff;
   font-size: 14px;
   font-weight: 600;
-  background: linear-gradient(145deg, #5264f2, #2639e9);
+  background: var(--tianshu-brand-background, linear-gradient(145deg, #5264f2, #2639e9));
   border-radius: 50%;
 }
 .account-avatar--button {
@@ -324,7 +324,7 @@ export default {
   min-width: 0;
   margin-left: 10px;
   overflow: hidden;
-  color: #e2e8f0;
+  color: var(--tianshu-sidebar-text, #e2e8f0);
   font-size: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -333,7 +333,7 @@ export default {
   flex: none;
   padding: 4px;
   margin-left: auto;
-  color: #9caafb;
+  color: var(--tianshu-sidebar-text, #9caafb);
   font: inherit;
   font-size: 13px;
   background: transparent;
@@ -369,8 +369,16 @@ export default {
 
   &:hover::after,
   &:focus-visible::after {
-    background: #7180ff;
-  }
+      background: var(--el-color-primary, #7180ff);
+}
+
+:global([data-sidebar-theme='light']) .brand-copy strong {
+  color: var(--tianshu-text-primary, #172033);
+}
+
+:global([data-sidebar-theme='light']) .account-name {
+  color: var(--tianshu-text-secondary);
+}
 }
 .layout-sidebar.is-compact {
   .sidebar-brand {

@@ -25,7 +25,7 @@
           aria-label="返回"
           title="返回"
           @click="$router.back()"
-          style="color: #606266"
+          style="color: var(--tianshu-text-secondary)"
         />
         <el-icon class="se-title-icon"><el-icon-edit-outline /></el-icon>
         <span class="se-title">QL脚本编辑器</span>
@@ -101,7 +101,7 @@
         <div v-show="!varPanelCollapsed" class="se-var-list">
           <div
             v-if="loadingVars"
-            style="text-align: center; padding: 20px; color: #64748b"
+            style="text-align: center; padding: 20px; color: var(--tianshu-text-tertiary)"
           >
             <el-icon><el-icon-loading /></el-icon> 加载中...
           </div>
@@ -1034,7 +1034,7 @@ $editor-border: #313244;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   padding: 12px 20px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   flex-wrap: wrap;
@@ -1043,10 +1043,10 @@ $editor-border: #313244;
 }
 .se-lifecycle-guidance {
   padding: 6px 20px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
+  background: var(--tianshu-bg-soft);
+  border-bottom: 1px solid var(--tianshu-border-subtle);
 }
 .se-lifecycle-link {
   padding: 0;
@@ -1091,9 +1091,9 @@ $editor-border: #313244;
 .se-var-panel {
   width: 300px;
   min-width: 220px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   border-radius: 6px 0 0 6px;
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--tianshu-border-subtle);
   border-right: none;
   display: flex;
   flex-direction: column;
@@ -1110,15 +1110,15 @@ $editor-border: #313244;
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
-  background: #fafafa;
-  border-bottom: 1px solid #f0f0f0;
+  background: var(--tianshu-bg-muted);
+  border-bottom: 1px solid var(--tianshu-border-subtle);
   font-size: 13px;
   font-weight: 600;
   color: #555;
   cursor: pointer;
   gap: 6px;
   i {
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
   }
 }
 .se-var-list {
@@ -1131,10 +1131,10 @@ $editor-border: #313244;
 }
 .se-var-search {
   padding: 6px 8px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--tianshu-border-subtle);
   position: sticky;
   top: 0;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   z-index: 1;
 }
 .se-cat-header {
@@ -1145,9 +1145,9 @@ $editor-border: #313244;
   cursor: pointer;
   font-size: 12px;
   font-weight: 600;
-  color: #333;
-  background: #fafafa;
-  border-bottom: 1px solid #f0f0f0;
+  color: var(--tianshu-text-primary);
+  background: var(--tianshu-bg-muted);
+  border-bottom: 1px solid var(--tianshu-border-subtle);
   user-select: none;
   &:hover {
     background: #f0f0f0;
@@ -1155,7 +1155,7 @@ $editor-border: #313244;
 }
 .se-toggle-icon {
   font-size: 12px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   width: 14px;
   text-align: center;
   flex-shrink: 0;
@@ -1226,11 +1226,11 @@ $editor-border: #313244;
 }
 .var-code {
   font-family: 'Consolas', monospace;
-  color: #333;
+  color: var(--tianshu-text-primary);
   white-space: nowrap;
 }
 .var-label {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1238,8 +1238,8 @@ $editor-border: #313244;
 .se-var-pager {
   padding: 5px 8px;
   text-align: right;
-  border-bottom: 1px solid #f0f0f0;
-  background: #fff;
+  border-bottom: 1px solid var(--tianshu-border-subtle);
+  background: var(--tianshu-bg-surface);
 }
 .se-var-pager--group {
   padding-left: 28px;
@@ -1250,9 +1250,9 @@ $editor-border: #313244;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fff;
-  border-top: 1px solid #e8e8e8;
-  border-bottom: 1px solid #e8e8e8;
+  background: var(--tianshu-bg-surface);
+  border-top: 1px solid var(--tianshu-border-subtle);
+  border-bottom: 1px solid var(--tianshu-border-subtle);
   user-select: none;
   z-index: 2;
   transition: background 0.15s;
@@ -1262,7 +1262,7 @@ $editor-border: #313244;
   }
   &:hover .se-resizer-handle,
   .se-body.is-resizing & .se-resizer-handle {
-    background: #2639e9;
+    background: var(--el-color-primary);
   }
 }
 .se-resizer-handle {
@@ -1278,7 +1278,7 @@ $editor-border: #313244;
   display: flex;
   flex-direction: column;
   border-radius: 0 6px 6px 0;
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--tianshu-border-subtle);
   overflow: hidden;
 }
 .se-statusbar {
@@ -1333,7 +1333,7 @@ $editor-border: #313244;
 }
 .test-hint {
   font-size: 12px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   margin-bottom: 8px;
 }
 .test-result {

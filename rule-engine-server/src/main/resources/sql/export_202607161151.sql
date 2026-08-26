@@ -4,6 +4,7 @@ SET character_set_connection = utf8mb4;
 
 SET @OLD_FOREIGN_KEY_CHECKS = @@FOREIGN_KEY_CHECKS;
 SET FOREIGN_KEY_CHECKS = 0;
+TRUNCATE TABLE rule_engine.console_user_preference;
 TRUNCATE TABLE rule_engine.rule_auth_access_log;
 TRUNCATE TABLE rule_engine.rule_data_object;
 TRUNCATE TABLE rule_engine.rule_data_object_field;

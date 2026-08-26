@@ -130,8 +130,8 @@ export default {
 .toolbar-action:hover,
 .toolbar-action:focus {
   border-color: #ffffff;
-  background: #ffffff;
-  color: #1d39c4;
+  background: var(--tianshu-bg-surface);
+  color: var(--el-color-primary);
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.22);
 }
 .toolbar-action:active {
@@ -143,11 +143,11 @@ export default {
 .graph-tools small {
   float: right;
   margin-left: 12px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
 }
 .issue-empty {
   padding: 16px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   text-align: center;
 }
 .issue-list {
@@ -161,12 +161,12 @@ export default {
   border: 0;
   border-bottom: 1px solid #f2f3f5;
   background: transparent;
-  color: #606266;
+  color: var(--tianshu-text-secondary);
   text-align: left;
   cursor: pointer;
 }
 .issue-list button:hover {
-  color: #2639e9;
+  color: var(--el-color-primary);
   background: #f5f7ff;
 }
 </style>

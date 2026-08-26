@@ -679,18 +679,18 @@ export default {
   gap: 12px;
   margin-bottom: 12px;
   padding: 12px 14px;
-  background: #fff;
-  border: 1px solid #ebeef5;
+  background: var(--tianshu-bg-surface);
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 6px;
 }
 .detail-title {
   font-size: 16px;
   font-weight: 600;
-  color: #303133;
+  color: var(--tianshu-text-primary);
   line-height: 1.4;
 }
 .detail-meta {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
   margin-top: 2px;
 }
@@ -725,8 +725,8 @@ export default {
 .workflow-step {
   padding: 3px 9px;
   border-radius: 999px;
-  background: #fff;
-  color: #475569;
+  background: var(--tianshu-bg-surface);
+  color: var(--tianshu-text-secondary);
   font-size: 12px;
 }
 .workflow-step.is-current {
@@ -734,11 +734,11 @@ export default {
   color: #fff;
 }
 .workflow-arrow {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
 }
 .workflow-guide-text {
   margin-top: 8px;
-  color: #475569;
+  color: var(--tianshu-text-secondary);
   font-size: 12px;
   line-height: 1.6;
 }
@@ -760,7 +760,7 @@ export default {
 }
 .batch-feedback-summary {
   margin-top: 4px;
-  color: #475569;
+  color: var(--tianshu-text-secondary);
   font-size: 12px;
 }
 .batch-feedback-errors {
@@ -775,7 +775,7 @@ export default {
   gap: 12px;
 }
 .trace-title {
-  color: #606266;
+  color: var(--tianshu-text-secondary);
   font-size: 13px;
 }
 </style>

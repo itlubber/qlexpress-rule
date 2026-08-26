@@ -83,18 +83,18 @@ export default {
   gap: 8px;
 }
 .rule-score-section-head strong {
-  color: #303133;
+  color: var(--tianshu-text-primary);
   font-size: 14px;
 }
 .rule-score-section-head small {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 .rule-score-empty {
   min-width: 860px;
   padding: 16px;
-  border: 1px dashed #dcdfe6;
-  color: #64748b;
+  border: 1px dashed var(--tianshu-border);
+  color: var(--tianshu-text-tertiary);
   text-align: center;
   font-size: 13px;
 }

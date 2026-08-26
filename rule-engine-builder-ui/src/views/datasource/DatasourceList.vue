@@ -2212,7 +2212,7 @@ export default {
   }
 
   .hint-text {
-    color: #475569;
+    color: var(--tianshu-text-secondary);
     line-height: 1.5;
   }
 
@@ -2224,21 +2224,21 @@ export default {
   }
 
   .guide-item {
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--tianshu-border-subtle);
     border-radius: 4px;
     padding: 10px 12px;
-    background: #ffffff;
+    background: var(--tianshu-bg-surface);
   }
 
   .guide-title {
-    color: #0f172a;
+    color: var(--tianshu-text-primary);
     font-weight: 700;
     margin-bottom: 6px;
   }
 
   .guide-text,
   .field-help {
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
     font-size: 12px;
     line-height: 1.6;
   }
@@ -2262,7 +2262,7 @@ export default {
 
   .section-help,
   .template-help {
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
     font-size: 12px;
     line-height: 1.6;
   }
@@ -2288,13 +2288,13 @@ export default {
   }
 
   .invoke-target {
-    color: #475569;
+    color: var(--tianshu-text-secondary);
     margin-bottom: 12px;
   }
 
   .endpoint-text {
     margin-left: 6px;
-    color: #475569;
+    color: var(--tianshu-text-secondary);
   }
 
   .json-input :deep(textarea) {

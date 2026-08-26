@@ -52,6 +52,6 @@ export default {
 }
 .eq {
   flex-shrink: 0;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
 }
 </style>

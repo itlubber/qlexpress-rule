@@ -173,9 +173,9 @@ export default {
 .rule-diff-side {
   min-width: 0;
   padding: 12px 16px;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px 4px 0 0;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
 }
 .rule-diff-title-row {
   display: flex;
@@ -184,13 +184,13 @@ export default {
   min-height: 20px;
 }
 .rule-diff-title {
-  color: #303133;
+  color: var(--tianshu-text-primary);
   font-size: 14px;
   line-height: 20px;
 }
 .rule-diff-subtitle {
   margin-top: 4px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 .rule-diff-marker,
@@ -209,13 +209,13 @@ export default {
   gap: 8px;
   min-width: 0;
   padding: 8px 16px;
-  border: 1px solid #ebeef5;
-  color: #303133;
+  border: 1px solid var(--tianshu-border-subtle);
+  color: var(--tianshu-text-primary);
   font-size: 13px;
   line-height: 20px;
 }
 .rule-diff-field-label {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
 }
 .rule-diff-field-value {
   min-width: 0;
@@ -226,7 +226,7 @@ export default {
   display: flex;
   align-items: center;
   min-height: 20px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 .is-modified {
@@ -255,7 +255,7 @@ export default {
 }
 .is-empty {
   border-style: dashed;
-  background: #fafafa;
+  background: var(--tianshu-bg-muted);
 }
 .rule-diff-expand {
   display: inline-flex;
@@ -265,16 +265,16 @@ export default {
   padding: 0;
   border: 0;
   background: transparent;
-  color: #606266;
+  color: var(--tianshu-text-secondary);
   cursor: pointer;
   font-size: 12px;
 }
 .rule-diff-expand:hover {
-  color: #2639e9;
+  color: var(--el-color-primary);
 }
 .rule-diff-children {
   margin-top: 8px;
   padding: 12px 0 0 24px;
-  border-left: 2px solid #e4e7ed;
+  border-left: 2px solid var(--tianshu-border-subtle);
 }
 </style>

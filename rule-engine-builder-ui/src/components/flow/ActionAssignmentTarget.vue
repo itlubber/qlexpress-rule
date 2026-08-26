@@ -39,7 +39,7 @@ export default {
 }
 .mini-label {
   flex-shrink: 0;
-  color: #606266;
+  color: var(--tianshu-text-secondary);
   font-size: 12px;
 }
 </style>

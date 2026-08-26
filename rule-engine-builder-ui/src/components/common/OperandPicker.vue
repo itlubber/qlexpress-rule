@@ -460,7 +460,7 @@ export default {
   padding: 0;
   border: 1px solid #cbd6e4;
   border-radius: 5px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   color: #607089;
   cursor: pointer;
 }
@@ -477,7 +477,7 @@ export default {
   padding: 6px;
   border: 1px solid #d7e3f2;
   border-radius: 6px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   box-shadow: 0 8px 20px rgba(35, 55, 80, 0.14);
 }
 .operand-path-candidates button {
@@ -506,7 +506,7 @@ export default {
   padding: 0;
   border: 1px solid #cbd6e4;
   border-radius: 5px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   color: var(--el-color-primary);
   font-family: Georgia, serif;
   font-size: 13px;

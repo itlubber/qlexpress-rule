@@ -1018,7 +1018,7 @@ export default {
         history: true,
         style: {
           nodeText: { overflowMode: 'ellipsis', fontSize: 12 },
-          edgeText: { fontSize: 12, background: { fill: '#fff' } },
+          edgeText: { fontSize: 12, background: { fill: 'var(--tianshu-bg-surface)' } },
           polyline: {
             stroke: FLOW_THEME_COLOR,
             hoverStroke: FLOW_THEME_COLOR,
@@ -2158,7 +2158,7 @@ export default {
   display: flex;
   flex-direction: column;
   height: calc(100vh - 82px);
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   border-radius: 4px;
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -2167,15 +2167,15 @@ export default {
   flex-shrink: 0;
   max-height: 60%;
   overflow-y: auto;
-  border-top: 1px solid #e8e8e8;
-  background: #fff;
+  border-top: 1px solid var(--tianshu-border-subtle);
+  background: var(--tianshu-bg-surface);
 }
 .flow-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 7px 14px;
-  background: #2639e9;
+  background: var(--tianshu-brand-background);
   color: #fff;
   flex-shrink: 0;
   flex-wrap: wrap;
@@ -2224,30 +2224,30 @@ export default {
     border-color: rgba(255, 255, 255, 0.7);
   }
   &.is-tool-active {
-    background: #ffffff;
+    background: var(--tianshu-bg-surface);
     border-color: #ffffff;
     color: #1d39c4;
   }
   &.el-button--primary {
-    background: #ffffff;
-    background-color: #ffffff !important;
-    color: #1d39c4;
-    color: #1d39c4 !important;
-    border-color: #ffffff !important;
+    background: var(--tianshu-brand-background);
+    color: var(--tianshu-brand-foreground) !important;
+    border-color: var(--el-color-primary) !important;
     font-weight: 600;
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.16);
   }
   &.el-button--primary:hover,
   &.el-button--primary:focus {
-    background-color: #eef2ff !important;
-    border-color: #d6deff !important;
-    color: #1428a0 !important;
+    background: var(--tianshu-brand-background) !important;
+    border-color: var(--el-color-primary-light-2) !important;
+    color: var(--tianshu-brand-foreground) !important;
+    filter: brightness(1.08);
     box-shadow: 0 2px 5px rgba(15, 23, 42, 0.2);
   }
   &.el-button--primary:active {
-    background-color: #dde5ff !important;
-    border-color: #c3ceff !important;
-    color: #1428a0 !important;
+    background: var(--tianshu-brand-background) !important;
+    border-color: var(--el-color-primary-dark-1) !important;
+    color: var(--tianshu-brand-foreground) !important;
+    filter: brightness(0.94);
     box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.16);
   }
   &.el-button--warning {
@@ -2281,7 +2281,7 @@ export default {
     // color: #1D39C4;
   }
   .node-dot {
-    background: #2639e9;
+    background: var(--tianshu-brand-background);
   }
 }
 .delete-current-node {
@@ -2322,7 +2322,7 @@ export default {
   left: 50%;
   transform: translateX(-50%);
   text-align: center;
-  color: #475569;
+  color: var(--tianshu-text-secondary);
   pointer-events: none;
   .hint-icon {
     font-size: 32px;
@@ -2337,8 +2337,8 @@ export default {
 }
 .flow-property {
   height: 100%;
-  background: #fff;
-  border-left: 1px solid #e8e8e8;
+  background: var(--tianshu-bg-surface);
+  border-left: 1px solid var(--tianshu-border-subtle);
   overflow-y: auto;
   flex-shrink: 0;
   display: flex;
@@ -2364,8 +2364,8 @@ export default {
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
-  border-bottom: 1px solid #e8e8e8;
-  background: #fafafa;
+  border-bottom: 1px solid var(--tianshu-border-subtle);
+  background: var(--tianshu-bg-muted);
   flex-shrink: 0;
 }
 .prop-title {
@@ -2377,14 +2377,14 @@ export default {
 }
 .prop-close {
   cursor: pointer;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   &:hover {
-    color: #333;
+    color: var(--tianshu-text-primary);
   }
 }
 .prop-section {
   padding: 10px 14px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--tianshu-border-subtle);
   &:last-child {
     border-bottom: none;
   }
@@ -2396,20 +2396,20 @@ export default {
   margin-bottom: 10px;
   font-size: 13px;
   font-weight: 600;
-  color: #333;
+  color: var(--tianshu-text-primary);
 }
 .section-title :deep(.el-radio-button__inner) {
   min-width: 72px;
   padding: 6px 12px;
   color: #334155;
-  border-color: #cbd5e1;
-  background: #ffffff;
+  border-color: var(--tianshu-border);
+  background: var(--tianshu-bg-surface);
   box-shadow: none;
 }
 .section-title :deep(.el-radio-button__orig-radio:checked + .el-radio-button__inner) {
-  background: #2639e9;
-  border-color: #2639e9;
-  color: #ffffff;
+  background: var(--tianshu-brand-background);
+  border-color: var(--el-color-primary);
+  color: var(--tianshu-brand-foreground);
   box-shadow: none;
 }
 .prop-form {
@@ -2449,13 +2449,13 @@ export default {
   padding: 0;
 }
 .branch-card {
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--tianshu-border);
   border-radius: 4px;
   margin-bottom: 8px;
-  background: #fafafa;
+  background: var(--tianshu-bg-muted);
   overflow: hidden;
   &.branch-else {
-    border-color: #d9d9d9;
+    border-color: var(--tianshu-border);
     background: #f5f5f5;
   }
 }
@@ -2465,7 +2465,7 @@ export default {
   justify-content: space-between;
   padding: 4px 8px;
   background: #f0f0f0;
-  border-bottom: 1px solid #e8e8e8;
+  border-bottom: 1px solid var(--tianshu-border-subtle);
 }
 .branch-tag {
   font-size: 11px;
@@ -2485,7 +2485,7 @@ export default {
 }
 .branch-cond {
   padding: 6px 8px;
-  border-bottom: 1px dashed #e8e8e8;
+  border-bottom: 1px dashed var(--tianshu-border-subtle);
 }
 .branch-assigns {
   padding: 6px 8px;
@@ -2508,7 +2508,7 @@ export default {
 }
 .assign-eq {
   font-weight: bold;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   flex-shrink: 0;
   font-size: 14px;
 }
@@ -2524,7 +2524,7 @@ export default {
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
   margin-bottom: 6px;
   cursor: pointer;
@@ -2550,7 +2550,7 @@ export default {
 .edge-name {
   flex: 1;
   font-size: 12px;
-  color: #333;
+  color: var(--tianshu-text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2561,7 +2561,7 @@ export default {
 }
 .edge-priority {
   flex-shrink: 0;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
@@ -2570,9 +2570,9 @@ export default {
 }
 .hint-box {
   font-size: 12px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   padding: 6px 8px;
-  background: #fafafa;
+  background: var(--tianshu-bg-muted);
   border-radius: 4px;
   line-height: 1.6;
 }
@@ -2585,11 +2585,11 @@ export default {
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 12px;
   line-height: 1.6;
-  background: #f5f7fa;
-  border: 1px solid #e4e7ed;
+  background: var(--tianshu-bg-muted);
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
   padding: 10px 12px;
-  color: #333;
+  color: var(--tianshu-text-primary);
   white-space: pre-wrap;
   word-break: break-all;
   max-height: 300px;
@@ -2615,14 +2615,14 @@ export default {
 }
 .test-hint {
   font-size: 12px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   margin-bottom: 8px;
 }
 .test-result {
   margin-top: 12px;
 }
 .result-pre {
-  background: #f5f7fa;
+  background: var(--tianshu-bg-muted);
   padding: 6px 8px;
   border-radius: 4px;
   font-size: 12px;
@@ -2638,10 +2638,10 @@ export default {
 <style>
 /* LogicFlow 全局覆盖 */
 .lf-menu {
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   border-radius: 4px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--tianshu-border-subtle);
   padding: 4px 0;
   min-width: 110px;
 }
@@ -2649,7 +2649,7 @@ export default {
   padding: 6px 16px;
   font-size: 13px;
   cursor: pointer;
-  color: #333;
+  color: var(--tianshu-text-primary);
 }
 .lf-menu-item:hover {
   background: #f0f7ff;

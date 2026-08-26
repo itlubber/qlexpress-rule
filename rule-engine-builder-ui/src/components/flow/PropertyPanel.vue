@@ -446,8 +446,8 @@ export default {
 .property-panel {
   width: 320px;
   height: 100%;
-  background: #fff;
-  border-left: 1px solid #e8e8e8;
+  background: var(--tianshu-bg-surface);
+  border-left: 1px solid var(--tianshu-border-subtle);
   overflow-y: auto;
   flex-shrink: 0;
 }
@@ -456,8 +456,8 @@ export default {
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  border-bottom: 1px solid #e8e8e8;
-  background: #fafafa;
+  border-bottom: 1px solid var(--tianshu-border-subtle);
+  background: var(--tianshu-bg-muted);
 }
 .panel-title {
   font-weight: bold;
@@ -465,9 +465,9 @@ export default {
 }
 .panel-close {
   cursor: pointer;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   &:hover {
-    color: #333;
+    color: var(--tianshu-text-primary);
   }
 }
 .prop-form {
@@ -475,7 +475,7 @@ export default {
 }
 .hint-text {
   font-size: 12px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   line-height: 1.6;
 }
 .edge-list {
@@ -486,7 +486,7 @@ export default {
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
   margin-bottom: 6px;
   cursor: pointer;
@@ -515,7 +515,7 @@ export default {
   margin-bottom: 6px;
 }
 .action-eq {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-weight: bold;
 }
 .script-editor {
@@ -523,7 +523,7 @@ export default {
 }
 .script-lang {
   font-size: 12px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   margin-bottom: 4px;
 }
 .var-chips {
@@ -532,14 +532,14 @@ export default {
   align-items: center;
   gap: 2px;
   padding: 6px 8px;
-  background: #fafafa;
+  background: var(--tianshu-bg-muted);
   border-radius: 4px;
   margin-bottom: 6px;
-  border: 1px solid #f0f0f0;
+  border: 1px solid var(--tianshu-border-subtle);
 }
 .var-chips-label {
   font-size: 11px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   flex-shrink: 0;
 }
 .mono-textarea :deep(textarea) {
@@ -553,6 +553,6 @@ export default {
 .el-divider :deep(.el-divider__text) {
   font-size: 13px;
   font-weight: bold;
-  color: #333;
+  color: var(--tianshu-text-primary);
 }
 </style>

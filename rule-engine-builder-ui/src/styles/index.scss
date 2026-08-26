@@ -3,8 +3,8 @@ body {
   padding: 0;
   font-family: "AlimamaFangYuanTiVF", "PingFang SC", "Microsoft YaHei", sans-serif;
   font-size: 14px;
-  color: #374151;
-  background: #F3F4F6;
+  color: var(--tianshu-text-primary, #374151);
+  background: var(--tianshu-bg-page);
 }
 
 * {
@@ -13,10 +13,10 @@ body {
 
 .uiue-list-page {
   width: 100%;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   border-radius: 4px;
   padding: 20px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--tianshu-shadow-small, 0 1px 3px rgba(0, 0, 0, 0.1));
   overflow: hidden;
 
   .el-table {
@@ -32,7 +32,7 @@ body {
 .uiue-search-container {
   overflow: hidden;
   padding-bottom: 0;
-  border-bottom: 1px solid #E5E5E5;
+  border-bottom: 1px solid var(--tianshu-border-subtle, #E5E5E5);
   margin-bottom: 16px;
 
   .el-form {
@@ -60,7 +60,7 @@ body {
 }
 
 .uiue-card {
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   border-radius: 4px;
   padding: 16px;
   margin-bottom: 12px;
@@ -71,7 +71,7 @@ body {
   font-size: 16px;
   font-weight: bold;
   padding: 4px 0 10px;
-  color: #282828;
+  color: var(--tianshu-text-primary, #282828);
   display: flex;
   align-items: center;
 }

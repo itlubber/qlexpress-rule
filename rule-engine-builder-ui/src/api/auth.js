@@ -27,3 +27,17 @@ export function consoleLogout() {
 export function getConsoleMe() {
   return request.get('/auth/console/me')
 }
+
+/**
+ * 查询当前登录用户保存的主题配置。
+ */
+export function getConsoleThemePreference() {
+  return request.get('/auth/console/preferences/theme')
+}
+
+/**
+ * 保存当前登录用户的主题配置。
+ */
+export function saveConsoleThemePreference(data) {
+  return request.put('/auth/console/preferences/theme', data)
+}

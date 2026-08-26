@@ -559,7 +559,7 @@ export default {
 
 <style lang="scss" scoped>
 .account-page {
-  color: #303133;
+  color: var(--tianshu-text-primary);
 }
 .page-header {
   display: flex;
@@ -578,7 +578,7 @@ export default {
 
   p {
     margin: 4px 0 0;
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
     font-size: 14px;
     line-height: 22px;
   }
@@ -591,7 +591,7 @@ export default {
 }
 .content-card {
   padding: 16px 20px 24px;
-  background: #ffffff;
+  background: var(--tianshu-bg-surface);
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
@@ -614,7 +614,7 @@ export default {
   }
 
   small {
-    color: #94a3b8;
+    color: var(--tianshu-text-disabled);
     line-height: 18px;
   }
 }
@@ -635,7 +635,7 @@ export default {
   gap: 4px;
 }
 .muted {
-  color: #94a3b8;
+  color: var(--tianshu-text-disabled);
   font-weight: 400;
 }
 .permission-summary {
@@ -659,7 +659,7 @@ export default {
   }
 
   span {
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
     font-size: 12px;
   }
 
@@ -672,7 +672,7 @@ export default {
 .permission-code {
   display: block;
   margin-top: 2px;
-  color: #94a3b8;
+  color: var(--tianshu-text-disabled);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 .permission-groups {
@@ -684,7 +684,7 @@ export default {
 }
 .permission-group {
   padding: 16px;
-  background: #f8fafc;
+  background: var(--tianshu-bg-soft);
   border: 1px solid #e5e7eb;
   border-radius: 8px;
 

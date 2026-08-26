@@ -685,7 +685,7 @@ export default {
 
 <style scoped>
 .approval-detail-page {
-  color: #303133;
+  color: var(--tianshu-text-primary);
 }
 
 .detail-header {
@@ -756,7 +756,7 @@ export default {
   padding: 17px 20px;
   border: 1px solid #e1e6ed;
   border-radius: 4px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
 }
 
 .overview-grid span {
@@ -793,7 +793,7 @@ export default {
 .content-card {
   border: 1px solid #e1e6ed;
   border-radius: 4px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   box-shadow: 0 1px 3px rgb(23 36 58 / 5%);
 }
 
@@ -1015,9 +1015,9 @@ export default {
   margin: 0;
   padding: 14px;
   overflow: auto;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
-  background: #f8fafc;
+  background: var(--tianshu-bg-soft);
   font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
   white-space: pre-wrap;
 }

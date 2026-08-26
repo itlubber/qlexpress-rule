@@ -1418,7 +1418,7 @@ export default {
 
   .hint-text,
   .query-target {
-    color: #475569;
+    color: var(--tianshu-text-secondary);
     line-height: 1.5;
   }
 
@@ -1434,20 +1434,20 @@ export default {
   }
 
   .guide-item {
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--tianshu-border-subtle);
     border-radius: 4px;
     padding: 10px 12px;
-    background: #ffffff;
+    background: var(--tianshu-bg-surface);
   }
 
   .guide-title {
-    color: #0f172a;
+    color: var(--tianshu-text-primary);
     font-weight: 700;
     margin-bottom: 6px;
   }
 
   .guide-text {
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
     font-size: 12px;
     line-height: 1.6;
   }
@@ -1478,7 +1478,7 @@ export default {
   }
 
   .query-sql-help {
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
     font-size: 12px;
     line-height: 1.5;
     margin-top: 6px;
@@ -1488,11 +1488,11 @@ export default {
     display: flex;
     align-items: center;
     gap: 10px;
-    color: #0f172a;
+    color: var(--tianshu-text-primary);
     padding: 0 0 14px 90px;
 
     span {
-      color: #64748b;
+      color: var(--tianshu-text-tertiary);
       font-size: 12px;
     }
   }
@@ -1513,7 +1513,7 @@ export default {
     padding: 8px 0;
 
     & + & {
-      border-top: 1px solid #e2e8f0;
+      border-top: 1px solid var(--tianshu-border-subtle);
     }
   }
 
@@ -1524,7 +1524,7 @@ export default {
     color: #334155;
 
     span {
-      color: #94a3b8;
+      color: var(--tianshu-text-disabled);
       font-size: 11px;
     }
   }
@@ -1538,16 +1538,16 @@ export default {
     display: flex;
     align-items: center;
     padding: 0 10px;
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
     background: #f1f5f9;
-    border: 1px dashed #cbd5e1;
+    border: 1px dashed var(--tianshu-border);
     border-radius: 4px;
   }
 
   .query-no-params {
-    color: #64748b;
-    background: #f8fafc;
-    border: 1px dashed #cbd5e1;
+    color: var(--tianshu-text-tertiary);
+    background: var(--tianshu-bg-soft);
+    border: 1px dashed var(--tianshu-border);
     border-radius: 4px;
     padding: 12px 14px;
     margin: 0 0 14px 90px;
@@ -1557,9 +1557,9 @@ export default {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    border: 1px solid #cbd5e1;
-    background: #f8fafc;
-    color: #475569;
+    border: 1px solid var(--tianshu-border);
+    background: var(--tianshu-bg-soft);
+    color: var(--tianshu-text-secondary);
     border-radius: 4px;
     padding: 12px 14px;
     margin-bottom: 12px;

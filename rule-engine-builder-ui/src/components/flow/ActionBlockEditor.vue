@@ -1091,7 +1091,7 @@ export default {
   border: 1px solid #e0e0e0;
   border-radius: 4px;
   margin-bottom: 8px;
-  background: #fafafa;
+  background: var(--tianshu-bg-muted);
   overflow: hidden;
 }
 .block-header,
@@ -1131,16 +1131,16 @@ export default {
   width: auto !important;
 }
 .nested-card {
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--tianshu-border);
   border-radius: 4px;
   margin-bottom: 8px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   overflow: hidden;
 }
 .nested-head {
   min-height: 30px;
   padding: 3px 8px;
-  background: #f5f7fa;
+  background: var(--tianshu-bg-muted);
   font-size: 11px;
   font-weight: 600;
 }
@@ -1164,11 +1164,11 @@ export default {
   flex: 1;
 }
 .eq {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-weight: 600;
 }
 .mini-label {
-  color: #606266;
+  color: var(--tianshu-text-secondary);
   font-size: 12px;
   white-space: nowrap;
 }
@@ -1222,7 +1222,7 @@ export default {
   margin-top: 8px;
   padding: 7px 9px;
   border-radius: 4px;
-  color: #606266;
+  color: var(--tianshu-text-secondary);
   background: #f0f7ff;
   font-size: 12px;
   line-height: 1.5;
@@ -1236,9 +1236,9 @@ export default {
 .rule-output-mapping {
   margin-top: 8px;
   padding: 8px;
-  border: 1px dashed #dcdfe6;
+  border: 1px dashed var(--tianshu-border);
   border-radius: 4px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
 }
 .mapping-header {
   display: flex;

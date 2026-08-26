@@ -55,7 +55,7 @@ export default {
   z-index: 30;
   width: 176px;
   padding: 6px;
-  background: #ffffff;
+  background: var(--tianshu-bg-surface);
   border: 1px solid #d9e0f2;
   border-radius: 6px;
   box-shadow: 0 8px 24px rgba(38, 57, 233, 0.16);
@@ -80,7 +80,7 @@ export default {
   cursor: pointer;
   &:hover,
   &:focus {
-    color: #2639e9;
+    color: var(--el-color-primary);
     background: #f0f3ff;
     outline: 0;
   }

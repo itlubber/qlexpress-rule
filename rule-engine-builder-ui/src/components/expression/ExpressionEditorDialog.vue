@@ -499,7 +499,7 @@ export default {
   inset: 0;
   display: grid;
   grid-template-rows: 68px minmax(0, 1fr) 64px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   color: #26364d;
 }
 .expression-editor--embedded {
@@ -523,7 +523,7 @@ export default {
   gap: 20px;
   padding: 0 22px;
   border-bottom: 1px solid #e7ecf2;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
 }
 .expression-editor__header h2 {
   margin: 0;

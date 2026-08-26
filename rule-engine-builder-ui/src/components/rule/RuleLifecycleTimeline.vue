@@ -47,5 +47,5 @@ export default {
 .timeline-dot { width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: var(--el-color-primary); box-shadow: 0 0 0 4px var(--el-color-primary-light-9); }
 .timeline-heading { display: flex; align-items: center; gap: 8px; }
 .timeline-meta, .timeline-comment { margin-top: 4px; color: #6b7280; font-size: 13px; }
-.timeline-digest { display: block; margin-top: 8px; color: #475569; overflow-wrap: anywhere; }
+.timeline-digest { display: block; margin-top: 8px; color: var(--tianshu-text-secondary); overflow-wrap: anywhere; }
 </style>

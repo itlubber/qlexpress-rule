@@ -86,13 +86,13 @@ test('可视化与脚本设计器都说明编译后仍需生命周期发布', ()
 test('工作区页签滚动条使用紧凑且可感知的样式', () => {
   const tabs = source('src/layout/components/WorkspaceTabs.vue')
   expect(tabs).toMatch(
-    /\.workspace-tabs__scroll\s*\{[\s\S]*?scrollbar-color:\s*#cbd5e1 transparent;/
+    /\.workspace-tabs__scroll\s*\{[\s\S]*?scrollbar-color:\s*var\(--tianshu-border,\s*#cbd5e1\) transparent;/
   )
   expect(tabs).toMatch(
     /&::-webkit-scrollbar\s*\{[\s\S]*?height:\s*4px;/
   )
   expect(tabs).toMatch(
-    /&::-webkit-scrollbar-thumb:hover\s*\{[\s\S]*?background:\s*#94a3b8;/
+    /&::-webkit-scrollbar-thumb:hover\s*\{[\s\S]*?background:\s*var\(--tianshu-border-strong,\s*#94a3b8\);/
   )
 })
 

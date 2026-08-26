@@ -392,7 +392,7 @@ label {
   padding: 0 9px;
   border: 1px solid #e4e9f0;
   border-radius: 5px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   color: #617087;
   font-size: 12px;
 }

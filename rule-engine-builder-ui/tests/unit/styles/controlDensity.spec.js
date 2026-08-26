@@ -55,7 +55,7 @@ test('语义链接按钮保持透明背景并使用可读的业务颜色', () =>
     'color: #b45309 !important'
   )
   expect(declarationBlock('.el-button.is-link.el-button--info').toLowerCase()).toContain(
-    'color: #475569 !important'
+    'color: var(--tianshu-text-secondary) !important'
   )
   expect(declarationBlock('.el-button.is-link.el-button--danger').toLowerCase()).toContain(
     'color: #c93333 !important'
@@ -85,7 +85,7 @@ test('语义按钮、标签和占位文字使用高对比度主题色', () => {
     'color: #b42318 !important'
   )
   expect(css).toContain('.el-input__inner::placeholder')
-  expect(css).toContain('color: #64748b')
+  expect(css).toContain('color: var(--tianshu-text-tertiary)')
 })
 
 test('input borders are rendered only by the Element Plus wrapper', () => {

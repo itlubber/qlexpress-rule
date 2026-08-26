@@ -1722,7 +1722,7 @@
         <span style="font-weight: bold">{{
           currentVar ? currentVar.varLabel : ''
         }}</span>
-        <span style="color: #64748b; margin-left: 8px">{{
+        <span style="color: var(--tianshu-text-tertiary); margin-left: 8px">{{
           currentVar ? currentVar.varCode : ''
         }}</span>
       </div>
@@ -2327,7 +2327,7 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <span style="color: #64748b; font-size: 12px"
+          <span style="color: var(--tianshu-text-tertiary); font-size: 12px"
             >不选择项目则验证所有规则</span
           >
         </el-form-item>
@@ -5050,10 +5050,10 @@ export default {
 <style scoped>
 .linkage-hint {
   font-size: 12px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   margin-bottom: 12px;
   padding: 8px 12px;
-  background: #f5f7fa;
+  background: var(--tianshu-bg-muted);
   border-radius: 4px;
 }
 .linkage-hint a {
@@ -5076,22 +5076,22 @@ export default {
 .tab-empty {
   text-align: center;
   padding: 48px 0;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 14px;
 }
 .text-muted {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 13px;
 }
 .table-secondary-time {
   margin-top: 3px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 11px;
   line-height: 1;
   white-space: nowrap;
 }
 .field-help {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
   line-height: 1.6;
   margin-top: 4px;
@@ -5122,13 +5122,13 @@ export default {
 .var-list-section .section-title {
   font-size: 14px;
   font-weight: 600;
-  color: #303133;
+  color: var(--tianshu-text-primary);
   margin-bottom: 10px;
   padding-bottom: 6px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--tianshu-border-subtle);
 }
 .var-group-card {
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 6px;
   margin-bottom: 10px;
   overflow: hidden;
@@ -5138,8 +5138,8 @@ export default {
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
-  background: #fafafa;
-  border-bottom: 1px solid #ebeef5;
+  background: var(--tianshu-bg-muted);
+  border-bottom: 1px solid var(--tianshu-border-subtle);
   cursor: pointer;
   flex-wrap: wrap;
 }
@@ -5148,7 +5148,7 @@ export default {
 }
 .var-group-header .expand-icon {
   font-size: 14px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   margin-right: 4px;
   transition: transform 0.2s;
 }
@@ -5157,35 +5157,35 @@ export default {
   align-items: center;
   gap: 8px;
   padding: 8px 14px;
-  background: #f5f7fa;
-  border-bottom: 1px solid #ebeef5;
+  background: var(--tianshu-bg-muted);
+  border-bottom: 1px solid var(--tianshu-border-subtle);
   flex-wrap: wrap;
 }
 .var-group-code {
   font-weight: bold;
   font-size: 14px;
-  color: #303133;
+  color: var(--tianshu-text-primary);
   font-family: Consolas, monospace;
 }
 .var-group-label {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 13px;
 }
 .var-group-count {
   font-size: 12px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
 }
 .var-group-update-time {
   margin-left: auto;
   font-size: 12px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
 }
 .var-group-body {
   padding: 10px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
 }
 .obj-card {
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 6px;
   margin-bottom: 12px;
   overflow: hidden;
@@ -5195,29 +5195,29 @@ export default {
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
-  background: #fafafa;
-  border-bottom: 1px solid #ebeef5;
+  background: var(--tianshu-bg-muted);
+  border-bottom: 1px solid var(--tianshu-border-subtle);
   flex-wrap: wrap;
 }
 .obj-code {
   font-weight: bold;
   font-size: 14px;
-  color: #303133;
+  color: var(--tianshu-text-primary);
   font-family: Consolas, monospace;
 }
 .obj-label {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 13px;
 }
 .obj-var-count {
   font-size: 12px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
 }
 .const-toolbar {
   margin-bottom: 12px;
 }
 .const-group-card {
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 6px;
   margin-bottom: 10px;
   overflow: hidden;
@@ -5227,8 +5227,8 @@ export default {
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
-  background: #fafafa;
-  border-bottom: 1px solid #ebeef5;
+  background: var(--tianshu-bg-muted);
+  border-bottom: 1px solid var(--tianshu-border-subtle);
   cursor: pointer;
   flex-wrap: wrap;
 }
@@ -5238,16 +5238,16 @@ export default {
 .const-group-code {
   font-weight: bold;
   font-size: 14px;
-  color: #303133;
+  color: var(--tianshu-text-primary);
   font-family: Consolas, monospace;
 }
 .const-group-label {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 13px;
 }
 .const-count {
   font-size: 12px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
 }
 .const-group-body {
   padding: 8px;
@@ -5274,12 +5274,12 @@ export default {
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
-  color: #303133;
+  color: var(--tianshu-text-primary);
 }
 .test-target code {
-  color: #64748b;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  color: var(--tianshu-text-tertiary);
+  background: var(--tianshu-bg-soft);
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 3px;
   padding: 1px 6px;
 }
@@ -5299,9 +5299,9 @@ export default {
 .test-result-pre {
   margin: 0;
   padding: 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
-  background: #f8fafc;
+  background: var(--tianshu-bg-soft);
   max-height: 260px;
   overflow: auto;
   font-size: 12px;
@@ -5328,7 +5328,7 @@ export default {
   margin-bottom: 4px;
 }
 .source-summary-desc {
-  color: #475569;
+  color: var(--tianshu-text-secondary);
   font-size: 13px;
   line-height: 1.6;
   margin-bottom: 12px;
@@ -5339,19 +5339,19 @@ export default {
   gap: 10px;
 }
 .source-summary-item {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--tianshu-bg-surface);
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
   padding: 8px 10px;
   min-width: 0;
 }
 .source-summary-label {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
   margin-bottom: 4px;
 }
 .source-summary-value {
-  color: #0f172a;
+  color: var(--tianshu-text-primary);
   font-size: 13px;
   font-weight: 600;
   line-height: 1.4;
@@ -5399,7 +5399,7 @@ export default {
   align-items: center;
   gap: 8px;
   padding: 9px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 7px;
   background: rgb(255 255 255 / 82%);
 }
@@ -5477,7 +5477,7 @@ export default {
   padding: 15px 16px;
   border: 1px solid #d9e3f0;
   border-radius: 9px;
-  background: #f8fafc;
+  background: var(--tianshu-bg-soft);
 }
 .draft-preview-panel :deep(.el-alert) {
   margin-top: 12px;
@@ -5491,7 +5491,7 @@ export default {
 .draft-preview-panel__body label {
   display: block;
   margin-bottom: 6px;
-  color: #475569;
+  color: var(--tianshu-text-secondary);
   font-size: 12px;
   font-weight: 600;
 }
@@ -5503,12 +5503,12 @@ export default {
   padding: 10px;
   border: 1px solid #d8e0ea;
   border-radius: 5px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
 }
 .draft-preview-result {
   max-height: 220px;
   overflow: auto;
-  color: #1e293b;
+  color: var(--tianshu-text-primary);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -5516,7 +5516,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #94a3b8;
+  color: var(--tianshu-text-disabled);
   font-size: 12px;
 }
 @media (max-width: 900px) {
@@ -5535,7 +5535,7 @@ export default {
   margin: 12px 0 8px;
 }
 .import-result-body p {
-  color: #606266;
+  color: var(--tianshu-text-secondary);
   font-size: 14px;
   margin: 4px 0;
 }
@@ -5547,6 +5547,6 @@ export default {
   outline: none !important;
   box-shadow: none !important;
   background-color: transparent !important;
-  border-color: #dcdfe6 !important;
+  border-color: var(--tianshu-border) !important;
 }
 </style>

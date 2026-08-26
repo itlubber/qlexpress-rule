@@ -1747,7 +1747,7 @@ export default {
 .vp-arrow-btn,
 .vp-clear-btn {
   cursor: pointer;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
 }
 .vp-arrow-btn:hover,
 .vp-clear-btn:hover {
@@ -1778,7 +1778,7 @@ export default {
 .vp-left {
   width: 132px;
   flex-shrink: 0;
-  border-right: 1px solid #ebeef5;
+  border-right: 1px solid var(--tianshu-border-subtle);
   overflow-y: auto;
 }
 .vp-cat-item {
@@ -1787,7 +1787,7 @@ export default {
   justify-content: space-between;
   padding: 10px 12px;
   font-size: 12px;
-  color: #606266;
+  color: var(--tianshu-text-secondary);
   cursor: pointer;
   transition: background 0.15s;
   border-bottom: 1px solid #f5f5f5;
@@ -1800,7 +1800,7 @@ export default {
   white-space: nowrap;
 }
 .vp-cat-item:hover {
-  background: #f5f7fa;
+  background: var(--tianshu-bg-muted);
 }
 .vp-cat-item--active {
   background: var(--el-color-primary-light-9);
@@ -1814,7 +1814,7 @@ export default {
   box-sizing: border-box;
   text-align: center;
   font-size: 10px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   background: #f0f2f5;
   padding: 1px 5px;
   border-radius: 8px;
@@ -1829,7 +1829,7 @@ export default {
   overflow-y: auto;
 }
 .vp-manual-title {
-  color: #303133;
+  color: var(--tianshu-text-primary);
   font-size: 14px;
   font-weight: 600;
   margin-bottom: 12px;
@@ -1844,10 +1844,10 @@ export default {
   grid-template-columns: 26px 1fr;
   gap: 3px 8px;
   padding: 14px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--tianshu-border);
   border-radius: 6px;
-  background: #fff;
-  color: #303133;
+  background: var(--tianshu-bg-surface);
+  color: var(--tianshu-text-primary);
   cursor: pointer;
   text-align: left;
 }
@@ -1861,7 +1861,7 @@ export default {
   font-weight: 600;
 }
 .vp-manual-type small {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   line-height: 1.4;
 }
 .vp-manual-type:hover {
@@ -1876,7 +1876,7 @@ export default {
 }
 .vp-search {
   padding: 8px 10px 6px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--tianshu-border-subtle);
   flex-shrink: 0;
 }
 .vp-search .el-input {
@@ -1893,11 +1893,11 @@ export default {
   font-size: 12px;
 }
 .vp-th {
-  background: #fafafa;
+  background: var(--tianshu-bg-muted);
   padding: 8px 10px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--tianshu-border-subtle);
   font-weight: 600;
-  color: #606266;
+  color: var(--tianshu-text-secondary);
   text-align: left;
   white-space: nowrap;
   position: sticky;
@@ -1920,7 +1920,7 @@ export default {
   transition: background 0.1s;
 }
 .vp-row:hover {
-  background: #f5f7fa;
+  background: var(--tianshu-bg-muted);
 }
 .vp-row--selected {
   background: var(--el-color-primary-light-9);
@@ -1931,7 +1931,7 @@ export default {
 .vp-td {
   padding: 7px 10px;
   border-bottom: 1px solid #f5f5f5;
-  color: #303133;
+  color: var(--tianshu-text-primary);
 }
 .vp-td--type {
   text-align: center;
@@ -1944,7 +1944,7 @@ export default {
 .vp-td--code {
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: 11px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
 }
 .vp-td--name {
   font-weight: 500;
@@ -1955,7 +1955,7 @@ export default {
 .vp-empty {
   text-align: center;
   padding: 30px 0;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
 }
 .vp-children-row {
   background: #f9fafc;
@@ -1964,16 +1964,16 @@ export default {
   padding: 6px 12px;
 }
 .vp-children-wrap {
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
   overflow: hidden;
 }
 .vp-children-title {
-  background: #f5f7fa;
+  background: var(--tianshu-bg-muted);
   padding: 4px 10px;
   font-size: 11px;
-  color: #64748b;
-  border-bottom: 1px solid #ebeef5;
+  color: var(--tianshu-text-tertiary);
+  border-bottom: 1px solid var(--tianshu-border-subtle);
 }
 .vp-children-list {
   max-height: 160px;
@@ -1997,7 +1997,7 @@ export default {
 .vp-child-path {
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: 11px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   flex-shrink: 0;
   max-width: 180px;
   overflow: hidden;
@@ -2005,7 +2005,7 @@ export default {
   white-space: nowrap;
 }
 .vp-child-name {
-  color: #303133;
+  color: var(--tianshu-text-primary);
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2014,15 +2014,15 @@ export default {
 .vp-pager {
   flex-shrink: 0;
   padding: 6px 8px;
-  border-top: 1px solid #ebeef5;
+  border-top: 1px solid var(--tianshu-border-subtle);
   text-align: right;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
 }
 .vp-mini-pager {
   padding: 4px 8px 6px;
   text-align: right;
-  border-top: 1px solid #ebeef5;
-  background: #fff;
+  border-top: 1px solid var(--tianshu-border-subtle);
+  background: var(--tianshu-bg-surface);
 }
 .vp-resize-handle {
   position: absolute;

@@ -157,14 +157,14 @@ export default {
   gap: 10px;
   max-width: min(960px, calc(100vw - 48px));
   padding: 14px 18px;
-  color: #475569;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
+  color: var(--tianshu-text-secondary);
+  background: var(--tianshu-bg-surface);
+  border: 1px solid var(--tianshu-border);
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
 
   strong {
-    color: #1e293b;
+    color: var(--tianshu-text-primary);
     white-space: nowrap;
   }
 

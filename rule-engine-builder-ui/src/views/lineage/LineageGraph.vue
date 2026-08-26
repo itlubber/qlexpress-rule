@@ -656,8 +656,8 @@ export default {
   }
 
   .module-hint {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    background: var(--tianshu-bg-soft);
+    border: 1px solid var(--tianshu-border-subtle);
     border-radius: 4px;
     padding: 12px 16px;
     margin-bottom: 16px;
@@ -671,7 +671,7 @@ export default {
     white-space: nowrap;
   }
   .hint-text {
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
   }
   .usage-guide {
     display: grid;
@@ -680,23 +680,23 @@ export default {
     margin-bottom: 16px;
   }
   .guide-item {
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--tianshu-border-subtle);
     border-radius: 4px;
     padding: 12px;
-    background: #ffffff;
+    background: var(--tianshu-bg-surface);
   }
   .guide-title {
-    color: #0f172a;
+    color: var(--tianshu-text-primary);
     font-weight: 700;
     margin-bottom: 4px;
   }
   .guide-text {
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
     font-size: 12px;
     line-height: 1.6;
   }
   .query-panel {
-    background: #ffffff;
+    background: var(--tianshu-bg-surface);
     border: 1px solid #e5e7eb;
     border-radius: 4px;
     padding: 12px 12px 0;
@@ -706,7 +706,7 @@ export default {
     display: flex;
     gap: 12px;
     flex-wrap: wrap;
-    color: #475569;
+    color: var(--tianshu-text-secondary);
     font-size: 12px;
     margin-bottom: 12px;
   }
@@ -721,7 +721,7 @@ export default {
     border-radius: 2px;
   }
   .graph-wrap {
-    background: #f8fafc;
+    background: var(--tianshu-bg-soft);
     border: 1px solid #e5e7eb;
     border-radius: 4px;
     min-height: 440px;
@@ -729,7 +729,7 @@ export default {
     position: relative;
   }
   .empty-graph {
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
     text-align: center;
     padding: 128px 0;
   }
@@ -742,7 +742,7 @@ export default {
   .side-caption {
     position: absolute;
     top: 16px;
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
     font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.08em;
@@ -781,8 +781,8 @@ export default {
     position: absolute;
     width: 200px;
     height: 88px;
-    background: #ffffff;
-    border: 1px solid #cbd5e1;
+    background: var(--tianshu-bg-surface);
+    border: 1px solid var(--tianshu-border);
     border-radius: 6px;
     padding: 12px;
     box-sizing: border-box;
@@ -834,7 +834,7 @@ export default {
     white-space: nowrap;
   }
   .node-code {
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
     font-family: Menlo, Monaco, Consolas, monospace;
     font-size: 12px;
     margin-top: 4px;
@@ -849,10 +849,10 @@ export default {
     height: 26px;
     margin-top: -13px;
     padding: 0;
-    border: 1px solid #cbd5e1;
+    border: 1px solid var(--tianshu-border);
     border-radius: 50%;
     color: #334155;
-    background: #ffffff;
+    background: var(--tianshu-bg-surface);
     box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
     cursor: pointer;
     z-index: 4;

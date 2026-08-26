@@ -520,14 +520,14 @@ export default {
 .module-hint {
   margin-bottom: 12px;
   padding: 10px 12px;
-  background: #f5f7fa;
+  background: var(--tianshu-bg-muted);
   border-radius: 4px;
-  color: #606266;
+  color: var(--tianshu-text-secondary);
 }
 .hint-title {
   font-size: 14px;
   font-weight: 600;
-  color: #303133;
+  color: var(--tianshu-text-primary);
   margin-bottom: 4px;
 }
 .hint-text {
@@ -548,7 +548,7 @@ export default {
 }
 .approval-guide-text {
   margin-top: 3px;
-  color: #475569;
+  color: var(--tianshu-text-secondary);
   font-size: 12px;
   line-height: 1.6;
 }

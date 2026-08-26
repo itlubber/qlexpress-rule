@@ -940,7 +940,7 @@ export default {
 <style lang="scss" scoped>
 .rs-designer {
   position: relative;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   border-radius: 4px;
   padding: 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
@@ -963,7 +963,7 @@ export default {
   flex-wrap: wrap;
 }
 .rs-back {
-  color: #606266;
+  color: var(--tianshu-text-secondary);
 }
 .rs-title-icon {
   font-size: 18px;
@@ -976,13 +976,13 @@ export default {
 }
 .toolbar-label {
   font-size: 13px;
-  color: #606266;
+  color: var(--tianshu-text-secondary);
 }
 .mode-select {
   width: 148px;
 }
 .tip-icon {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   cursor: pointer;
 }
 .rs-var-status {
@@ -1016,7 +1016,7 @@ export default {
   flex-wrap: wrap;
 }
 .output-config-hint {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 .rs-summary {
@@ -1025,9 +1025,9 @@ export default {
   gap: 8px;
   margin: 10px 0;
   padding: 8px 10px;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 6px;
-  background: #f8fafc;
+  background: var(--tianshu-bg-soft);
 }
 .summary-item {
   display: flex;
@@ -1036,7 +1036,7 @@ export default {
   min-width: 0;
 }
 .summary-label {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
@@ -1054,11 +1054,11 @@ export default {
 .rs-rule-card {
   border: 1px solid #e5e7eb;
   border-radius: 6px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   padding: 10px;
 }
 .rs-rule-card.is-disabled {
-  background: #f8fafc;
+  background: var(--tianshu-bg-soft);
   opacity: 0.78;
 }
 .rs-rule-head {
@@ -1070,13 +1070,13 @@ export default {
 }
 .drag-handle {
   cursor: move;
-  color: #94a3b8;
+  color: var(--tianshu-text-disabled);
   font-size: 16px;
   text-align: center;
 }
 .rule-index {
   font-weight: 700;
-  color: #475569;
+  color: var(--tianshu-text-secondary);
 }
 .rule-code,
 .rule-name,
@@ -1100,7 +1100,7 @@ export default {
 .condition-panel,
 .action-panel {
   min-width: 0;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 6px;
   padding: 8px;
   background: #fbfdff;
@@ -1114,14 +1114,14 @@ export default {
 .rs-loading,
 .rs-empty {
   text-align: center;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   padding: 36px 0;
-  border: 1px dashed #d9d9d9;
+  border: 1px dashed var(--tianshu-border);
   border-radius: 6px;
 }
 .rs-empty-icon {
   font-size: 30px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
 }
 .script-override-banner {
   margin-top: 10px;

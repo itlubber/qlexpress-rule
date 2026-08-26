@@ -25,7 +25,7 @@
           aria-label="返回"
           title="返回"
           @click="$router.back()"
-          style="color: #606266"
+          style="color: var(--tianshu-text-secondary)"
         />
         <el-icon class="ct-title-icon"><el-icon-data-analysis /></el-icon>
         <span class="ct-title">交叉表设计器</span>
@@ -684,7 +684,7 @@ export default {
 <style lang="scss" scoped>
 .ct-designer {
   position: relative;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   border-radius: 4px;
   padding: 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -723,7 +723,7 @@ export default {
   gap: 12px;
   margin-bottom: 16px;
   padding: 12px;
-  background: #fafafa;
+  background: var(--tianshu-bg-muted);
   border-radius: 6px;
   border: 1px solid #eeeeee;
 }
@@ -766,14 +766,14 @@ export default {
 }
 .cross-desc {
   font-size: 11px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   margin-top: 4px;
   white-space: nowrap;
 }
 .ct-matrix-wrap {
   overflow-x: auto;
   border-radius: 6px;
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--tianshu-border-subtle);
   margin-bottom: 12px;
 }
 .ct-matrix {
@@ -782,7 +782,7 @@ export default {
   table-layout: auto;
   th,
   td {
-    border: 1px solid #e8e8e8;
+    border: 1px solid var(--tianshu-border-subtle);
     padding: 0;
     vertical-align: middle;
   }
@@ -876,7 +876,7 @@ export default {
   font-size: 13px;
 }
 .data-cell {
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   padding: 4px;
   transition: background 0.15s;
   &.cell-filled {
@@ -895,7 +895,7 @@ export default {
   font-weight: 500;
 }
 .add-row-trigger {
-  background: #fafafa;
+  background: var(--tianshu-bg-muted);
   text-align: center;
   cursor: pointer;
   height: 32px;
@@ -905,7 +905,7 @@ export default {
   }
 }
 .add-row-cell {
-  background: #fafafa;
+  background: var(--tianshu-bg-muted);
 }
 .ct-preview {
   padding: 8px 12px;

@@ -294,6 +294,32 @@ public class DatabaseInitializationSqlTest {
     }
 
     @Test
+    public void schemaCreatesConsoleUserPreferenceTable() throws Exception {
+        String schema = read(sqlDirectory().resolve("schema.sql"));
+        Matcher matcher = TABLE_BLOCK.matcher(schema);
+        String tableBody = null;
+        while (matcher.find()) {
+            if ("console_user_preference".equals(matcher.group(1))) {
+                tableBody = matcher.group(2);
+                break;
+            }
+        }
+
+        Assert.assertNotNull("console_user_preference table missing", tableBody);
+        Assert.assertTrue(tableBody.matches(
+                "(?is).*`preference_value`\\s+JSON\\s+NOT NULL.*"));
+        Assert.assertTrue(schema.contains(
+                "UNIQUE KEY `uk_console_user_preference` (`user_id`, `preference_key`)"));
+        Assert.assertTrue(schema.contains(
+                "KEY `idx_console_user_preference_user` (`user_id`)"));
+        String export = read(latestExport());
+        Assert.assertTrue(export.contains(
+                "TRUNCATE TABLE rule_engine.console_user_preference;"));
+        Assert.assertFalse(export.contains(
+                "INSERT INTO rule_engine.`console_user_preference`"));
+    }
+
+    @Test
     public void executionLogSupportsLargeJsonPayloadsAndUpgradesExistingSchema() throws Exception {
         String schema = read(sqlDirectory().resolve("schema.sql"));
         Matcher matcher = TABLE_BLOCK.matcher(schema);

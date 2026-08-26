@@ -12,6 +12,11 @@ import './styles/index.scss'
 // 覆盖 Element Plus 主题色为主色 #2639E9
 import './styles/element-override.scss'
 import './styles/compact-workbench.scss'
+import './styles/theme-tokens.scss'
+import './styles/theme-components.scss'
+import { bootstrapLocalTheme } from '@/theme/themeRuntime'
+
+bootstrapLocalTheme(window.localStorage, document.documentElement)
 
 // Monaco Editor 通过 AMD loader 方式加载，Vite 在开发和生产阶段统一提供 vs/ 资源。
 const base = import.meta.env.BASE_URL || './'

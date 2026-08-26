@@ -1665,13 +1665,13 @@ export default {
 
   .page-subtitle {
     margin-top: 4px;
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
     font-size: 13px;
   }
 
   .page-tip {
     margin-top: 4px;
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
     font-size: 12px;
   }
 
@@ -1702,17 +1702,17 @@ export default {
     display: flex;
     align-items: center;
     padding: 0 10px;
-    color: #606266;
-    background: #f5f7fa;
-    border: 1px solid #ebeef5;
+    color: var(--tianshu-text-secondary);
+    background: var(--tianshu-bg-muted);
+    border: 1px solid var(--tianshu-border-subtle);
     border-radius: 4px;
   }
 
   :deep(.group-table .cg) {
     padding: 8px;
-    border: 1px solid #ebeef5;
+    border: 1px solid var(--tianshu-border-subtle);
     border-radius: 4px;
-    background: #fff;
+    background: var(--tianshu-bg-surface);
   }
 
 }
@@ -1747,7 +1747,7 @@ export default {
 
     > span,
     div > span:last-child {
-      color: #64748b;
+      color: var(--tianshu-text-tertiary);
       font-size: 12px;
     }
   }
@@ -1765,16 +1765,16 @@ export default {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    color: #475569;
+    color: var(--tianshu-text-secondary);
     text-align: center;
 
     strong {
-      color: #0f172a;
+      color: var(--tianshu-text-primary);
       font-size: 15px;
     }
 
     span {
-      color: #64748b;
+      color: var(--tianshu-text-tertiary);
       font-size: 12px;
     }
 
@@ -1791,7 +1791,7 @@ export default {
   .execution-result,
   .execution-running-state {
     margin-bottom: 16px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--tianshu-border-subtle);
     border-radius: 8px;
   }
 
@@ -1816,7 +1816,7 @@ export default {
     }
 
     span {
-      color: #64748b;
+      color: var(--tianshu-text-tertiary);
       font-size: 12px;
       line-height: 1.5;
     }
@@ -1865,7 +1865,7 @@ export default {
     }
 
     span {
-      color: #64748b;
+      color: var(--tianshu-text-tertiary);
       font-size: 12px;
       line-height: 1.5;
     }
@@ -1892,7 +1892,7 @@ export default {
     overflow-y: auto;
     border: 1px solid #e5e7eb;
     border-radius: 8px;
-    background: #fff;
+    background: var(--tianshu-bg-surface);
   }
 
   .execution-field-grid {
@@ -1908,7 +1908,7 @@ export default {
     border-radius: 4px;
 
     &:hover {
-      background: #f8fafc;
+      background: var(--tianshu-bg-soft);
     }
   }
 
@@ -1925,7 +1925,7 @@ export default {
   .execution-field-hint {
     margin-top: 4px;
     overflow: hidden;
-    color: #94a3b8;
+    color: var(--tianshu-text-disabled);
     font-family: Consolas, monospace;
     font-size: 11px;
     text-overflow: ellipsis;
@@ -1934,7 +1934,7 @@ export default {
 
   .execution-empty-fields {
     padding: 24px;
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
     font-size: 13px;
     text-align: center;
   }
@@ -1963,7 +1963,7 @@ export default {
     }
 
     span {
-      color: #64748b;
+      color: var(--tianshu-text-tertiary);
       font-size: 12px;
     }
   }
@@ -1977,7 +1977,7 @@ export default {
     flex-wrap: wrap;
     gap: 4px 16px;
     margin-bottom: 12px;
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
     font-size: 12px;
   }
 
@@ -1999,7 +1999,7 @@ export default {
 
     span,
     p {
-      color: #64748b;
+      color: var(--tianshu-text-tertiary);
       font-size: 12px;
     }
 
@@ -2029,7 +2029,7 @@ export default {
     gap: 12px;
     padding: 8px 12px;
     border-radius: 4px;
-    background: #f8fafc;
+    background: var(--tianshu-bg-soft);
 
     strong {
       overflow: hidden;

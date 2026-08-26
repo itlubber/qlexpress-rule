@@ -749,7 +749,7 @@ export default {
   min-height: 0;
   flex: none;
   border-right: 1px solid #e8edf3;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
 }
 .palette-categories {
   overflow-y: auto;
@@ -923,7 +923,7 @@ export default {
 }
 .palette-reference-children-row td {
   padding: 6px 8px;
-  background: #f8fafc;
+  background: var(--tianshu-bg-soft);
 }
 .palette-reference-child {
   display: grid;
@@ -1003,7 +1003,7 @@ export default {
   justify-content: flex-start;
   min-height: 54px;
   border-color: #dce4ee;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
 }
 .palette-manual-kind i {
   flex: none;
@@ -1034,7 +1034,7 @@ export default {
   padding: 12px;
   border: 1px solid #dce4ee;
   border-radius: 7px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
 }
 .palette-manual-actions {
   display: flex;
@@ -1059,7 +1059,7 @@ export default {
   height: 34px;
   border: 1px solid #dce3ec;
   border-radius: 5px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   color: #26364d;
   cursor: pointer;
 }
@@ -1070,7 +1070,7 @@ export default {
 .palette-action {
   justify-content: flex-start;
   border-color: #dce4ee;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
 }
 .palette-empty {
   display: grid;

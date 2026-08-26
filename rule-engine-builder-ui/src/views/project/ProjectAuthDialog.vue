@@ -1140,21 +1140,21 @@ export default {
   padding: 12px 16px;
   margin-bottom: 16px;
   border: 1px solid #dbeafe;
-  border-left: 4px solid #2639e9;
+  border-left: 4px solid var(--el-color-primary);
   border-radius: 4px;
   background: #eff6ff;
 }
 .project-name,
 .section-title,
 .form-section-title {
-  color: #0f172a;
+  color: var(--tianshu-text-primary);
   font-weight: 700;
 }
 .project-code,
 .project-help,
 .section-copy,
 .table-secondary {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -1197,14 +1197,14 @@ code {
 .log-filter {
   padding: 12px 12px 0;
   margin-bottom: 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
-  background: #f8fafc;
+  background: var(--tianshu-bg-soft);
 }
 .form-section {
   padding: 12px 12px 0;
   margin-bottom: 16px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
 }
 .form-section-title {
@@ -1212,7 +1212,7 @@ code {
 }
 .form-section-help {
   margin: -4px 0 12px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
   line-height: 1.6;
 }
@@ -1225,19 +1225,19 @@ code {
   border-bottom: 1px solid #e5e7eb;
 }
 .secret-label {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
 }
 .secret-row code,
 .token-code-block code {
-  color: #0f172a;
+  color: var(--tianshu-text-primary);
   word-break: break-all;
   line-height: 1.6;
 }
 .token-code-block {
   padding: 16px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
-  background: #f8fafc;
+  background: var(--tianshu-bg-soft);
 }
 @media (max-width: 1200px) {
   .project-context {

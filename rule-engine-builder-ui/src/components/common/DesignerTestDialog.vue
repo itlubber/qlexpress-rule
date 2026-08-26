@@ -23,7 +23,7 @@
           :step="1000"
           size="small"
         />
-        <span style="color: #64748b">毫秒</span>
+        <span style="color: var(--tianshu-text-tertiary)">毫秒</span>
       </div>
       <div class="editor-label">输入参数 JSON</div>
       <el-alert
@@ -297,7 +297,7 @@ export default {
 .editor-label {
   font-size: 13px;
   font-weight: 600;
-  color: #303133;
+  color: var(--tianshu-text-primary);
   margin-bottom: 8px;
 }
 .json-error {
@@ -312,8 +312,8 @@ export default {
   margin-top: 10px;
 }
 .result-pre {
-  background: #f5f7fa;
-  border: 1px solid #ebeef5;
+  background: var(--tianshu-bg-muted);
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
   padding: 10px 12px;
   margin: 0;
@@ -331,7 +331,7 @@ export default {
   color: #cf1322;
 }
 .result-meta {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
   text-align: right;
 }

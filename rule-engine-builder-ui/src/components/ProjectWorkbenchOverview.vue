@@ -301,7 +301,7 @@ export default {
 .overview-heading h3,
 .panel-heading h4 {
   margin: 0;
-  color: #0f172a;
+  color: var(--tianshu-text-primary);
 }
 
 .overview-heading h3 {
@@ -313,7 +313,7 @@ export default {
 .next-action-card p,
 .check-content p {
   margin: 4px 0 0;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -334,7 +334,7 @@ export default {
 .next-action-card strong {
   display: block;
   margin-top: 4px;
-  color: #172554;
+  color: var(--tianshu-text-primary);
   font-size: 16px;
 }
 
@@ -354,9 +354,9 @@ export default {
 
 .metric-card,
 .panel {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 6px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
 }
 
 .metric-card {
@@ -368,14 +368,14 @@ export default {
 
 .metric-card span,
 .metric-card small {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 
 .metric-card strong {
   margin: 6px 0 4px;
   overflow: hidden;
-  color: #0f172a;
+  color: var(--tianshu-text-primary);
   font-size: 20px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -398,7 +398,7 @@ export default {
 }
 
 .panel-heading > span {
-  color: #475569;
+  color: var(--tianshu-text-secondary);
   font-size: 12px;
   white-space: nowrap;
 }
@@ -434,7 +434,7 @@ export default {
 
 .status-optional {
   border-color: #64748b;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
 }
 
 .status-action_required,
@@ -461,12 +461,12 @@ export default {
 }
 
 .check-title strong {
-  color: #1e293b;
+  color: var(--tianshu-text-primary);
   font-size: 13px;
 }
 
 .check-title span {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 
@@ -506,12 +506,12 @@ export default {
 }
 
 .recent-panel dt {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
 }
 
 .recent-panel dd {
   margin: 0;
-  color: #1e293b;
+  color: var(--tianshu-text-primary);
   text-align: right;
 }
 

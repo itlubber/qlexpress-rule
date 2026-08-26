@@ -946,14 +946,14 @@ export default {
   font-weight: 700;
 }
 .log-subtitle {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
   margin-top: 3px;
 }
 .stats-panel {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
-  background: #f8fafc;
+  background: var(--tianshu-bg-soft);
   padding: 14px;
   margin-bottom: 16px;
 }
@@ -982,30 +982,30 @@ export default {
   min-width: 0;
   min-height: 86px;
   padding: 16px;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 8px;
 }
 .stat-card span {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 13px;
 }
 .stat-card strong {
-  color: #303133;
+  color: var(--tianshu-text-primary);
   font-size: 24px;
   line-height: 1.2;
 }
 .provider-table {
-  background: #fff;
+  background: var(--tianshu-bg-surface);
 }
 .stats-empty {
-  border: 1px dashed #cbd5e1;
+  border: 1px dashed var(--tianshu-border);
   border-radius: 4px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   text-align: center;
   padding: 24px;
 }
@@ -1034,16 +1034,16 @@ export default {
   margin-top: 12px;
 }
 .detail-kv {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
-  background: #f8fafc;
+  background: var(--tianshu-bg-soft);
   padding: 8px 10px;
   display: flex;
   justify-content: space-between;
   gap: 8px;
 }
 .detail-kv span {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
 }
 .detail-kv strong {
   color: #1f2937;
@@ -1052,8 +1052,8 @@ export default {
   overflow-wrap: anywhere;
 }
 .log-pre {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--tianshu-bg-soft);
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
   padding: 10px;
   margin: 0;

@@ -125,6 +125,23 @@ CREATE TABLE IF NOT EXISTS `console_user` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='控制台账户表';
 
 -- ============================================================
+-- 1.4.1 console_user_preference - 控制台用户偏好
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `console_user_preference` (
+  `id`               BIGINT      NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `user_id`          BIGINT      NOT NULL                COMMENT '控制台用户ID',
+  `preference_key`   VARCHAR(64) NOT NULL                COMMENT '偏好键',
+  `preference_value` JSON        NOT NULL                COMMENT '偏好JSON',
+  `create_by`        VARCHAR(64) DEFAULT NULL            COMMENT '创建人',
+  `create_time`      DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by`        VARCHAR(64) DEFAULT NULL            COMMENT '更新人',
+  `update_time`      DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_console_user_preference` (`user_id`, `preference_key`),
+  KEY `idx_console_user_preference_user` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='控制台用户偏好表';
+
+-- ============================================================
 -- 1.5 console_role - 控制台角色
 -- ============================================================
 CREATE TABLE IF NOT EXISTS `console_role` (

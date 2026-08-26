@@ -80,7 +80,7 @@
       <template v-slot:header>
         <div style="font-weight: 600">描述</div>
       </template>
-      <div style="color: #606266; font-size: 14px; line-height: 1.6">
+      <div style="color: var(--tianshu-text-secondary); font-size: 14px; line-height: 1.6">
         {{ rule.description }}
       </div>
     </el-card>
@@ -240,7 +240,7 @@
             justify-content: space-between;
           "
         >
-          <span style="color: #64748b; font-size: 12px">
+          <span style="color: var(--tianshu-text-tertiary); font-size: 12px">
             共
             {{ rule.inputFieldsJson ? rule.inputFieldsJson.length : 0 }}
             个字段，请关联引擎变量
@@ -268,7 +268,7 @@
               <span v-if="getFieldVarMap(row)" class="script-name-text">{{
                 getFieldVarMap(row).varCode
               }}</span>
-              <span v-else style="color: #64748b">—</span>
+              <span v-else style="color: var(--tianshu-text-tertiary)">—</span>
             </template>
           </el-table-column>
           <el-table-column label="变量名称" min-width="130">
@@ -282,7 +282,7 @@
                 getFieldVarMap(row).varCodeText
               }}</span>
               <span v-else-if="row.scriptName">{{ row.scriptName }}</span>
-              <span v-else style="color: #64748b">—</span>
+              <span v-else style="color: var(--tianshu-text-tertiary)">—</span>
             </template>
           </el-table-column>
           <el-table-column
@@ -299,18 +299,18 @@
           </el-table-column>
           <el-table-column label="默认值" min-width="130">
             <template v-slot="{ row }">
-              <span v-if="row.defaultValue" style="color: #606266">{{
+              <span v-if="row.defaultValue" style="color: var(--tianshu-text-secondary)">{{
                 row.defaultValue
               }}</span>
-              <span v-else style="color: #64748b">—</span>
+              <span v-else style="color: var(--tianshu-text-tertiary)">—</span>
             </template>
           </el-table-column>
           <el-table-column label="取值范围" min-width="130">
             <template v-slot="{ row }">
-              <span v-if="row.validValues" style="color: #606266">{{
+              <span v-if="row.validValues" style="color: var(--tianshu-text-secondary)">{{
                 row.validValues
               }}</span>
-              <span v-else style="color: #64748b">—</span>
+              <span v-else style="color: var(--tianshu-text-tertiary)">—</span>
             </template>
           </el-table-column>
           <el-table-column label="字段校验" min-width="240">
@@ -342,7 +342,7 @@
               <template v-else>
                 <span
                   v-if="!(row.validationRuleIdList || []).length"
-                  style="color: #64748b"
+                  style="color: var(--tianshu-text-tertiary)"
                   >未配置</span
                 >
                 <template v-else>
@@ -375,7 +375,7 @@
               <span v-else-if="row.createTime">{{
                 row.createTime.replace('T', ' ')
               }}</span>
-              <span v-else style="color: #64748b">—</span>
+              <span v-else style="color: var(--tianshu-text-tertiary)">—</span>
             </template>
           </el-table-column>
           <el-table-column
@@ -426,7 +426,7 @@
         />
         <div
           v-if="!rule.inputFieldsJson || rule.inputFieldsJson.length === 0"
-          style="text-align: center; padding: 40px 0; color: #64748b"
+          style="text-align: center; padding: 40px 0; color: var(--tianshu-text-tertiary)"
         >
           暂无输入字段
         </div>
@@ -447,7 +447,7 @@
             justify-content: space-between;
           "
         >
-          <span style="color: #64748b; font-size: 12px">
+          <span style="color: var(--tianshu-text-tertiary); font-size: 12px">
             共
             {{ rule.outputFieldsJson ? rule.outputFieldsJson.length : 0 }}
             个字段，请关联引擎变量
@@ -475,7 +475,7 @@
               <span v-if="getFieldVarMap(row)" class="script-name-text">{{
                 getFieldVarMap(row).varCode
               }}</span>
-              <span v-else style="color: #64748b">—</span>
+              <span v-else style="color: var(--tianshu-text-tertiary)">—</span>
             </template>
           </el-table-column>
           <el-table-column label="变量名称" min-width="130">
@@ -489,7 +489,7 @@
                 getFieldVarMap(row).varCodeText
               }}</span>
               <span v-else-if="row.scriptName">{{ row.scriptName }}</span>
-              <span v-else style="color: #64748b">—</span>
+              <span v-else style="color: var(--tianshu-text-tertiary)">—</span>
             </template>
           </el-table-column>
           <el-table-column
@@ -505,14 +505,14 @@
             </template>
           </el-table-column>
           <el-table-column label="默认值" min-width="120">
-            <span style="color: #64748b">—</span>
+            <span style="color: var(--tianshu-text-tertiary)">—</span>
           </el-table-column>
           <el-table-column label="取值范围" min-width="130">
             <template v-slot="{ row }">
-              <span v-if="row.validValues" style="color: #606266">{{
+              <span v-if="row.validValues" style="color: var(--tianshu-text-secondary)">{{
                 row.validValues
               }}</span>
-              <span v-else style="color: #64748b">—</span>
+              <span v-else style="color: var(--tianshu-text-tertiary)">—</span>
             </template>
           </el-table-column>
           <el-table-column label="修改时间" width="140" align="center">
@@ -523,7 +523,7 @@
               <span v-else-if="row.createTime">{{
                 row.createTime.replace('T', ' ')
               }}</span>
-              <span v-else style="color: #64748b">—</span>
+              <span v-else style="color: var(--tianshu-text-tertiary)">—</span>
             </template>
           </el-table-column>
           <el-table-column
@@ -574,7 +574,7 @@
         />
         <div
           v-if="!rule.outputFieldsJson || rule.outputFieldsJson.length === 0"
-          style="text-align: center; padding: 40px 0; color: #64748b"
+          style="text-align: center; padding: 40px 0; color: var(--tianshu-text-tertiary)"
         >
           暂无输出字段
         </div>
@@ -964,7 +964,7 @@
     >
       <div
         v-if="!testReady"
-        style="padding: 40px; text-align: center; color: #64748b"
+        style="padding: 40px; text-align: center; color: var(--tianshu-text-tertiary)"
       >
         正在加载...
       </div>
@@ -978,7 +978,7 @@
             flex-wrap: wrap;
           "
         >
-          <span style="color: #606266">页面请求超时</span>
+          <span style="color: var(--tianshu-text-secondary)">页面请求超时</span>
           <el-input-number
             v-model="requestTimeoutMs"
             :min="1000"
@@ -987,7 +987,7 @@
             size="small"
             style="width: 150px"
           />
-          <span style="color: #64748b">毫秒</span>
+          <span style="color: var(--tianshu-text-tertiary)">毫秒</span>
           <el-button
             size="small"
             type="primary"
@@ -1087,7 +1087,7 @@
           </div>
           <div
             v-else
-            style="text-align: center; padding: 30px 0; color: #64748b"
+            style="text-align: center; padding: 30px 0; color: var(--tianshu-text-tertiary)"
           >
             暂无输入字段，请切换到 JSON 模式手动编辑参数
           </div>
@@ -1137,7 +1137,7 @@
           <pre
             v-if="testResult.hasOutput"
             style="
-              background: #f5f7fa;
+              background: var(--tianshu-bg-muted);
               padding: 12px;
               border-radius: 4px;
               font-size: 13px;
@@ -3453,7 +3453,7 @@ export default {
   color: var(--el-color-primary);
 }
 .script-unbound {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-style: italic;
 }
 .open-api-panel {
@@ -3478,17 +3478,17 @@ export default {
 .open-api-section {
   margin-top: 14px;
   padding: 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
 }
 .open-api-title {
-  color: #0f172a;
+  color: var(--tianshu-text-primary);
   font-weight: 700;
 }
 .open-api-help {
   margin-top: 4px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
   line-height: 1.6;
 }
@@ -3510,7 +3510,7 @@ export default {
 }
 .open-api-preview-title {
   margin-bottom: 8px;
-  color: #0f172a;
+  color: var(--tianshu-text-primary);
   font-weight: 700;
 }
 .open-api-preview-grid pre {
@@ -3518,10 +3518,10 @@ export default {
   max-height: 440px;
   padding: 14px;
   overflow: auto;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
-  color: #1e293b;
-  background: #f8fafc;
+  color: var(--tianshu-text-primary);
+  background: var(--tianshu-bg-soft);
   white-space: pre-wrap;
   word-break: break-all;
 }
@@ -3545,18 +3545,18 @@ export default {
   gap: 8px;
   margin-top: 12px;
   padding: 12px 16px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--tianshu-border);
   border-radius: 4px;
   background: #f8f9fb;
 }
 .version-compare-toolbar-label {
-  color: #606266;
+  color: var(--tianshu-text-secondary);
   font-size: 13px;
   font-weight: 600;
 }
 .version-compare-toolbar-tip {
   margin-left: auto;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 .version-compare-toolbar :deep(.el-select) {
@@ -3569,8 +3569,8 @@ export default {
 .version-compare-placeholder {
   margin-top: 12px;
   padding: 24px;
-  border: 1px dashed #dcdfe6;
-  color: #64748b;
+  border: 1px dashed var(--tianshu-border);
+  color: var(--tianshu-text-tertiary);
   text-align: center;
   font-size: 13px;
 }
@@ -3589,7 +3589,7 @@ export default {
 .test-form-wrapper {
   max-height: 420px;
   overflow-y: auto;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
   padding: 4px 0;
 }
@@ -3605,11 +3605,11 @@ export default {
   transition: background-color 0.15s;
 }
 .test-field-cell:hover {
-  background-color: #f5f7fa;
+  background-color: var(--tianshu-bg-muted);
 }
 .test-field-label {
   font-size: 13px;
-  color: #303133;
+  color: var(--tianshu-text-primary);
   font-weight: 500;
   margin-bottom: 6px;
   line-height: 1.3;
@@ -3619,7 +3619,7 @@ export default {
 }
 .test-field-hint {
   font-size: 11px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   margin-top: 4px;
   font-family: 'Courier New', monospace;
   white-space: nowrap;
@@ -3635,7 +3635,7 @@ export default {
 .version-compare-title {
   font-size: 13px;
   font-weight: 600;
-  color: #303133;
+  color: var(--tianshu-text-primary);
   margin-bottom: 6px;
 }
 .version-compare-grid pre {
@@ -3643,8 +3643,8 @@ export default {
   padding: 10px;
   height: 220px;
   overflow: auto;
-  background: #f5f7fa;
-  border: 1px solid #ebeef5;
+  background: var(--tianshu-bg-muted);
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
   font-size: 12px;
   line-height: 1.5;

@@ -223,7 +223,7 @@ $editor-border: #313244;
 .script-panel {
   margin-top: 16px;
   overflow: hidden;
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 6px;
 }
 
@@ -240,7 +240,7 @@ $editor-border: #313244;
   justify-content: space-between;
   padding: 8px 14px;
   cursor: pointer;
-  background: #fafafa;
+  background: var(--tianshu-bg-muted);
 }
 
 .sp-header-left,
@@ -261,11 +261,11 @@ $editor-border: #313244;
 .sp-title {
   font-size: 13px;
   font-weight: 700;
-  color: #333333;
+  color: var(--tianshu-text-primary);
 }
 
 .sp-lifecycle-guidance {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 

@@ -18,6 +18,13 @@ describe('Login 输入框可见性', () => {
     expect(loginSource).toContain("form: { username: '', password: '' }")
     expect(loginSource).not.toMatch(/CONSOLE_(USERNAME|PASSWORD)/)
   })
+
+  test('登录页使用全局语义令牌并分别适配白天与夜间背景', () => {
+    expect(loginSource).toContain('background: var(--tianshu-bg-surface)')
+    expect(loginSource).toContain('color: var(--tianshu-text-primary)')
+    expect(loginSource).toContain(":global([data-theme='dark']) .login-bg")
+    expect(loginSource).toContain('background: var(--tianshu-brand-background) !important;')
+  })
 })
 
 describe('Login input box model', () => {

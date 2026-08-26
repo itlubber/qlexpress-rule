@@ -16,7 +16,7 @@ const designers = [
     path: '/designer/tree/102',
     title: '决策树设计器',
     action: '执行动作',
-    itemSelector: '.lf-node',
+    itemSelector: '.tree-canvas .lf-node:not(.lf-mini-map .lf-node)',
     loadsVariables: true
   },
   {
@@ -24,7 +24,7 @@ const designers = [
     path: '/designer/flow/103',
     title: '决策流设计器',
     action: '执行动作',
-    itemSelector: '.lf-node',
+    itemSelector: '.flow-canvas .lf-node:not(.lf-mini-map .lf-node)',
     loadsVariables: true
   },
   {

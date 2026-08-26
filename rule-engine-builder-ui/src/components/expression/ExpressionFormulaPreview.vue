@@ -118,7 +118,7 @@ export default {
   margin-bottom: 12px;
   border: 1px solid #dce5ef;
   border-radius: 7px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
 }
 .expression-formula-preview__read {
   display: grid;

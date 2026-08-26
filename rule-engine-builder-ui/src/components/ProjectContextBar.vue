@@ -163,8 +163,8 @@ export default {
   gap: 16px;
   min-height: 48px;
   padding: 8px 16px;
-  border-bottom: 1px solid #dbe3f0;
-  background: #f8faff;
+  border-bottom: 1px solid var(--tianshu-border-subtle);
+  background: var(--tianshu-bg-soft, #f8faff);
   box-sizing: border-box;
 }
 
@@ -177,20 +177,20 @@ export default {
 }
 
 .context-label {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 
 .context-summary strong {
   overflow: hidden;
-  color: #172554;
+  color: var(--tianshu-text-primary);
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .context-code {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-family: Consolas, monospace;
   font-size: 12px;
 }

@@ -469,7 +469,7 @@ export default {
 
 <style scoped>
 .approval-page {
-  color: #303133;
+  color: var(--tianshu-text-primary);
 }
 
 .page-header {
@@ -515,7 +515,7 @@ export default {
   overflow: hidden;
   border: 1px solid #e4e8ee;
   border-radius: 4px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   box-shadow: 0 1px 3px rgb(25 40 65 / 5%);
 }
 
@@ -534,7 +534,7 @@ export default {
   padding: 16px 18px;
   border: 1px solid #e1e6ed;
   border-radius: 4px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   color: #6b7585;
   cursor: pointer;
   text-align: left;

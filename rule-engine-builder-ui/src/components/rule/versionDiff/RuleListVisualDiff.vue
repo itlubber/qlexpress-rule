@@ -58,7 +58,7 @@ export default {
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
-  color: #303133;
+  color: var(--tianshu-text-primary);
 }
 .rule-visual-section-head > div {
   display: flex;
@@ -69,7 +69,7 @@ export default {
   font-size: 14px;
 }
 .rule-visual-section-head span:not(.rule-visual-section-icon) {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 .rule-visual-section-icon {
@@ -80,7 +80,7 @@ export default {
   height: 24px;
   border-radius: 4px;
   background: #eef0ff;
-  color: #2639e9;
+  color: var(--el-color-primary);
   font-size: 12px;
   font-weight: 700;
 }
@@ -90,8 +90,8 @@ export default {
 }
 .rule-visual-empty {
   padding: 16px;
-  border: 1px dashed #dcdfe6;
-  color: #64748b;
+  border: 1px dashed var(--tianshu-border);
+  color: var(--tianshu-text-tertiary);
   text-align: center;
   font-size: 13px;
 }

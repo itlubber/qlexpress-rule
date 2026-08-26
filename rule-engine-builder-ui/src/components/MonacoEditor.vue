@@ -75,6 +75,10 @@ export default {
     },
   },
   async mounted() {
+    window.addEventListener(
+      'tianshu-theme-change',
+      this.handleGlobalThemeChange
+    )
     // 等待 monaco 加载（最多等待 10s 防死循环）
     let attempts = 0
     while (!window.monaco && attempts < 100) {
@@ -84,6 +88,7 @@ export default {
     if (!window.monaco || !this.$refs.container) return
     this.registerQlExpressLanguage(window.monaco)
     this.registerSqlLanguage(window.monaco)
+    this.syncGlobalTheme()
 
     const options = {
       value: this.value,
@@ -144,12 +149,28 @@ export default {
     )
   },
   beforeUnmount() {
+    window.removeEventListener(
+      'tianshu-theme-change',
+      this.handleGlobalThemeChange
+    )
     if (this.editor) {
       this.editor.dispose()
       this.editor = null
     }
   },
   methods: {
+    handleGlobalThemeChange(event) {
+      const scheme = event && event.detail && event.detail.colorScheme
+      this.syncGlobalTheme(scheme)
+    },
+    syncGlobalTheme(colorScheme) {
+      if (!window.monaco || !window.monaco.editor) return
+      const rootScheme = document.documentElement.dataset.theme
+      const dark = colorScheme
+        ? colorScheme === 'DARK'
+        : rootScheme === 'dark'
+      window.monaco.editor.setTheme(dark ? 'vs-dark' : 'vs')
+    },
     registerQlExpressLanguage(monaco) {
       if (!monaco || this.language !== 'ql') return
 
@@ -550,7 +571,7 @@ export default {
 .monaco-editor-container {
   width: 100%;
   min-width: 0;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--tianshu-border);
   border-radius: 4px;
   overflow: hidden;
 }

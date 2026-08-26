@@ -57,7 +57,7 @@ export default {
 
 <style lang="scss" scoped>
 .rs-trace-group {
-  border-left: 2px solid #dcdfe6;
+  border-left: 2px solid var(--tianshu-border);
   padding-left: 10px;
 }
 .rs-trace-group + .rs-trace-group,
@@ -92,7 +92,7 @@ export default {
   font-weight: 700;
 }
 .rs-trace-group-result {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 11px;
 }
 .rs-trace-group.is-pass > .rs-trace-group-head .rs-trace-group-result {
@@ -110,9 +110,9 @@ export default {
   flex-wrap: wrap;
   gap: 6px;
   padding: 7px 8px;
-  border: 1px solid #e4e7ed;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 6px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
 }
 .rs-trace-leaf.is-pass {
   border-color: #d9f2ce;
@@ -138,12 +138,12 @@ export default {
 }
 .rs-trace-leaf-var span,
 .rs-trace-leaf-part {
-  color: #606266;
+  color: var(--tianshu-text-secondary);
   font-size: 12px;
 }
 .rs-trace-leaf-part strong,
 .rs-trace-leaf-op {
-  color: #303133;
+  color: var(--tianshu-text-primary);
   font-size: 12px;
   font-weight: 700;
 }
@@ -152,7 +152,7 @@ export default {
   padding: 1px 8px;
   border-radius: 10px;
   background: #f4f4f5;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 11px;
   font-weight: 700;
 }

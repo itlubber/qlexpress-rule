@@ -502,7 +502,7 @@ export default {
   padding: 10px 14px;
   border: 1px solid #e1e7ef;
   border-radius: 8px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
 }
 .expression-editor-page__toolbar > div:first-child {
   display: flex;

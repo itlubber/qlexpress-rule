@@ -94,8 +94,8 @@ export default {
 .node-panel {
   width: 180px;
   height: 100%;
-  background: #fff;
-  border-right: 1px solid #e8e8e8;
+  background: var(--tianshu-bg-surface);
+  border-right: 1px solid var(--tianshu-border-subtle);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -113,8 +113,8 @@ export default {
   transform: translateY(-50%);
   width: 24px;
   height: 48px;
-  background: #fff;
-  border: 1px solid #e8e8e8;
+  background: var(--tianshu-bg-surface);
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 0 12px 12px 0;
   display: flex;
   align-items: center;
@@ -122,9 +122,9 @@ export default {
   cursor: pointer;
   z-index: 10;
   font-size: 12px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   &:hover {
-    color: #333;
+    color: var(--tianshu-text-primary);
     background: #f5f5f5;
   }
 }
@@ -132,7 +132,7 @@ export default {
   padding: 12px 16px;
   font-weight: bold;
   font-size: 14px;
-  border-bottom: 1px solid #e8e8e8;
+  border-bottom: 1px solid var(--tianshu-border-subtle);
   flex-shrink: 0;
 }
 .panel-search {
@@ -149,9 +149,9 @@ export default {
 }
 .group-title {
   font-size: 12px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   padding: 6px 0 4px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--tianshu-border-subtle);
   margin-bottom: 4px;
 }
 .group-items {
@@ -182,6 +182,6 @@ export default {
 }
 .node-label {
   font-size: 13px;
-  color: #333;
+  color: var(--tianshu-text-primary);
 }
 </style>

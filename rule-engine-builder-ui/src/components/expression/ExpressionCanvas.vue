@@ -369,7 +369,7 @@ export default {
   padding: 9px 12px;
   border: 1px solid #ccd6e4;
   border-radius: 8px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   color: #25344b;
   cursor: pointer;
   text-align: left;
@@ -425,7 +425,7 @@ export default {
   padding: 0;
   border: 1px solid #d8e1ec;
   border-radius: 4px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   color: #607089;
   cursor: pointer;
 }
@@ -499,7 +499,7 @@ export default {
   padding: 6px;
   border: 1px solid #d7e3f2;
   border-radius: 6px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
   box-shadow: 0 8px 20px rgba(35, 55, 80, 0.14);
 }
 .canvas-path-candidates button {

@@ -3,7 +3,9 @@ vi.unmock('@/layout/index.vue')
 vi.mock('@/api/auth', () => ({
   getConsoleAuthConfig: vi.fn(),
   getConsoleMe: vi.fn(),
-  consoleLogout: vi.fn()
+  consoleLogout: vi.fn(),
+  getConsoleThemePreference: vi.fn(),
+  saveConsoleThemePreference: vi.fn()
 }))
 
 import { nextTick } from 'vue'
@@ -16,6 +18,8 @@ import LayoutSidebar from '@/layout/components/LayoutSidebar.vue'
 import WorkspaceTabs from '@/layout/components/WorkspaceTabs.vue'
 import expressionSessions from '@/store/modules/expressionSessions'
 import workspaceTabs from '@/store/modules/workspaceTabs'
+import { DEFAULT_THEME_CONFIG } from '@/theme/themeConfig'
+import { readLocalTheme, writeLocalTheme } from '@/theme/themeRuntime'
 import {
   SIDEBAR_COMPACT_THRESHOLD,
   SIDEBAR_DEFAULT_WIDTH,
@@ -300,9 +304,20 @@ function mountLayout(route = createRoute('/rule')) {
 describe('Layout — 全局布局集成', () => {
   beforeEach(() => {
     window.sessionStorage.clear()
+    window.localStorage.clear()
+    document.documentElement.removeAttribute('data-theme')
+    document.documentElement.removeAttribute('data-sidebar-theme')
+    document.documentElement.className = ''
+    document.documentElement.removeAttribute('style')
     authApi.getConsoleAuthConfig.mockResolvedValue({ data: { loginEnabled: false } })
     authApi.getConsoleMe.mockResolvedValue({ data: { username: 'admin' } })
     authApi.consoleLogout.mockResolvedValue({ data: true })
+    authApi.getConsoleThemePreference.mockResolvedValue({
+      data: { ...DEFAULT_THEME_CONFIG }
+    })
+    authApi.saveConsoleThemePreference.mockImplementation(config =>
+      Promise.resolve({ data: config })
+    )
   })
 
   afterEach(() => {
@@ -481,6 +496,93 @@ describe('Layout — 全局布局集成', () => {
     expect(wrapper.vm.loginEnabled).toBe(true)
     expect(wrapper.vm.username).toBe('张三')
     expect(wrapper.vm.avatarInitial).toBe('Z')
+    wrapper.unmount()
+  })
+
+  test('登录用户使用服务端主题并覆盖匿名浏览器配置', async() => {
+    writeLocalTheme(window.localStorage, {
+      ...DEFAULT_THEME_CONFIG,
+      accentPreset: 'PEACH_PINK'
+    })
+    const serverTheme = {
+      ...DEFAULT_THEME_CONFIG,
+      colorScheme: 'DARK',
+      accentPreset: 'NEBULA_GRADIENT'
+    }
+    authApi.getConsoleAuthConfig.mockResolvedValue({ data: { loginEnabled: true } })
+    authApi.getConsoleMe.mockResolvedValue({
+      data: { userId: 9, username: 'alice', permissions: [] }
+    })
+    authApi.getConsoleThemePreference.mockResolvedValue({ data: serverTheme })
+    const { wrapper } = mountLayout()
+
+    await wrapper.vm.refreshAuthBar()
+
+    expect(wrapper.vm.confirmedTheme).toEqual(serverTheme)
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    expect(document.documentElement.style.getPropertyValue('--tianshu-brand-gradient'))
+      .toContain('#E14ECA')
+    wrapper.unmount()
+  })
+
+  test('关闭登录时使用浏览器保存的主题且不请求用户主题接口', async() => {
+    const localTheme = { ...DEFAULT_THEME_CONFIG, colorScheme: 'DARK' }
+    writeLocalTheme(window.localStorage, localTheme)
+    authApi.getConsoleAuthConfig.mockResolvedValue({ data: { loginEnabled: false } })
+    const { wrapper } = mountLayout()
+
+    await wrapper.vm.refreshAuthBar()
+
+    expect(wrapper.vm.confirmedTheme).toEqual(localTheme)
+    expect(authApi.getConsoleThemePreference).not.toHaveBeenCalled()
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    wrapper.unmount()
+  })
+
+  test('抽屉预览立即应用且取消恢复已保存快照', () => {
+    const { wrapper } = mountLayout()
+    const preview = { ...DEFAULT_THEME_CONFIG, colorScheme: 'DARK' }
+
+    wrapper.vm.handleThemePreview(preview)
+    expect(document.documentElement.dataset.theme).toBe('dark')
+
+    wrapper.vm.cancelThemePreview({ ...DEFAULT_THEME_CONFIG })
+    expect(document.documentElement.dataset.theme).toBe('light')
+    expect(wrapper.vm.confirmedTheme).toEqual(DEFAULT_THEME_CONFIG)
+    wrapper.unmount()
+  })
+
+  test('登录用户保存成功后更新权威配置并镜像到浏览器', async() => {
+    const { wrapper } = mountLayout()
+    const darkTheme = { ...DEFAULT_THEME_CONFIG, colorScheme: 'DARK' }
+    wrapper.vm.loginEnabled = true
+    wrapper.vm.username = 'alice'
+    wrapper.vm.themeDrawerOpen = true
+
+    await wrapper.vm.saveTheme(darkTheme)
+
+    expect(authApi.saveConsoleThemePreference).toHaveBeenCalledWith(darkTheme)
+    expect(wrapper.vm.confirmedTheme).toEqual(darkTheme)
+    expect(readLocalTheme(window.localStorage)).toEqual(darkTheme)
+    expect(wrapper.vm.themeDrawerOpen).toBe(false)
+    wrapper.unmount()
+  })
+
+  test('主题保存失败保留抽屉和已保存配置', async() => {
+    authApi.saveConsoleThemePreference.mockRejectedValueOnce(
+      new Error('保存主题失败')
+    )
+    const { wrapper } = mountLayout()
+    wrapper.vm.loginEnabled = true
+    wrapper.vm.username = 'alice'
+    wrapper.vm.themeDrawerOpen = true
+
+    await wrapper.vm.saveTheme({ ...DEFAULT_THEME_CONFIG, colorScheme: 'DARK' })
+
+    expect(wrapper.vm.confirmedTheme).toEqual(DEFAULT_THEME_CONFIG)
+    expect(wrapper.vm.themeDrawerOpen).toBe(true)
+    expect(wrapper.vm.themeSaving).toBe(false)
+    expect(wrapper.vm.$message.error).toHaveBeenCalledWith('保存主题失败')
     wrapper.unmount()
   })
 

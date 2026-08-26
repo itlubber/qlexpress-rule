@@ -1667,7 +1667,7 @@ export default {
   }
 
   .detail-meta {
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
     font-size: 13px;
     margin-top: 4px;
   }
@@ -1688,27 +1688,27 @@ export default {
   }
 
   .guide-item {
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--tianshu-border-subtle);
     border-radius: 4px;
     padding: 10px 12px;
-    background: #ffffff;
+    background: var(--tianshu-bg-surface);
   }
 
   .guide-title {
-    color: #0f172a;
+    color: var(--tianshu-text-primary);
     font-weight: 700;
     margin-bottom: 6px;
   }
 
   .guide-text {
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
     font-size: 12px;
     line-height: 1.6;
   }
 
   .base-form,
   .detail-tabs {
-    background: #fff;
+    background: var(--tianshu-bg-surface);
     border: 1px solid #e5e7eb;
     border-radius: 4px;
     padding: 14px;
@@ -1717,7 +1717,7 @@ export default {
 
   .request-key-help {
     margin-top: 4px;
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
     font-size: 12px;
     line-height: 1.45;
   }
@@ -1737,7 +1737,7 @@ export default {
 
   .tab-subtitle {
     margin-top: 3px;
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
     font-size: 12px;
   }
 
@@ -1777,7 +1777,7 @@ export default {
     padding: 8px 10px;
     border: 1px solid #e5e7eb;
     border-radius: 4px;
-    background: #fff;
+    background: var(--tianshu-bg-surface);
   }
 
   @media (max-width: 1600px) {
@@ -1816,7 +1816,7 @@ export default {
   }
 
   .ratio-group-code {
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
     font-size: 12px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1828,7 +1828,7 @@ export default {
   }
 
   .ratio-input :deep(.el-input__inner) {
-    color: #0f172a;
+    color: var(--tianshu-text-primary);
     font-weight: 600;
     text-align: center;
   }
@@ -1846,7 +1846,7 @@ export default {
     border: 1px solid #e5e7eb;
     border-radius: 4px;
     padding: 12px;
-    background: #fff;
+    background: var(--tianshu-bg-surface);
   }
 
   .condition-route-list {
@@ -1877,8 +1877,8 @@ export default {
     display: flex;
     align-items: center;
     padding: 0 10px;
-    color: #606266;
-    background: #f8fafc;
+    color: var(--tianshu-text-secondary);
+    background: var(--tianshu-bg-soft);
     border: 1px solid #e5e7eb;
     border-radius: 4px;
   }
@@ -1906,9 +1906,9 @@ export default {
 
   :deep(.route-condition .cg) {
     padding: 8px;
-    border: 1px solid #ebeef5;
+    border: 1px solid var(--tianshu-border-subtle);
     border-radius: 4px;
-    background: #fff;
+    background: var(--tianshu-bg-surface);
   }
 
   .log-filter {
@@ -1916,7 +1916,7 @@ export default {
   }
 
   .field-tab-summary {
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
     font-size: 12px;
     margin-bottom: 10px;
   }
@@ -1939,8 +1939,8 @@ export default {
     padding: 10px;
     max-height: 260px;
     overflow: auto;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    background: var(--tianshu-bg-soft);
+    border: 1px solid var(--tianshu-border-subtle);
     border-radius: 4px;
     font-size: 12px;
     line-height: 1.5;
@@ -1956,7 +1956,7 @@ export default {
 
   .version-compare-title {
     font-weight: 600;
-    color: #303133;
+    color: var(--tianshu-text-primary);
   }
 
   .version-preview {
@@ -1964,8 +1964,8 @@ export default {
     padding: 10px;
     max-height: 320px;
     overflow: auto;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    background: var(--tianshu-bg-soft);
+    border: 1px solid var(--tianshu-border-subtle);
     border-radius: 4px;
     font-size: 12px;
     line-height: 1.5;

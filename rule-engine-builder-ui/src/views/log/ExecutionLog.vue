@@ -256,7 +256,7 @@
               size="small"
               ><el-icon><el-icon-view /></el-icon> 有</el-tag
             >
-            <span v-else style="color: #64748b">-</span>
+            <span v-else style="color: var(--tianshu-text-tertiary)">-</span>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="70" align="center" fixed="right">
@@ -1251,18 +1251,18 @@ emits: ['pick']
 .stats-card {
   min-width: 0;
   padding: 16px;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 6px;
-  background: #fff;
+  background: var(--tianshu-bg-surface);
 }
 .stats-card span {
   display: block;
   margin-bottom: 10px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 .stats-card strong {
-  color: #303133;
+  color: var(--tianshu-text-primary);
   font-size: 22px;
   line-height: 1;
 }
@@ -1271,7 +1271,7 @@ emits: ['pick']
 }
 .item-table-title {
   margin: 0 0 10px 8px;
-  color: #606266;
+  color: var(--tianshu-text-secondary);
   font-weight: 600;
 }
 @media (max-width: 1280px) {
@@ -1297,7 +1297,7 @@ emits: ['pick']
   margin-left: 4px;
 }
 .auth-type-text {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
   line-height: 1.4;
 }
@@ -1307,7 +1307,7 @@ emits: ['pick']
 .trace-id-card code {
   display: block;
   margin-top: 10px;
-  color: #303133;
+  color: var(--tianshu-text-primary);
   font-family: Consolas, Monaco, monospace;
   word-break: break-all;
 }
@@ -1327,7 +1327,7 @@ emits: ['pick']
   gap: 12px;
 }
 .auth-attribution-grid span {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 .auth-attribution-grid code {

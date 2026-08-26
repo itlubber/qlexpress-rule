@@ -131,18 +131,18 @@ $info-color: #475569;
 
 /* ── 文字链接按钮 ── */
 .el-button--text {
-  color: $--color-primary !important;
+  color: var(--el-color-primary) !important;
   transition: color 0.15s ease, background-color 0.15s ease;
 
   &:hover,
   &:focus {
     color: #1a30d4 !important;
-    background-color: rgba($--color-primary, 0.1) !important;
+    background-color: rgba(var(--el-color-primary-rgb), 0.1) !important;
   }
 
   &:active {
     color: #152aad !important;
-    background-color: rgba($--color-primary, 0.18) !important;
+    background-color: rgba(var(--el-color-primary-rgb), 0.18) !important;
   }
 }
 
@@ -200,16 +200,16 @@ $info-color: #475569;
 
   &:hover,
   &:focus {
-    color: $--color-primary;
-    border-color: $--color-primary;
-    background-color: rgba($--color-primary, 0.08);
+    color: var(--el-color-primary);
+    border-color: var(--el-color-primary);
+    background-color: rgba(var(--el-color-primary-rgb), 0.08);
   }
 
   &:active,
   &.is-active {
     color: #1a30d4;
     border-color: #1a30d4;
-    background-color: rgba($--color-primary, 0.15);
+    background-color: rgba(var(--el-color-primary-rgb), 0.15);
   }
 }
 
@@ -303,7 +303,7 @@ $info-color: #475569;
   }
 
   &.el-button--info {
-    color: #475569 !important;
+    color: var(--tianshu-text-secondary) !important;
 
     &:hover,
     &:focus {
@@ -344,22 +344,22 @@ $info-color: #475569;
 
 .el-tag--info {
   background-color: #F1F5F9 !important;
-  border-color: #CBD5E1 !important;
-  color: #475569 !important;
+  border-color: var(--tianshu-border) !important;
+  color: var(--tianshu-text-secondary) !important;
 }
 
 /* ── 主色标签 ── */
 .el-tag--primary {
   background-color: #EEF1FF !important;
   border-color: #C7CEFF !important;
-  color: $--color-primary !important;
+  color: var(--el-color-primary) !important;
 }
 
 /* ── 作用范围标签：全局=品牌主色，项目级=浅绿色 ── */
 .el-tag--scope-global {
-  background-color: rgba($--color-primary, 0.1) !important;
-  border-color: rgba($--color-primary, 0.22) !important;
-  color: $--color-primary !important;
+  background-color: rgba(var(--el-color-primary-rgb), 0.1) !important;
+  border-color: rgba(var(--el-color-primary-rgb), 0.22) !important;
+  color: var(--el-color-primary) !important;
 }
 
 .el-tag--scope-project {
@@ -389,8 +389,8 @@ $info-color: #475569;
 
 .el-alert--info.is-light {
   background-color: #F1F5F9;
-  border: 1px solid #CBD5E1;
-  color: #475569;
+  border: 1px solid var(--tianshu-border);
+  color: var(--tianshu-text-secondary);
 }
 
 .el-alert.is-light .el-alert__title,
@@ -400,11 +400,11 @@ $info-color: #475569;
 
 /* ── 链接颜色 ── */
 .el-link--primary {
-  color: $--color-primary !important;
+  color: var(--el-color-primary) !important;
 
   &:hover,
   &:focus {
-    color: rgba($--color-primary, 0.68) !important;
+    color: color-mix(in srgb, var(--el-color-primary) 68%, transparent) !important;
   }
 }
 
@@ -419,59 +419,59 @@ $info-color: #475569;
 
 /* ── 开关 ── */
 .el-switch.is-checked .el-switch__core {
-  background-color: $--color-primary !important;
-  border-color: $--color-primary !important;
+  background-color: var(--el-color-primary) !important;
+  border-color: var(--el-color-primary) !important;
 }
 
 /* ── 分页 ── */
 .el-pagination {
   .el-pager li.active {
-    color: $--color-primary;
+    color: var(--el-color-primary);
   }
 
   .el-pager li:hover {
-    color: $--color-primary;
+    color: var(--el-color-primary);
   }
 
   .btn-prev,
   .btn-next {
     &:hover {
-      color: $--color-primary;
+      color: var(--el-color-primary);
     }
   }
 }
 
 /* ── Tabs ── */
 .el-tabs__item {
-  color: #475569;
+  color: var(--tianshu-text-secondary);
 
   &:hover,
   &:focus-visible {
-    color: $--color-primary;
+    color: var(--el-color-primary);
   }
 }
 
 .el-tabs__item.is-active {
-  color: $--color-primary !important;
+  color: var(--el-color-primary) !important;
 }
 
 .el-tabs__active-bar {
-  background-color: $--color-primary !important;
+  background-color: var(--el-color-primary) !important;
 }
 
 .el-empty__description {
-  color: #475569;
+  color: var(--tianshu-text-secondary);
 }
 
 /* ── 下拉选中 ── */
 .el-select-dropdown__item.selected {
-  color: $--color-primary !important;
+  color: var(--el-color-primary) !important;
   font-weight: 500;
 }
 
 .el-cascader-node:not(.is-disabled):hover,
 .el-select-dropdown__item:hover {
-  color: $--color-primary;
+  color: var(--el-color-primary);
 }
 
 /* ── 表单聚焦 ── */
@@ -499,13 +499,13 @@ $info-color: #475569;
 .el-input__inner::placeholder,
 .el-textarea__inner::placeholder,
 .el-range-input::placeholder {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   opacity: 1;
 }
 
 .el-select__placeholder,
 .el-date-editor .el-range-separator {
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
 }
 
 .el-input__wrapper:hover {
@@ -533,41 +533,41 @@ $info-color: #475569;
 
 /* ── 单选 / 多选 ── */
 .el-radio__input.is-checked .el-radio__inner {
-  background-color: $--color-primary !important;
-  border-color: $--color-primary !important;
+  background-color: var(--el-color-primary) !important;
+  border-color: var(--el-color-primary) !important;
 }
 
 .el-radio__input.is-checked + .el-radio__label {
-  color: $--color-primary !important;
+  color: var(--el-color-primary) !important;
 }
 
 .el-checkbox__input.is-checked .el-checkbox__inner {
-  background-color: $--color-primary !important;
-  border-color: $--color-primary !important;
+  background-color: var(--el-color-primary) !important;
+  border-color: var(--el-color-primary) !important;
 }
 
 .el-checkbox__input.is-checked + .el-checkbox__label {
-  color: $--color-primary !important;
+  color: var(--el-color-primary) !important;
 }
 
 .el-checkbox__inner:hover {
-  border-color: $--color-primary !important;
+  border-color: var(--el-color-primary) !important;
 }
 
 /* ── 进度条 ── */
 .el-progress-bar__inner {
-  background-color: $--color-primary !important;
+  background-color: var(--el-color-primary) !important;
 }
 
 /* ── 日期选择器 ── */
 .el-date-picker {
   .el-picker-panel__icon-btn:hover {
-    color: $--color-primary;
+    color: var(--el-color-primary);
   }
 
   .available:hover,
   .today .el-date-picker__header-label:hover {
-    color: $--color-primary;
+    color: var(--el-color-primary);
   }
 }
 
@@ -575,12 +575,12 @@ $info-color: #475569;
 .el-menu--horizontal {
   .el-menu-item:not(.is-disabled):hover,
   .el-submenu__title:not(.is-disabled):hover {
-    color: $--color-primary;
+    color: var(--el-color-primary);
   }
 
   .el-menu-item.is-active {
-    color: $--color-primary;
-    border-bottom-color: $--color-primary;
+    color: var(--el-color-primary);
+    border-bottom-color: var(--el-color-primary);
   }
 }
 
@@ -631,7 +631,7 @@ $info-color: #475569;
 
 /* ── 弹窗标题 ── */
 .el-dialog__header {
-  border-bottom: 1px solid #e8e8e8;
+  border-bottom: 1px solid var(--tianshu-border-subtle);
   padding: 16px 20px;
   margin-right: 0;
 }
@@ -640,7 +640,7 @@ $info-color: #475569;
   font-family: $font-family-base;
   font-weight: 600;
   font-size: 16px;
-  color: #303133;
+  color: var(--tianshu-text-primary);
 }
 
 /* ── 弹窗主体内容 ── */
@@ -692,8 +692,8 @@ $info-color: #475569;
   font-family: $font-family-base;
 
   th {
-    background-color: #fafafa !important;
-    color: #606266;
+    background-color: var(--tianshu-bg-muted) !important;
+    color: var(--tianshu-text-secondary);
     font-weight: 600;
   }
 
@@ -702,19 +702,19 @@ $info-color: #475569;
   }
 
   tr:hover > td {
-    background-color: #f5f7fa !important;
+    background-color: var(--tianshu-bg-muted) !important;
   }
 }
 
 /* ── 表格 hover 行高亮 ── */
 .el-table--striped .el-table__body tr.el-table__row--striped td {
-  background-color: #fafafa !important;
+  background-color: var(--tianshu-bg-muted) !important;
 }
 
 /* ── 表格空状态样式 ── */
 .el-table__empty-text {
   font-family: $font-family-base;
-  color: #475569;
+  color: var(--tianshu-text-secondary);
   padding: 32px 0;
 }
 
@@ -732,7 +732,7 @@ $info-color: #475569;
 /* ── 表单项标签 ── */
 .el-form-item__label {
   font-family: $font-family-base;
-  color: #606266;
+  color: var(--tianshu-text-secondary);
   font-weight: 500;
 }
 
@@ -749,8 +749,8 @@ $info-color: #475569;
 
 .el-descriptions__label {
   font-family: $font-family-base;
-  background-color: #fafafa !important;
-  color: #606266;
+  background-color: var(--tianshu-bg-muted) !important;
+  color: var(--tianshu-text-secondary);
 }
 
 .el-descriptions__content {
@@ -795,7 +795,7 @@ $info-color: #475569;
 
 .el-button--primary.is-link,
 .el-button--primary.is-text {
-  color: $primary-color !important;
+  color: var(--el-color-primary) !important;
 }
 
 .el-button--success.is-link,

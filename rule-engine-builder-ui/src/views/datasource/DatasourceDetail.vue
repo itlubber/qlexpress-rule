@@ -673,7 +673,7 @@ export default {
   .detail-meta,
   .field-help,
   .section-help {
-    color: #64748b;
+    color: var(--tianshu-text-tertiary);
   }
   .detail-meta {
     font-size: 13px;
@@ -685,7 +685,7 @@ export default {
     gap: 8px;
   }
   .detail-form {
-    background: #fff;
+    background: var(--tianshu-bg-surface);
     border: 1px solid #e5e7eb;
     border-radius: 4px;
     padding: 16px;

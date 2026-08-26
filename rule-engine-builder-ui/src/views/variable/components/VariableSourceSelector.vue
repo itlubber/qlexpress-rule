@@ -111,8 +111,8 @@ export default {
   padding: 11px 12px;
   border: 1px solid #dfe5ee;
   border-radius: 8px;
-  background: #fff;
-  color: #64748b;
+  background: var(--tianshu-bg-surface);
+  color: var(--tianshu-text-tertiary);
   cursor: pointer;
   text-align: left;
 }

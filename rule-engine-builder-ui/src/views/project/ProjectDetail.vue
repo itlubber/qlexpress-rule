@@ -766,13 +766,13 @@ export default {
 
 .rule-section-heading h3 {
   margin: 0;
-  color: #0f172a;
+  color: var(--tianshu-text-primary);
   font-size: 18px;
 }
 
 .rule-section-heading p {
   margin: 4px 0 0;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 

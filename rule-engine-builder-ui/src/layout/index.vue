@@ -39,6 +39,24 @@
         </router-view>
       </main>
     </section>
+    <button
+      v-if="!themeDrawerOpen"
+      type="button"
+      class="theme-settings-trigger"
+      aria-label="主题设置"
+      title="主题设置"
+      @click="openThemeSettings"
+    >
+      <app-icon name="Setting" />
+    </button>
+    <theme-settings-drawer
+      v-model="themeDrawerOpen"
+      :config="confirmedTheme"
+      :saving="themeSaving"
+      @preview="handleThemePreview"
+      @save="saveTheme"
+      @cancel="cancelThemePreview"
+    />
   </div>
 </template>
 
@@ -47,6 +65,7 @@ import { isNavigationFailure } from 'vue-router'
 import LayoutSidebar from '@/layout/components/LayoutSidebar.vue'
 import WorkspaceTabs from '@/layout/components/WorkspaceTabs.vue'
 import ProjectContextBar from '@/components/ProjectContextBar.vue'
+import ThemeSettingsDrawer from '@/components/theme/ThemeSettingsDrawer.vue'
 import {
   SIDEBAR_COMPACT_THRESHOLD,
   SIDEBAR_MENUS,
@@ -61,7 +80,13 @@ import {
   writeSidebarState,
 } from '@/layout/layoutState'
 import { readWorkspaceTabs } from '@/store/modules/workspaceTabs'
-import { getConsoleAuthConfig, consoleLogout, getConsoleMe } from '@/api/auth'
+import {
+  getConsoleAuthConfig,
+  consoleLogout,
+  getConsoleMe,
+  getConsoleThemePreference,
+  saveConsoleThemePreference,
+} from '@/api/auth'
 import { getProject } from '@/api/project'
 import {
   normalizeProjectId,
@@ -73,6 +98,15 @@ import {
   filterMenus,
   setCurrentUser,
 } from '@/security/permissionState'
+import {
+  DEFAULT_THEME_CONFIG,
+  normalizeThemeConfig,
+} from '@/theme/themeConfig'
+import {
+  applyTheme,
+  readLocalTheme,
+  writeLocalTheme,
+} from '@/theme/themeRuntime'
 
 function browserSessionStorage() {
   try {
@@ -82,17 +116,34 @@ function browserSessionStorage() {
   }
 }
 
+function browserLocalStorage() {
+  try {
+    return typeof window !== 'undefined' ? window.localStorage : null
+  } catch (e) {
+    return null
+  }
+}
+
 export default {
   name: 'Layout',
-  components: { LayoutSidebar, WorkspaceTabs, ProjectContextBar },
+  components: {
+    LayoutSidebar,
+    WorkspaceTabs,
+    ProjectContextBar,
+    ThemeSettingsDrawer,
+  },
   data() {
     const sidebarState = readSidebarState(browserSessionStorage())
+    const initialTheme = readLocalTheme(browserLocalStorage())
     return {
       sidebarWidth: sidebarState.width,
       lastExpandedWidth: sidebarState.lastExpandedWidth,
       sidebarMenus: SIDEBAR_MENUS,
       loginEnabled: false,
       username: '',
+      confirmedTheme: initialTheme,
+      themeDrawerOpen: false,
+      themeSaving: false,
     }
   },
   computed: {
@@ -130,6 +181,7 @@ export default {
     },
   },
   created() {
+    applyTheme(this.confirmedTheme)
     this.restoreWorkspaceTabs()
   },
   async mounted() {
@@ -278,6 +330,43 @@ export default {
         lastExpandedWidth: this.lastExpandedWidth,
       })
     },
+    openThemeSettings() {
+      this.themeDrawerOpen = true
+    },
+    handleThemePreview(theme) {
+      applyTheme(theme)
+    },
+    cancelThemePreview(snapshot) {
+      const restored = normalizeThemeConfig(snapshot || this.confirmedTheme)
+      this.confirmedTheme = restored
+      applyTheme(restored)
+    },
+    confirmTheme(theme) {
+      const confirmed = normalizeThemeConfig(theme)
+      this.confirmedTheme = confirmed
+      applyTheme(confirmed)
+      writeLocalTheme(browserLocalStorage(), confirmed)
+      return confirmed
+    },
+    async saveTheme(theme) {
+      if (this.themeSaving) return
+      const candidate = normalizeThemeConfig(theme)
+      this.themeSaving = true
+      try {
+        let saved = candidate
+        if (this.loginEnabled && this.username) {
+          const response = await saveConsoleThemePreference(candidate)
+          saved = normalizeThemeConfig(response && response.data)
+        }
+        this.confirmTheme(saved)
+        this.themeDrawerOpen = false
+        this.$message.success('主题设置已保存')
+      } catch (e) {
+        this.$message.error(e.message || '保存主题设置失败')
+      } finally {
+        this.themeSaving = false
+      }
+    },
     async refreshAuthBar() {
       try {
         const cfg = await getConsoleAuthConfig()
@@ -286,6 +375,7 @@ export default {
           this.username = ''
           clearCurrentUser()
           this.sidebarMenus = filterMenus(SIDEBAR_MENUS)
+          this.confirmTheme(readLocalTheme(browserLocalStorage()))
           return
         }
         const me = await getConsoleMe()
@@ -296,6 +386,17 @@ export default {
           clearCurrentUser()
         }
         this.sidebarMenus = filterMenus(SIDEBAR_MENUS)
+        try {
+          const theme = await getConsoleThemePreference()
+          this.confirmTheme(theme && theme.data
+            ? theme.data
+            : DEFAULT_THEME_CONFIG)
+        } catch (themeError) {
+          this.confirmTheme(DEFAULT_THEME_CONFIG)
+          this.$message.warning(
+            themeError.message || '加载主题设置失败，已使用默认主题'
+          )
+        }
       } catch (e) {
         this.loginEnabled = false
         this.username = ''
@@ -324,7 +425,7 @@ export default {
   height: 100vh;
   min-width: 0;
   overflow: hidden;
-  background: #f3f4f6;
+  background: var(--tianshu-bg-page);
 }
 .layout-workspace {
   display: flex;
@@ -342,6 +443,33 @@ export default {
   overflow-y: auto;
   flex: 1;
   box-sizing: border-box;
-  background: #f3f4f6;
+  background: var(--tianshu-bg-page);
+}
+.theme-settings-trigger {
+  position: fixed;
+  z-index: 1900;
+  top: 50%;
+  right: 0;
+  display: flex;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  color: var(--tianshu-brand-foreground, #ffffff);
+  font-size: 18px;
+  background: var(--tianshu-brand-background, #2639e9);
+  border: 0;
+  border-radius: 8px 0 0 8px;
+  box-shadow: var(--tianshu-shadow-medium, 0 8px 22px rgba(15, 23, 42, 0.18));
+  cursor: pointer;
+  transform: translateY(-50%);
+
+  &:hover,
+  &:focus-visible {
+    width: 46px;
+    outline: 2px solid var(--tianshu-focus-ring, rgba(38, 57, 233, 0.18));
+    outline-offset: 2px;
+  }
 }
 </style>

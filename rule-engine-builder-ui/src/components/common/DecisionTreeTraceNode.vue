@@ -167,7 +167,7 @@ export default {
 <style scoped>
 .dtt {
   font-size: 13px;
-  color: #303133;
+  color: var(--tianshu-text-primary);
 }
 .dtt-decision {
   display: inline-flex;
@@ -206,7 +206,7 @@ export default {
 }
 .dtt-branches {
   padding-left: 16px;
-  border-left: 2px solid #e4e7ed;
+  border-left: 2px solid var(--tianshu-border-subtle);
   margin-left: 10px;
 }
 .dtt-branch {
@@ -220,7 +220,7 @@ export default {
   left: -16px;
   width: 14px;
   height: 0;
-  border-top: 2px solid #e4e7ed;
+  border-top: 2px solid var(--tianshu-border-subtle);
 }
 .dtt-branch--hit::before {
   border-top-color: #52c41a;
@@ -243,7 +243,7 @@ export default {
   user-select: none;
 }
 .dtt-branch-head:hover {
-  background: #f5f7fa;
+  background: var(--tianshu-bg-muted);
 }
 .dtt-dot {
   display: inline-block;
@@ -263,12 +263,12 @@ export default {
 }
 .dtt-dot--skipped {
   background: #d9d9d9;
-  border-color: #d9d9d9;
+  border-color: var(--tianshu-border);
 }
 .dtt-branch-label {
   font-weight: 600;
   font-size: 13px;
-  color: #303133;
+  color: var(--tianshu-text-primary);
 }
 .dtt-branch--hit > .dtt-branch-head > .dtt-branch-label {
   color: #389e0d;
@@ -296,13 +296,13 @@ export default {
   border: 1px solid #ffccc7;
 }
 .dtt-tag--skipped {
-  background: #fafafa;
-  color: #64748b;
-  border: 1px solid #e8e8e8;
+  background: var(--tianshu-bg-muted);
+  color: var(--tianshu-text-tertiary);
+  border: 1px solid var(--tianshu-border-subtle);
 }
 .dtt-toggle {
   font-size: 12px;
-  color: #64748b;
+  color: var(--tianshu-text-tertiary);
   transition: transform 0.2s;
   margin-left: 2px;
 }
@@ -321,8 +321,8 @@ export default {
   margin: 4px 0 2px;
   border-radius: 4px;
   font-size: 12px;
-  background: #fafafa;
-  border: 1px solid #e8e8e8;
+  background: var(--tianshu-bg-muted);
+  border: 1px solid var(--tianshu-border-subtle);
   color: #595959;
 }
 .dtt-leaf--hit {
