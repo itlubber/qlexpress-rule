@@ -76,6 +76,7 @@
                 <el-button
                   v-permission="'account:manage'"
                   link
+                  data-action="edit"
                   type="primary"
                   @click="openAccountDialog(row)"
                 >
@@ -84,6 +85,7 @@
                 <el-button
                   v-permission="'account:manage'"
                   link
+                  data-action="configure"
                   type="primary"
                   @click="openPermissionDialog(row)"
                 >
@@ -92,6 +94,7 @@
                 <el-button
                   v-permission="'account:manage'"
                   link
+                  data-action="reset"
                   @click="openPasswordDialog(row)"
                 >
                   重置密码
@@ -99,6 +102,7 @@
                 <el-button
                   v-permission="'account:manage'"
                   link
+                  :data-action="row.status === 1 ? 'disable' : 'publish'"
                   :type="row.status === 1 ? 'danger' : 'success'"
                   @click="toggleAccount(row)"
                 >
@@ -132,6 +136,7 @@
                 <el-button
                   v-permission="'role:manage'"
                   link
+                  data-action="configure"
                   type="primary"
                   @click="openRoleDialog(row)"
                 >
@@ -140,6 +145,7 @@
                 <el-button
                   v-permission="'role:manage'"
                   link
+                  :data-action="row.status === 1 ? 'disable' : 'publish'"
                   :type="row.status === 1 ? 'danger' : 'success'"
                   @click="toggleRole(row)"
                 >

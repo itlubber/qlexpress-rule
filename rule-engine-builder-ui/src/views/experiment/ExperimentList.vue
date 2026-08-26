@@ -11,17 +11,9 @@
           API 外数。
         </div>
       </div>
-      <el-button
-        v-permission="'experiment:edit'"
-        size="small"
-        type="primary"
-        :icon="ElIconPlus"
-        @click="handleCreate"
-        >新建实验</el-button
-      >
     </div>
 
-    <div class="uiue-search-container">
+    <div class="uiue-search-container uiue-filter-toolbar">
       <el-form :inline="true" size="small" @keyup.enter="handleQuery">
         <el-form-item label="项目编码">
           <project-filter-select
@@ -63,6 +55,18 @@
           <el-button @click="resetQuery">重置</el-button>
         </el-form-item>
       </el-form>
+      <div class="uiue-btn-bar">
+        <div class="btn-right">
+          <el-button
+            v-permission="'experiment:edit'"
+            size="small"
+            type="primary"
+            :icon="ElIconPlus"
+            @click="handleCreate"
+            >新建实验</el-button
+          >
+        </div>
+      </div>
     </div>
 
     <el-table :data="experiments" border size="small" v-loading="loading">
@@ -138,6 +142,7 @@
           <el-button
             v-permission="'experiment:edit'"
             link
+            data-action="execute"
             size="small"
             type="success"
             @click="handleTest(row)"
@@ -146,6 +151,7 @@
           <el-button
             v-permission="'experiment:edit'"
             link
+            data-action="detail"
             size="small"
             type="primary"
             @click="handleEdit(row)"
@@ -153,6 +159,7 @@
           >
           <el-button
             link
+            data-action="delete"
             size="small"
             type="danger"
             class="btn-delete"
@@ -308,7 +315,6 @@
                 v-else
                 v-model:value="row.conditionExpression"
                 language="ql"
-                theme="qlexpress-dark"
                 height="70px"
               />
             </template>
@@ -355,6 +361,7 @@
             <template v-slot="{ row }">
               <el-button
                 link
+                data-action="delete"
                 size="small"
                 type="danger"
                 @click="removeGroup(row)"
@@ -410,7 +417,6 @@
                 v-else
                 v-model:value="row.conditionExpression"
                 language="ql"
-                theme="qlexpress-dark"
                 height="70px"
               />
             </template>
@@ -456,6 +462,7 @@
             ><template v-slot="{ row }"
               ><el-button
                 link
+                data-action="delete"
                 size="small"
                 type="danger"
                 @click="removeGroup(row)"
@@ -1660,7 +1667,7 @@ export default {
     margin: 0;
     font-size: 20px;
     font-weight: 700;
-    color: #1f2937;
+    color: var(--tianshu-text-primary);
   }
 
   .page-subtitle {
@@ -1684,7 +1691,7 @@ export default {
     margin: 16px 0 8px;
     font-size: 14px;
     font-weight: 700;
-    color: #1f2937;
+    color: var(--tianshu-text-primary);
   }
 
   .group-table {
@@ -1729,9 +1736,9 @@ export default {
     gap: 16px;
     padding: 12px 16px;
     margin-bottom: 16px;
-    border: 1px solid #dbeafe;
+    border: 1px solid var(--tianshu-info-border);
     border-radius: 8px;
-    background: #f8fbff;
+    background: var(--tianshu-info-bg);
 
     > div {
       display: flex;
@@ -1741,7 +1748,7 @@ export default {
     }
 
     strong {
-      color: #1e3a5f;
+      color: var(--tianshu-text-primary);
       font-size: 15px;
     }
 
@@ -1781,7 +1788,7 @@ export default {
     &.is-error {
       strong,
       span {
-        color: #b91c1c;
+        color: var(--tianshu-danger-text);
       }
     }
   }
@@ -1801,8 +1808,8 @@ export default {
     justify-content: space-between;
     gap: 12px;
     padding: 12px 16px;
-    border-color: #bbf7d0;
-    background: #f0fdf4;
+    border-color: var(--tianshu-success-border);
+    background: var(--tianshu-success-bg);
 
     > div {
       display: flex;
@@ -1811,7 +1818,7 @@ export default {
     }
 
     strong {
-      color: #166534;
+      color: var(--tianshu-success-text);
       font-size: 13px;
     }
 
@@ -1822,11 +1829,11 @@ export default {
     }
 
     &.is-degraded {
-      border-color: #fde68a;
-      background: #fffbeb;
+      border-color: var(--tianshu-warning-border);
+      background: var(--tianshu-warning-bg);
 
       strong {
-        color: #92400e;
+        color: var(--tianshu-warning-text);
       }
     }
   }
@@ -1834,7 +1841,7 @@ export default {
   .execution-warnings {
     margin: -8px 0 16px;
     padding: 8px 16px 8px 34px;
-    color: #92400e;
+    color: var(--tianshu-warning-text);
     font-size: 12px;
     line-height: 1.5;
   }
@@ -1859,7 +1866,7 @@ export default {
 
     strong,
     .execution-group-title {
-      color: #1f2937;
+      color: var(--tianshu-text-primary);
       font-size: 14px;
       font-weight: 700;
     }
@@ -1890,7 +1897,7 @@ export default {
   .execution-param-panel {
     max-height: 320px;
     overflow-y: auto;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--tianshu-border-subtle);
     border-radius: 8px;
     background: var(--tianshu-bg-surface);
   }
@@ -1915,7 +1922,7 @@ export default {
   .execution-field-label {
     margin-bottom: 4px;
     overflow: hidden;
-    color: #374151;
+    color: var(--tianshu-text-secondary);
     font-size: 13px;
     font-weight: 500;
     text-overflow: ellipsis;
@@ -1945,7 +1952,7 @@ export default {
 
   .execution-json-error {
     margin-top: 8px;
-    color: #dc2626;
+    color: var(--tianshu-danger-text);
     font-size: 12px;
   }
 
@@ -1954,11 +1961,11 @@ export default {
     flex-direction: column;
     gap: 4px;
     padding: 12px 16px;
-    border-color: #bfdbfe;
-    background: #eff6ff;
+    border-color: var(--tianshu-info-border);
+    background: var(--tianshu-info-bg);
 
     strong {
-      color: #1d4ed8;
+      color: var(--tianshu-info-text);
       font-size: 13px;
     }
 
@@ -1987,9 +1994,9 @@ export default {
     gap: 8px 12px;
     padding: 12px;
     margin-bottom: 12px;
-    border: 1px solid #bfdbfe;
+    border: 1px solid var(--tianshu-info-border);
     border-radius: 8px;
-    background: #f8fbff;
+    background: var(--tianshu-info-bg);
 
     > div {
       display: flex;
@@ -2004,14 +2011,14 @@ export default {
     }
 
     strong {
-      color: #1e3a5f;
+      color: var(--tianshu-text-primary);
       font-size: 14px;
     }
 
     p {
       grid-column: 1 / -1;
       margin: 0;
-      color: #b91c1c;
+      color: var(--tianshu-danger-text);
     }
   }
 
@@ -2033,14 +2040,14 @@ export default {
 
     strong {
       overflow: hidden;
-      color: #334155;
+      color: var(--tianshu-text-secondary);
       font-size: 13px;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
 
     span {
-      color: #b91c1c;
+      color: var(--tianshu-danger-text);
       font-size: 12px;
     }
   }

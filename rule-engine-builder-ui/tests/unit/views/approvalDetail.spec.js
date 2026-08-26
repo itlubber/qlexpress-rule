@@ -171,4 +171,29 @@ describe('统一审批详情', () => {
     expect(wrapper.vm.compareOriginal).toBe('{"host":"db-old","port":3306}')
     expect(wrapper.vm.compareModified).toBe('{"host":"db-new","port":3306}')
   })
+
+  test('血缘依赖区复用统一血缘图组件并启用完整画布能力', async() => {
+    const wrapper = shallowMount(ApprovalDetail, {
+      global: { directives: { permission: {} } }
+    })
+    await flushPromises()
+    wrapper.vm.detail = {
+      ...wrapper.vm.detail,
+      request: {
+        ...wrapper.vm.detail.request,
+        resourceType: 'RULE',
+        resourceId: 27
+      }
+    }
+    await wrapper.vm.$nextTick()
+
+    const graph = wrapper.findComponent({ name: 'LineageGraph' })
+    expect(graph.exists()).toBe(true)
+    expect(graph.props()).toMatchObject({
+      embedded: true,
+      initialNodeType: 'RULE',
+      initialNodeId: 27,
+      initialDirection: 'ALL'
+    })
+  })
 })

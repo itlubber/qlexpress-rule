@@ -228,7 +228,6 @@
                 v-else
                 v-model:value="row.conditionExpression"
                 language="ql"
-                theme="qlexpress-dark"
                 height="70px"
               />
             </div>
@@ -375,7 +374,6 @@
                 v-else
                 v-model:value="row.conditionExpression"
                 language="ql"
-                theme="qlexpress-dark"
                 height="70px"
               />
             </div>
@@ -1663,7 +1661,7 @@ export default {
   .detail-title {
     font-size: 20px;
     font-weight: 700;
-    color: #1f2937;
+    color: var(--tianshu-text-primary);
   }
 
   .detail-meta {
@@ -1709,7 +1707,7 @@ export default {
   .base-form,
   .detail-tabs {
     background: var(--tianshu-bg-surface);
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--tianshu-border-subtle);
     border-radius: 4px;
     padding: 14px;
     margin-bottom: 12px;
@@ -1731,7 +1729,7 @@ export default {
   }
 
   .tab-title {
-    color: #1f2937;
+    color: var(--tianshu-text-primary);
     font-weight: 700;
   }
 
@@ -1743,9 +1741,9 @@ export default {
 
   .ratio-config-panel {
     margin-top: 12px;
-    border: 1px solid #dbeafe;
+    border: 1px solid var(--tianshu-info-border);
     border-radius: 4px;
-    background: #f8fbff;
+    background: var(--tianshu-info-bg);
     padding: 12px;
   }
 
@@ -1758,7 +1756,7 @@ export default {
   }
 
   .ratio-config-title {
-    color: #1f2937;
+    color: var(--tianshu-text-primary);
     font-size: 13px;
     font-weight: 700;
   }
@@ -1775,7 +1773,7 @@ export default {
     align-items: center;
     gap: 10px;
     padding: 8px 10px;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--tianshu-border-subtle);
     border-radius: 4px;
     background: var(--tianshu-bg-surface);
   }
@@ -1808,7 +1806,7 @@ export default {
   }
 
   .ratio-group-name {
-    color: #334155;
+    color: var(--tianshu-text-secondary);
     font-weight: 600;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1843,7 +1841,7 @@ export default {
   .action-card,
   .route-condition,
   .route-action {
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--tianshu-border-subtle);
     border-radius: 4px;
     padding: 12px;
     background: var(--tianshu-bg-surface);
@@ -1866,7 +1864,7 @@ export default {
   .route-panel-title,
   .field-label,
   .detail-block-title {
-    color: #334155;
+    color: var(--tianshu-text-primary);
     font-weight: 700;
     font-size: 12px;
     margin-bottom: 6px;
@@ -1879,7 +1877,7 @@ export default {
     padding: 0 10px;
     color: var(--tianshu-text-secondary);
     background: var(--tianshu-bg-soft);
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--tianshu-border-subtle);
     border-radius: 4px;
   }
 
@@ -1900,7 +1898,7 @@ export default {
   }
 
   :deep(.group-action-form .btn-delete) {
-    color: #f56c6c;
+    color: var(--tianshu-danger-text);
     margin-left: auto;
   }
 

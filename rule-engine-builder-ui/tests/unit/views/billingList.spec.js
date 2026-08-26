@@ -1,4 +1,6 @@
 import BillingList from '@/views/billing/BillingList.vue'
+import { nextTick } from 'vue'
+import { shallowMount } from '@test-utils'
 import * as billingApi from '@/api/billing'
 import { listDefinitions } from '@/api/definition'
 import { listApiConfigs } from '@/api/datasource'
@@ -42,6 +44,25 @@ function createContext(overrides = {}) {
 describe('BillingList target selector', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  test('计费配置和刷新汇总入口受项目编辑权限控制', async () => {
+    billingApi.listBillingConfigs.mockResolvedValue({
+      data: { records: [], total: 0 }
+    })
+    const permissions = []
+    const wrapper = shallowMount(BillingList, {
+      mocks: { $message: { error: vi.fn() } },
+      directives: {
+        permission: {
+          mounted: (_element, binding) => permissions.push(binding.value)
+        }
+      }
+    })
+    await nextTick()
+
+    expect(permissions).toContain('project:edit')
+    wrapper.unmount()
   })
 
   test('uses project code and name fuzzy filters in all list queries', () => {

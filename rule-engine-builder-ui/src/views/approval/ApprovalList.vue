@@ -496,27 +496,27 @@ export default {
 
 .page-header p {
   margin: 9px 0 0;
-  color: #6b7585;
+  color: var(--tianshu-text-secondary);
 }
 
 .header-stat {
   display: flex;
   align-items: baseline;
   gap: 9px;
-  color: #6b7585;
+  color: var(--tianshu-text-secondary);
 }
 
 .header-stat strong {
-  color: #18212f;
+  color: var(--tianshu-text-primary);
   font-size: 30px;
 }
 
 .approval-card {
   overflow: hidden;
-  border: 1px solid #e4e8ee;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
   background: var(--tianshu-bg-surface);
-  box-shadow: 0 1px 3px rgb(25 40 65 / 5%);
+  box-shadow: var(--tianshu-shadow-small);
 }
 
 .summary-grid {
@@ -532,10 +532,10 @@ export default {
   flex-direction: column;
   align-items: flex-start;
   padding: 16px 18px;
-  border: 1px solid #e1e6ed;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
   background: var(--tianshu-bg-surface);
-  color: #6b7585;
+  color: var(--tianshu-text-secondary);
   cursor: pointer;
   text-align: left;
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
@@ -543,34 +543,34 @@ export default {
 
 .summary-card:hover,
 .summary-card.is-active {
-  border-color: #8eafea;
-  box-shadow: 0 8px 22px rgb(39 99 213 / 10%);
+  border-color: var(--el-color-primary-light-5);
+  box-shadow: 0 8px 22px var(--tianshu-primary-shadow);
 }
 
 .summary-card.is-active {
-  background: #f5f8ff;
+  background: var(--tianshu-bg-active);
 }
 
 .summary-card strong {
   margin: 7px 0 3px;
-  color: #18212f;
+  color: var(--tianshu-text-primary);
   font-size: 28px;
 }
 
 .summary-card small {
-  color: #8a94a3;
+  color: var(--tianshu-text-tertiary);
 }
 
 .module-tabs {
   padding: 0 22px;
-  border-bottom: 1px solid #edf0f4;
+  border-bottom: 1px solid var(--tianshu-border-subtle);
 }
 
 .filter-bar {
   display: flex;
   gap: 10px;
   padding: 18px 22px;
-  background: #fafbfc;
+  background: var(--tianshu-bg-soft);
 }
 
 .filter-bar .keyword-filter {
@@ -605,7 +605,7 @@ export default {
 
 .request-cell small {
   margin-top: 3px;
-  color: #8a94a3;
+  color: var(--tianshu-text-tertiary);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
@@ -615,15 +615,15 @@ export default {
   height: 36px;
   flex: 0 0 36px;
   place-items: center;
-  border: 1px solid #cbd9f5;
+  border: 1px solid var(--tianshu-info-border);
   border-radius: 9px;
-  background: #eef4ff;
-  color: var(--el-color-primary);
+  background: var(--tianshu-info-bg);
+  color: var(--tianshu-info-text);
   font-weight: 700;
 }
 
 .action-label {
-  color: #354052;
+  color: var(--tianshu-text-secondary);
   font-weight: 600;
 }
 
@@ -632,8 +632,8 @@ export default {
   align-items: center;
   justify-content: space-between;
   padding: 16px 22px;
-  border-top: 1px solid #edf0f4;
-  color: #7d8797;
+  border-top: 1px solid var(--tianshu-border-subtle);
+  color: var(--tianshu-text-tertiary);
   font-size: 13px;
 }
 
@@ -642,11 +642,11 @@ export default {
   flex-direction: column;
   gap: 5px;
   padding: 46px 0;
-  color: #8a94a3;
+  color: var(--tianshu-text-tertiary);
 }
 
 .empty-state strong {
-  color: #4f5969;
+  color: var(--tianshu-text-secondary);
 }
 
 @media (max-width: 900px) {

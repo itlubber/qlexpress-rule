@@ -534,7 +534,7 @@
               style="margin-top: 12px"
               v-if="detail.errorMessage"
             >
-              <div class="uiue-card-title" style="color: #f76e6c">错误信息</div>
+              <div class="uiue-card-title log-error-title">错误信息</div>
               <pre class="log-pre error">{{ detail.errorMessage }}</pre>
             </div>
           </el-tab-pane>
@@ -1280,9 +1280,11 @@ emits: ['pick']
   }
 }
 .log-pre {
-  background: #f5f5f5;
+  background: var(--tianshu-bg-muted);
+  border: 1px solid var(--tianshu-border-subtle);
   padding: 12px;
   border-radius: 4px;
+  color: var(--tianshu-text-primary);
   overflow: auto;
   max-height: 200px;
   margin: 0;
@@ -1290,8 +1292,12 @@ emits: ['pick']
   line-height: 1.6;
 }
 .log-pre.error {
-  background: #fff2f2;
-  color: #f76e6c;
+  border-color: var(--tianshu-danger-border);
+  background: var(--tianshu-danger-bg);
+  color: var(--tianshu-danger-text);
+}
+.log-error-title {
+  color: var(--tianshu-danger-text);
 }
 .trace-badge {
   margin-left: 4px;

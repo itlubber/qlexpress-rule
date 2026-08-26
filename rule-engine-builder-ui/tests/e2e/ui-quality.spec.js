@@ -310,7 +310,7 @@ test('关键控件的默认、hover、focus 与语义色均保持清晰反馈', 
   assertClean()
 })
 
-test('列表操作按查看、编辑、执行、发布和危险动作展示稳定语义色', async ({
+test('列表操作使用稳定且可区分的主题提示色', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1600, height: 1000 })
@@ -407,16 +407,41 @@ test('列表操作按查看、编辑、执行、发布和危险动作展示稳�
       )
     }
 
-    const colors = await visibleActions.evaluateAll(
-      (buttons) =>
-        buttons
-          .filter((button) => button.getClientRects().length > 0)
-          .map((button) => getComputedStyle(button).color)
-    )
-    expect(
-      new Set(colors).size,
-      `${item.route} 的操作按钮仍被渲染为同一颜色`
-    ).toBeGreaterThanOrEqual(3)
+    const colors = await visibleActions.evaluateAll((buttons) => {
+      const visible = buttons.filter(
+        button => button.getClientRects().length > 0
+      )
+      return {
+        normal: visible
+          .filter(button => !button.classList.contains('el-button--danger'))
+          .map(button => ({
+            action: button.dataset.action,
+            color: getComputedStyle(button).color,
+          })),
+        danger: visible
+          .filter(button => button.classList.contains('el-button--danger'))
+          .map(button => ({
+            action: button.dataset.action,
+            color: getComputedStyle(button).color,
+          })),
+      }
+    })
+    const normalActionColors = new Map()
+    for (const action of colors.normal) {
+      expect(action.action, `${item.route} 的普通操作缺少 data-action`).toBeTruthy()
+      if (normalActionColors.has(action.action)) {
+        expect(action.color, `${item.route} 的同类操作颜色不稳定`)
+          .toBe(normalActionColors.get(action.action))
+      } else {
+        normalActionColors.set(action.action, action.color)
+      }
+    }
+    expect(new Set(normalActionColors.values()).size, `${item.route} 的不同操作颜色未区分`)
+      .toBe(normalActionColors.size)
+    expect(new Set(colors.danger.map(action => action.color)).size,
+      `${item.route} 的危险操作颜色不稳定`).toBe(1)
+    expect(colors.danger[0].color, `${item.route} 的危险操作未与普通操作区分`)
+      .not.toBe(colors.normal[0].color)
   }
 
   await page.goto('http://tianshu.local/index.html#/rule/101')

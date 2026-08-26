@@ -28,7 +28,7 @@ function batchResult(overrides = {}) {
   }
 }
 
-async function mountPage() {
+async function mountPage(permissionValues) {
   ruleListApi.getLibrary.mockResolvedValue({
     data: {
       id: 9,
@@ -87,7 +87,12 @@ async function mountPage() {
       'el-date-picker': true,
       'el-switch': true,
       'el-alert': true
-    }
+    },
+    directives: permissionValues ? {
+      permission: {
+        mounted: (_element, binding) => permissionValues.push(binding.value)
+      }
+    } : undefined
   })
   await flush()
   return wrapper
@@ -109,6 +114,14 @@ describe('ListDetail governed record changes', () => {
     expect(wrapper.vm.records[0].itemContent).toBe('13800138000')
     expect(wrapper.vm.formatPeriod(wrapper.vm.logs[0]))
       .toBe('2026-07-01 00:00:00 \u81f3 2026-12-31 23:59:59')
+  })
+
+  test('名单内容变更与导入入口受字段编辑权限控制', async () => {
+    wrapper.unmount()
+    const permissions = []
+    wrapper = await mountPage(permissions)
+
+    expect(permissions).toContain('field:edit')
   })
 
   test('new record stages approval with normalized validity period', async () => {

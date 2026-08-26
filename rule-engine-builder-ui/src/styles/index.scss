@@ -46,6 +46,34 @@ body {
   }
 }
 
+.uiue-search-container.uiue-filter-toolbar {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+
+  > .el-form {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  > .uiue-btn-bar {
+    flex: 0 0 auto;
+    align-self: flex-start;
+    margin: 0 0 10px auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .uiue-search-container.uiue-filter-toolbar {
+    flex-wrap: wrap;
+
+    > .uiue-btn-bar {
+      width: 100%;
+      justify-content: flex-end;
+    }
+  }
+}
+
 .uiue-btn-bar {
   margin: 12px 0 16px;
   overflow: hidden;

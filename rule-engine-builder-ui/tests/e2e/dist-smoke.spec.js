@@ -1,6 +1,18 @@
 const { expect, test } = require('@playwright/test')
 const { installDistRoutes } = require('./support/distRoutes.cjs')
 
+test('根路由默认进入数据看板并完成三分区加载', async ({ page }) => {
+  const { assertClean } = await installDistRoutes(page)
+  await page.goto('http://tianshu.local/index.html#/')
+
+  await expect(page).toHaveURL(/#\/dashboard$/)
+  await expect(page.locator('[data-menu-path="/dashboard"]')).toHaveClass(/is-active/)
+  await expect(page.getByText('进件数', { exact: true })).toBeVisible()
+  await expect(page.getByText('规则执行耗时分布', { exact: true })).toBeVisible()
+  await expect(page.getByText('规则集命中规则 TOP', { exact: true })).toBeVisible()
+  assertClean()
+})
+
 test('生产构建可加载并完成核心管理页面导航', async ({ page }) => {
   const pageErrors = []
   const consoleErrors = []

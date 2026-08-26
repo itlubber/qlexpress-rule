@@ -1,4 +1,4 @@
-/* Element Plus 主题色覆盖：统一按钮背景为主色 #2639E9，副色 #F76E6C */
+/* Element Plus 主题覆盖：主色、辅助色与提示色均由运行时主题色阶驱动。 */
 @use "./variables.scss" as *;
 
 /* 全局字体：阿里妈妈方圆体 */
@@ -25,12 +25,7 @@ $font-family-base: "AlimamaFangYuanTiVF", "PingFang SC", "Microsoft YaHei", sans
 }
 
 $--color-primary: $tianshu-color-primary;
-$secondary-color: $tianshu-color-secondary;
-
 $primary-color: $--color-primary;
-$success-color: #087A5D;
-$warning-color: #B45309;
-$danger-color: $tianshu-color-danger;
 $info-color: #475569;
 
 /*
@@ -104,8 +99,23 @@ $info-color: #475569;
   }
 }
 
+/* 数字输入统一使用普通输入框形态，不展示加减步进控件。 */
+.el-input-number__increase,
+.el-input-number__decrease {
+  display: none !important;
+}
+
+.el-input-number .el-input__wrapper {
+  padding-right: 11px !important;
+  padding-left: 11px !important;
+}
+
+.el-input-number .el-input__inner {
+  text-align: left;
+}
+
 /* ── 主要按钮 ── */
-.el-button--primary {
+.el-button--primary:not(.is-link):not(.is-text):not(.is-plain) {
   background-color: var(--el-color-primary) !important;
   border-color: var(--el-color-primary) !important;
 
@@ -136,12 +146,12 @@ $info-color: #475569;
 
   &:hover,
   &:focus {
-    color: #1a30d4 !important;
+    color: var(--el-color-primary-dark-1) !important;
     background-color: rgba(var(--el-color-primary-rgb), 0.1) !important;
   }
 
   &:active {
-    color: #152aad !important;
+    color: var(--el-color-primary-dark-2) !important;
     background-color: rgba(var(--el-color-primary-rgb), 0.18) !important;
   }
 }
@@ -149,47 +159,47 @@ $info-color: #475569;
 /* ── 删除按钮 ── */
 .el-button.btn-delete,
 .el-button--delete {
-  color: $danger-color !important;
+  color: var(--tianshu-danger-text) !important;
   transition: color 0.15s ease, background-color 0.15s ease;
 
   &:hover,
   &:focus {
-    color: #d43d3d !important;
-    background-color: rgba($danger-color, 0.1) !important;
+    color: var(--el-color-danger-dark-1) !important;
+    background-color: var(--tianshu-danger-bg) !important;
   }
 
   &:active {
-    color: #b83030 !important;
-    background-color: rgba($danger-color, 0.18) !important;
+    color: var(--el-color-danger-dark-2) !important;
+    background-color: var(--el-color-danger-light-8) !important;
   }
 }
 
 /* ── 全局文字危险色 ── */
 .text-danger {
-  color: $danger-color;
+  color: var(--tianshu-danger-text);
 }
 
 /* ── 危险按钮 ── */
-.el-button--danger {
-  background-color: $danger-color !important;
-  border-color: $danger-color !important;
+.el-button--danger:not(.is-link):not(.is-text):not(.is-plain) {
+  background-color: var(--el-color-danger) !important;
+  border-color: var(--el-color-danger) !important;
 
   &:hover,
   &:focus {
-    background-color: #B91C1C !important;
-    border-color: #B91C1C !important;
+    background-color: var(--el-color-danger-dark-1) !important;
+    border-color: var(--el-color-danger-dark-1) !important;
   }
 
   &:active,
   &.is-active {
-    background-color: #991B1B !important;
-    border-color: #991B1B !important;
+    background-color: var(--el-color-danger-dark-2) !important;
+    border-color: var(--el-color-danger-dark-2) !important;
   }
 
   &:disabled,
   &.is-disabled {
-    background-color: rgba($danger-color, 0.5) !important;
-    border-color: rgba($danger-color, 0.5) !important;
+    background-color: var(--el-color-danger-light-5) !important;
+    border-color: var(--el-color-danger-light-5) !important;
     cursor: not-allowed;
   }
 }
@@ -207,64 +217,64 @@ $info-color: #475569;
 
   &:active,
   &.is-active {
-    color: #1a30d4;
-    border-color: #1a30d4;
+    color: var(--el-color-primary-dark-1);
+    border-color: var(--el-color-primary-dark-1);
     background-color: rgba(var(--el-color-primary-rgb), 0.15);
   }
 }
 
-.el-button--success {
-  background-color: $success-color !important;
-  border-color: $success-color !important;
+.el-button--success:not(.is-link):not(.is-text):not(.is-plain) {
+  background-color: var(--el-color-success) !important;
+  border-color: var(--el-color-success) !important;
 
   &:hover,
   &:focus {
-    background-color: #065F46 !important;
-    border-color: #065F46 !important;
+    background-color: var(--el-color-success-dark-1) !important;
+    border-color: var(--el-color-success-dark-1) !important;
   }
 
   &:active,
   &.is-active {
-    background-color: #064E3B !important;
-    border-color: #064E3B !important;
+    background-color: var(--el-color-success-dark-2) !important;
+    border-color: var(--el-color-success-dark-2) !important;
   }
 }
 
-.el-button--warning {
-  background-color: $warning-color !important;
-  border-color: $warning-color !important;
+.el-button--warning:not(.is-link):not(.is-text):not(.is-plain) {
+  background-color: var(--el-color-warning) !important;
+  border-color: var(--el-color-warning) !important;
 
   &:hover,
   &:focus {
-    background-color: #92400E !important;
-    border-color: #92400E !important;
+    background-color: var(--el-color-warning-dark-1) !important;
+    border-color: var(--el-color-warning-dark-1) !important;
   }
 
   &:active,
   &.is-active {
-    background-color: #78350F !important;
-    border-color: #78350F !important;
+    background-color: var(--el-color-warning-dark-2) !important;
+    border-color: var(--el-color-warning-dark-2) !important;
   }
 }
 
-.el-button--info {
-  background-color: $info-color !important;
-  border-color: $info-color !important;
+.el-button--info:not(.is-link):not(.is-text):not(.is-plain) {
+  background-color: var(--el-color-info) !important;
+  border-color: var(--el-color-info) !important;
 
   &:hover,
   &:focus {
-    background-color: #334155 !important;
-    border-color: #334155 !important;
+    background-color: var(--el-color-info-dark-1) !important;
+    border-color: var(--el-color-info-dark-1) !important;
   }
 
   &:active,
   &.is-active {
-    background-color: #1E293B !important;
-    border-color: #1E293B !important;
+    background-color: var(--el-color-info-dark-2) !important;
+    border-color: var(--el-color-info-dark-2) !important;
   }
 }
 
-/* ── 语义链接按钮：保留链接形态，仅用颜色区分业务动作 ── */
+/* ── 操作链接按钮：保留链接形态，以主题派生层级区分动作 ── */
 .el-button.is-link {
   min-height: 28px;
   padding: 4px 6px;
@@ -283,79 +293,79 @@ $info-color: #475569;
   }
 
   &.el-button--success {
-    color: #087A5D !important;
+    color: var(--el-color-primary) !important;
 
     &:hover,
     &:focus {
-      color: #065F46 !important;
-      background-color: rgba(#087A5D, 0.08) !important;
+      color: var(--el-color-primary-dark-1) !important;
+      background-color: var(--el-color-primary-light-9) !important;
     }
   }
 
   &.el-button--warning {
-    color: #B45309 !important;
+    color: var(--el-color-primary) !important;
 
     &:hover,
     &:focus {
-      color: #92400E !important;
-      background-color: rgba(#B45309, 0.08) !important;
+      color: var(--el-color-primary-dark-1) !important;
+      background-color: var(--el-color-primary-light-9) !important;
     }
   }
 
   &.el-button--info {
-    color: var(--tianshu-text-secondary) !important;
+    color: var(--el-color-primary) !important;
 
     &:hover,
     &:focus {
-      color: #334155 !important;
-      background-color: rgba(#475569, 0.08) !important;
+      color: var(--el-color-primary-dark-1) !important;
+      background-color: var(--el-color-primary-light-9) !important;
     }
   }
 
   &.el-button--danger {
-    color: #C93333 !important;
+    color: var(--tianshu-danger-text) !important;
 
     &:hover,
     &:focus {
-      color: #B91C1C !important;
-      background-color: rgba(#C93333, 0.08) !important;
+      color: var(--el-color-danger-dark-1) !important;
+      background-color: var(--tianshu-danger-bg) !important;
     }
   }
 }
 
-/* ── 危险标签 ── */
+/* ── 提示标签：色彩随当前主题变化，类型仍由文字与图标表达 ── */
 .el-tag--danger {
-  background-color: #FFF1F2 !important;
-  border-color: #FECDD3 !important;
-  color: #B42318 !important;
+  background-color: var(--tianshu-danger-bg) !important;
+  border-color: var(--tianshu-danger-border) !important;
+  color: var(--tianshu-danger-text) !important;
 }
 
 .el-tag--warning {
-  background-color: #FFFBEB !important;
-  border-color: #FDE68A !important;
-  color: #92400E !important;
+  background-color: var(--tianshu-warning-bg) !important;
+  border-color: var(--tianshu-warning-border) !important;
+  color: var(--tianshu-warning-text) !important;
 }
 
 .el-tag--success {
-  background-color: #ECFDF5 !important;
-  border-color: #A7F3D0 !important;
-  color: #087A5D !important;
+  background-color: var(--tianshu-success-bg) !important;
+  border-color: var(--tianshu-success-border) !important;
+  color: var(--tianshu-success-text) !important;
 }
 
 .el-tag--info {
-  background-color: #F1F5F9 !important;
-  border-color: var(--tianshu-border) !important;
-  color: var(--tianshu-text-secondary) !important;
+  background-color: var(--tianshu-info-bg) !important;
+  border-color: var(--tianshu-info-border) !important;
+  color: var(--tianshu-info-text) !important;
 }
 
 /* ── 主色标签 ── */
 .el-tag--primary {
-  background-color: #EEF1FF !important;
-  border-color: #C7CEFF !important;
+  background-color: var(--tianshu-info-bg) !important;
+  border-color: var(--tianshu-info-border) !important;
   color: var(--el-color-primary) !important;
 }
 
-/* ── 作用范围标签：全局=品牌主色，项目级=浅绿色 ── */
+/* ── 作用范围标签：使用主辅色阶区分 ── */
 .el-tag--scope-global {
   background-color: rgba(var(--el-color-primary-rgb), 0.1) !important;
   border-color: rgba(var(--el-color-primary-rgb), 0.22) !important;
@@ -363,34 +373,34 @@ $info-color: #475569;
 }
 
 .el-tag--scope-project {
-  background-color: #ECFDF5 !important;
-  border-color: #A7F3D0 !important;
-  color: #087A5D !important;
+  background-color: var(--tianshu-success-bg) !important;
+  border-color: var(--tianshu-success-border) !important;
+  color: var(--tianshu-success-text) !important;
 }
 
-/* ── 提示条：浅背景配深色文字，避免仅靠颜色区分状态 ── */
+/* ── 提示条：主辅色阶配合图标与文字，避免仅靠颜色区分状态 ── */
 .el-alert--success.is-light {
-  background-color: #ECFDF5;
-  border: 1px solid #A7F3D0;
-  color: #065F46;
+  background-color: var(--tianshu-success-bg);
+  border: 1px solid var(--tianshu-success-border);
+  color: var(--tianshu-success-text);
 }
 
 .el-alert--warning.is-light {
-  background-color: #FFFBEB;
-  border: 1px solid #FDE68A;
-  color: #92400E;
+  background-color: var(--tianshu-warning-bg);
+  border: 1px solid var(--tianshu-warning-border);
+  color: var(--tianshu-warning-text);
 }
 
 .el-alert--error.is-light {
-  background-color: #FFF1F2;
-  border: 1px solid #FECDD3;
-  color: #B42318;
+  background-color: var(--tianshu-danger-bg);
+  border: 1px solid var(--tianshu-danger-border);
+  color: var(--tianshu-danger-text);
 }
 
 .el-alert--info.is-light {
-  background-color: #F1F5F9;
-  border: 1px solid var(--tianshu-border);
-  color: var(--tianshu-text-secondary);
+  background-color: var(--tianshu-info-bg);
+  border: 1px solid var(--tianshu-info-border);
+  color: var(--tianshu-info-text);
 }
 
 .el-alert.is-light .el-alert__title,
@@ -409,11 +419,11 @@ $info-color: #475569;
 }
 
 .el-link--danger {
-  color: $secondary-color !important;
+  color: var(--tianshu-danger-text) !important;
 
   &:hover,
   &:focus {
-    color: rgba($secondary-color, 0.68) !important;
+    color: var(--el-color-danger-dark-1) !important;
   }
 }
 
@@ -586,24 +596,24 @@ $info-color: #475569;
 
 /* ── 删除按钮 ── */
 .btn-delete {
-  color: $secondary-color !important;
+  color: var(--tianshu-danger-text) !important;
   &:hover {
-    color: rgba($secondary-color, 0.68) !important;
+    color: var(--el-color-danger-dark-1) !important;
   }
 }
 
 /* ── 错误文本 ── */
 .err-text {
-  color: $secondary-color !important;
+  color: var(--tianshu-danger-text) !important;
 }
 
 /* ── 弹窗底部按钮：统一确认按钮样式 ── */
 .el-dialog__footer,
 .el-message-box__btns {
-  .el-button--primary {
+  .el-button--primary:not(.is-link):not(.is-text):not(.is-plain) {
     background-color: var(--el-color-primary) !important;
     border-color: var(--el-color-primary) !important;
-    color: #fff !important;
+    color: var(--tianshu-brand-foreground) !important;
 
     &:hover,
     &:focus {
@@ -768,22 +778,34 @@ $info-color: #475569;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 
-/* ── 消息框警告图标（感叹号）：副色 #F76E6C ── */
+/* ── 消息框警告图标：使用当前主题的提示层级色 ── */
 .el-message-box__status.el-message-box__status--warning {
-  color: $secondary-color !important;
+  color: var(--tianshu-warning-text) !important;
 }
 
 .el-message-box__status.el-icon-warning {
-  color: $secondary-color !important;
+  color: var(--tianshu-warning-text) !important;
 }
 
-/* 实心操作按钮统一使用清晰的白色文字；链接和朴素按钮保留语义色。 */
-.el-button--primary:not(.is-link):not(.is-text):not(.is-plain),
-.el-button--success:not(.is-link):not(.is-text):not(.is-plain),
-.el-button--warning:not(.is-link):not(.is-text):not(.is-plain),
-.el-button--danger:not(.is-link):not(.is-text):not(.is-plain),
+/* 实心操作按钮使用高对比文字；链接和朴素按钮保留浅色背景。 */
+.el-button--primary:not(.is-link):not(.is-text):not(.is-plain) {
+  color: var(--tianshu-brand-foreground) !important;
+}
+
+.el-button--success:not(.is-link):not(.is-text):not(.is-plain) {
+  color: var(--tianshu-success-foreground) !important;
+}
+
+.el-button--warning:not(.is-link):not(.is-text):not(.is-plain) {
+  color: var(--tianshu-warning-foreground) !important;
+}
+
+.el-button--danger:not(.is-link):not(.is-text):not(.is-plain) {
+  color: var(--tianshu-danger-foreground) !important;
+}
+
 .el-button--info:not(.is-link):not(.is-text):not(.is-plain) {
-  color: #fff !important;
+  color: var(--tianshu-info-foreground) !important;
 }
 
 .el-button.is-link,
@@ -800,28 +822,46 @@ $info-color: #475569;
 
 .el-button--success.is-link,
 .el-button--success.is-text {
-  color: $success-color !important;
+  color: var(--el-color-primary) !important;
 }
 
 .el-button--warning.is-link,
 .el-button--warning.is-text {
-  color: $warning-color !important;
+  color: var(--el-color-primary) !important;
 }
 
 .el-button--danger.is-link,
 .el-button--danger.is-text {
-  color: $danger-color !important;
+  color: var(--tianshu-danger-text) !important;
 }
 
 .el-button--info.is-link,
 .el-button--info.is-text {
-  color: $info-color !important;
+  color: var(--el-color-primary) !important;
 }
 
 .el-button--danger.is-plain {
-  border-color: rgba($danger-color, 0.55) !important;
-  background: rgba($danger-color, 0.06) !important;
-  color: $danger-color !important;
+  border-color: var(--tianshu-danger-border) !important;
+  background: var(--tianshu-danger-bg) !important;
+  color: var(--tianshu-danger-text) !important;
+}
+
+.el-button--success.is-plain {
+  border-color: var(--tianshu-success-border) !important;
+  background: var(--tianshu-success-bg) !important;
+  color: var(--tianshu-success-text) !important;
+}
+
+.el-button--warning.is-plain {
+  border-color: var(--tianshu-warning-border) !important;
+  background: var(--tianshu-warning-bg) !important;
+  color: var(--tianshu-warning-text) !important;
+}
+
+.el-button--info.is-plain {
+  border-color: var(--tianshu-info-border) !important;
+  background: var(--tianshu-info-bg) !important;
+  color: var(--tianshu-info-text) !important;
 }
 
 .table-operation-group {

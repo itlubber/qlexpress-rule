@@ -1,5 +1,5 @@
 <template>
-  <header class="workspace-tabs" aria-label="工作区页签">
+  <nav class="workspace-tabs" aria-label="工作区页签">
     <div ref="scroll" class="workspace-tabs__scroll">
       <div
         v-for="tab in tabs"
@@ -32,59 +32,6 @@
       </div>
     </div>
 
-    <el-dropdown
-      trigger="click"
-      placement="bottom-end"
-      @command="handleOverflowCommand"
-    >
-      <button
-        type="button"
-        class="workspace-tabs__more"
-        aria-label="页签操作"
-        title="页签操作"
-      >
-        <el-icon><el-icon-more /></el-icon>
-      </button>
-      <template v-slot:dropdown>
-        <el-dropdown-menu>
-          <el-dropdown-item command="refresh" :disabled="!activePath">
-            <span class="workspace-tab-operation"
-              ><span>刷新当前</span
-              ><span class="workspace-tab-operation__shortcut"
-                >Ctrl+R</span
-              ></span
-            >
-          </el-dropdown-item>
-          <el-dropdown-item command="current" :disabled="!activePath">
-            <span class="workspace-tab-operation"
-              ><span>关闭当前</span
-              ><span class="workspace-tab-operation__shortcut"
-                >Ctrl+W</span
-              ></span
-            >
-          </el-dropdown-item>
-          <el-dropdown-item
-            command="left"
-            :disabled="isOperationDisabled('left', activePath)"
-            >关闭左侧</el-dropdown-item
-          >
-          <el-dropdown-item
-            command="right"
-            :disabled="isOperationDisabled('right', activePath)"
-            >关闭右侧</el-dropdown-item
-          >
-          <el-dropdown-item
-            command="others"
-            :disabled="isOperationDisabled('others', activePath)"
-            >关闭其他</el-dropdown-item
-          >
-          <el-dropdown-item command="all" divided :disabled="tabs.length === 0"
-            >关闭全部</el-dropdown-item
-          >
-        </el-dropdown-menu>
-      </template>
-    </el-dropdown>
-
     <div
       v-if="contextMenu.visible"
       class="workspace-tabs__context-menu"
@@ -110,16 +57,15 @@
         >
       </button>
     </div>
-  </header>
+  </nav>
 </template>
 
 <script>
-import { Close as ElIconClose, More as ElIconMore } from '@element-plus/icons-vue'
+import { Close as ElIconClose } from '@element-plus/icons-vue'
 import { $emit } from '../../utils/gogocodeTransfer'
 export default {
   components: {
     ElIconClose,
-    ElIconMore,
   },
   name: 'WorkspaceTabs',
   props: {
@@ -210,10 +156,6 @@ export default {
       $emit(this, 'operate', { operation, targetPath })
       this.closeContextMenu()
     },
-    handleOverflowCommand(operation) {
-      if (!this.activePath && operation !== 'all') return
-      $emit(this, 'operate', { operation, targetPath: this.activePath })
-    },
     scrollActiveIntoView() {
       const elements = this.$el
         ? this.$el.querySelectorAll('.workspace-tab')
@@ -233,25 +175,24 @@ export default {
 <style lang="scss" scoped>
 .workspace-tabs {
   position: relative;
-  z-index: 10;
   display: flex;
-  flex: none;
-  height: 44px;
+  height: 52px;
   min-width: 0;
-  align-items: stretch;
-  background: var(--tianshu-bg-elevated, var(--tianshu-bg-surface));
-  border-bottom: 1px solid var(--tianshu-border-subtle, #dde3ee);
-  box-shadow: var(--tianshu-shadow-small, 0 2px 8px rgba(15, 23, 42, 0.05));
+  overflow: hidden;
+  flex: 1;
+  align-items: center;
 }
 .workspace-tabs__scroll {
   display: flex;
   min-width: 0;
-  padding: 6px 8px 0;
+  height: 100%;
+  padding: 8px 12px;
   overflow-x: auto;
   overflow-y: hidden;
   flex: 1;
-  align-items: flex-end;
-  gap: 4px;
+  align-items: center;
+  box-sizing: border-box;
+  gap: 6px;
   scrollbar-width: thin;
   scrollbar-color: var(--tianshu-border, #cbd5e1) transparent;
 
@@ -276,36 +217,37 @@ export default {
   position: relative;
   display: flex;
   flex: none;
-  height: 36px;
+  height: 34px;
   max-width: 200px;
   align-items: center;
   color: var(--tianshu-text-secondary);
-  background: var(--tianshu-bg-muted);
-  border: 1px solid var(--tianshu-border-subtle);
-  border-bottom: 0;
-  border-radius: 6px 6px 0 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
   transition: color 160ms ease, background-color 160ms ease,
-    border-color 160ms ease;
+    border-color 160ms ease, box-shadow 160ms ease;
   &::after {
     position: absolute;
-    right: 0;
-    bottom: 0;
-    left: 0;
+    right: 10px;
+    bottom: 2px;
+    left: 10px;
     height: 2px;
     content: '';
     background: transparent;
+    border-radius: 2px;
   }
 
   &:hover {
     color: var(--tianshu-text-primary, #334155);
-    background: var(--tianshu-bg-elevated, var(--tianshu-bg-surface));
+    background: var(--tianshu-bg-soft);
   }
 
   &.is-active {
     color: var(--tianshu-text-primary);
     font-weight: 600;
     background: var(--tianshu-bg-elevated, var(--tianshu-bg-surface));
-    border-color: var(--tianshu-border);
+    border-color: var(--tianshu-border-subtle);
+    box-shadow: var(--tianshu-shadow-small, 0 2px 8px rgba(15, 23, 42, 0.08));
 
     &::after {
       background: var(--tianshu-brand-background, #{$--color-primary});
@@ -351,10 +293,10 @@ export default {
 .workspace-tab__close {
   display: flex;
   flex: none;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   padding: 0;
-  margin-right: 2px;
+  margin-right: 4px;
   align-items: center;
   justify-content: center;
   color: var(--tianshu-text-disabled);
@@ -362,32 +304,20 @@ export default {
   border: 0;
   border-radius: 50%;
   cursor: pointer;
+  opacity: 0;
+  transition: color 160ms ease, background-color 160ms ease,
+    opacity 160ms ease;
   &:hover,
   &:focus-visible {
     color: var(--tianshu-text-primary, #334155);
     background: var(--tianshu-bg-hover, #e9eef5);
     outline: none;
+    opacity: 1;
   }
 }
-.workspace-tabs__more {
-  display: flex;
-  width: 44px;
-  height: 43px;
-  padding: 0;
-  align-items: center;
-  justify-content: center;
-  color: var(--tianshu-text-tertiary);
-  font-size: 18px;
-  background: var(--tianshu-bg-elevated, var(--tianshu-bg-surface));
-  border: 0;
-  border-left: 1px solid var(--tianshu-border-subtle);
-  cursor: pointer;
-  &:hover,
-  &:focus-visible {
-    color: var(--el-color-primary, #{$--color-primary});
-    background: var(--tianshu-bg-soft);
-    outline: none;
-  }
+.workspace-tab:hover .workspace-tab__close,
+.workspace-tab.is-active .workspace-tab__close {
+  opacity: 0.7;
 }
 .workspace-tabs__context-menu {
   position: fixed;

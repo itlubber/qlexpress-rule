@@ -42,8 +42,20 @@ const routes = [
   {
     path: '/',
     component: Layout,
-    redirect: '/project',
+    redirect: '/dashboard',
     children: [
+      {
+        path: 'dashboard',
+        name: 'DashboardHome',
+        component: () => import('@/views/dashboard/DashboardHome.vue'),
+        meta: { title: '数据看板' }
+      },
+      {
+        path: 'dashboard/settings',
+        name: 'DashboardSettings',
+        component: () => import('@/views/dashboard/DashboardSettings.vue'),
+        meta: { title: '数据看板设置', menu: '/dashboard' }
+      },
       {
         path: 'project',
         name: 'ProjectList',

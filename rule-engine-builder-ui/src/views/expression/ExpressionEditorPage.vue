@@ -22,10 +22,15 @@
           <el-button size="small" :icon="ElIconVideoPlay" @click="openTest"
             >测试</el-button
           >
-          <el-button size="small" :icon="ElIconDocument" @click="saveDraft"
+          <el-button
+            v-permission="'rule:edit'"
+            size="small"
+            :icon="ElIconDocument"
+            @click="saveDraft"
             >临时保存</el-button
           >
           <el-button
+            v-permission="'rule:edit'"
             type="primary"
             size="small"
             :icon="ElIconCpu"

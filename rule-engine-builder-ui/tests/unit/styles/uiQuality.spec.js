@@ -83,17 +83,19 @@ test('可视化与脚本设计器都说明编译后仍需生命周期发布', ()
   expect(scriptEditor).toContain('aria-label="前往规则生命周期审核发布"')
 })
 
-test('工作区页签滚动条使用紧凑且可感知的样式', () => {
+test('工作区页签与菜单滚动条使用随主题变化的科技感样式', () => {
   const tabs = source('src/layout/components/WorkspaceTabs.vue')
+  const sidebar = source('src/layout/components/LayoutSidebar.vue')
+  const layout = source('src/layout/index.vue')
   expect(tabs).toMatch(
-    /\.workspace-tabs__scroll\s*\{[\s\S]*?scrollbar-color:\s*var\(--tianshu-border,\s*#cbd5e1\) transparent;/
+    /\.workspace-tabs__scroll\s*\{[\s\S]*?scrollbar-color:\s*var\(--tianshu-scrollbar-thumb-solid\)[\s\S]*?var\(--tianshu-scrollbar-track\);/
   )
   expect(tabs).toMatch(
-    /&::-webkit-scrollbar\s*\{[\s\S]*?height:\s*4px;/
+    /&::-webkit-scrollbar-thumb\s*\{[\s\S]*?background:\s*var\(--tianshu-scrollbar-thumb\);[\s\S]*?box-shadow:\s*0 0 8px var\(--tianshu-scrollbar-glow\);/
   )
-  expect(tabs).toMatch(
-    /&::-webkit-scrollbar-thumb:hover\s*\{[\s\S]*?background:\s*var\(--tianshu-border-strong,\s*#94a3b8\);/
-  )
+  expect(sidebar).toContain('var(--tianshu-scrollbar-thumb)')
+  expect(layout).toContain('class="top-navigation__menu"')
+  expect(layout).toContain('var(--tianshu-scrollbar-thumb)')
 })
 
 test('业务页面与共用组件不再使用低对比度的旧文字灰色', () => {

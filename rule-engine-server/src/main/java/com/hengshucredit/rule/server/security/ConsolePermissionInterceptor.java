@@ -31,9 +31,15 @@ public class ConsolePermissionInterceptor implements HandlerInterceptor {
                     handlerMethod.getBeanType(), RequirePermission.class);
         }
         if (requirement == null) {
+            if (isDashboardPath(request)) {
+                return true;
+            }
             String implicitPermission =
                     resolveImplicitPermission(request);
             if (implicitPermission == null) {
+                if (isProtectedManagementPath(request)) {
+                    return deny(response, "PERMISSION_MAPPING_MISSING");
+                }
                 return true;
             }
             return authorize(request, response, implicitPermission);
@@ -50,12 +56,27 @@ public class ConsolePermissionInterceptor implements HandlerInterceptor {
                 userId, permissionCode)) {
             return true;
         }
+        return deny(response, "PERMISSION_DENIED");
+    }
+
+    private boolean deny(HttpServletResponse response,
+                         String message) throws Exception {
         response.setStatus(HttpServletResponse.SC_FORBIDDEN);
         response.setCharacterEncoding("UTF-8");
         response.setContentType("application/json;charset=UTF-8");
         response.getWriter().write(JSON.toJSONString(
-                R.fail(HttpServletResponse.SC_FORBIDDEN, "PERMISSION_DENIED")));
+                R.fail(HttpServletResponse.SC_FORBIDDEN, message)));
         return false;
+    }
+
+    private boolean isProtectedManagementPath(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return path != null && path.startsWith("/api/rule/");
+    }
+
+    private boolean isDashboardPath(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return path != null && path.startsWith("/api/rule/dashboard");
     }
 
     private String resolveImplicitPermission(

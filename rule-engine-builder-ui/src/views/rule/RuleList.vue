@@ -1,6 +1,6 @@
 <template>
   <div class="uiue-list-page">
-    <div class="uiue-search-container">
+    <div class="uiue-search-container uiue-filter-toolbar">
       <el-form :inline="true" size="small" @keyup.enter="handleQuery">
         <el-form-item label="作用范围" prop="scope">
           <el-select
@@ -103,17 +103,17 @@
           <el-button @click="resetQuery">重置</el-button>
         </el-form-item>
       </el-form>
-    </div>
-    <div class="uiue-btn-bar">
-      <div class="btn-right">
-        <el-button
-          v-permission="'rule:edit'"
-          type="primary"
-          size="small"
-          :icon="ElIconPlus"
-          @click="handleCreate"
-          >新建规则</el-button
-        >
+      <div class="uiue-btn-bar">
+        <div class="btn-right">
+          <el-button
+            v-permission="'rule:edit'"
+            type="primary"
+            size="small"
+            :icon="ElIconPlus"
+            @click="handleCreate"
+            >新建规则</el-button
+          >
+        </div>
       </div>
     </div>
     <el-table
@@ -198,6 +198,7 @@
           <div class="table-operation-group">
             <el-button
               link
+              data-action="detail"
               size="small"
               type="primary"
               @click="handleDetail(row)"
@@ -205,6 +206,7 @@
             >
             <el-button
               link
+              data-action="inspect"
               size="small"
               type="info"
               data-testid="view-rule"
@@ -214,6 +216,7 @@
             <el-button
               v-permission="'rule:edit'"
               link
+              data-action="delete"
               size="small"
               type="danger"
               class="btn-delete"

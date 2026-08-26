@@ -28,6 +28,7 @@
             列表仅显示脱敏值，完整账号、密码和密钥可随时再次查看。
           </div>
           <el-button
+            v-permission="'project:edit'"
             type="primary"
             size="small"
             :icon="ElIconPlus"
@@ -107,6 +108,7 @@
                 >
                 <el-button
                   v-if="row.authType !== 'LEGACY_TOKEN'"
+                  v-permission="'project:edit'"
                   link
                   size="small"
                   type="warning"
@@ -117,6 +119,7 @@
                   v-if="
                     row.authType === 'API_KEY' || row.authType === 'HMAC_SHA256'
                   "
+                  v-permission="'project:edit'"
                   link
                   size="small"
                   type="warning"
@@ -125,6 +128,7 @@
                 >
                 <el-button
                   v-if="row.authType === 'LEGACY_TOKEN'"
+                  v-permission="'project:edit'"
                   link
                   size="small"
                   type="warning"
@@ -139,6 +143,7 @@
                   >Token</el-button
                 >
                 <el-button
+                  v-permission="'project:edit'"
                   link
                   size="small"
                   :type="row.status === 1 ? 'warning' : 'success'"
@@ -211,6 +216,7 @@
               >
               <el-button
                 v-if="row.status === 1"
+                v-permission="'project:edit'"
                 class="btn-delete"
                 link
                 size="small"
@@ -560,6 +566,7 @@
           ><el-button size="small" @click="authFormVisible = false"
             >取消</el-button
           ><el-button
+            v-permission="'project:edit'"
             size="small"
             type="primary"
             :loading="savingAuth"

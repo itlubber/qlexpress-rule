@@ -98,6 +98,7 @@
     <div class="uiue-btn-bar">
       <div class="btn-right">
         <el-button
+          v-permission="'rule:edit'"
           type="primary"
           size="small"
           :icon="ElIconPlus"
@@ -105,6 +106,7 @@
           >添加规则</el-button
         >
         <el-button
+          v-permission="'rule:edit'"
           type="primary"
           size="small"
           :icon="ElIconDocumentAdd"
@@ -203,11 +205,17 @@
       <el-table-column label="操作" width="250" align="center" fixed="right">
         <template v-slot="{ row }">
           <div class="table-operation-group">
-            <el-button link size="small" type="primary" @click="detail(row)"
+            <el-button
+              link
+              data-action="detail"
+              size="small"
+              type="primary"
+              @click="detail(row)"
               >详情</el-button
             >
             <el-button
               link
+              data-action="inspect"
               size="small"
               type="info"
               data-testid="view-rule"
@@ -215,7 +223,9 @@
               >查看</el-button
             >
             <el-button
+              v-permission="'rule:edit'"
               link
+              data-action="delete"
               size="small"
               type="danger"
               class="btn-delete"
@@ -289,7 +299,11 @@
       <template v-slot:footer>
         <div>
           <el-button size="small" @click="dlgVis = false">取消</el-button
-          ><el-button size="small" type="primary" @click="submit"
+          ><el-button
+            v-permission="'rule:edit'"
+            size="small"
+            type="primary"
+            @click="submit"
             >确定</el-button
           >
         </div>
@@ -387,6 +401,7 @@
         <el-table-column label="操作" width="80" align="center">
           <template v-slot="{ row }">
             <el-button
+              v-permission="'rule:edit'"
               link
               size="small"
               type="success"

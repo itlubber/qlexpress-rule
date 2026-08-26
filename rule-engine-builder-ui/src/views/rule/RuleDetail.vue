@@ -1103,7 +1103,7 @@
           />
           <div
             v-if="jsonError"
-            style="color: #f56c6c; font-size: 12px; margin-top: 4px"
+            style="color: var(--tianshu-danger-text); font-size: 12px; margin-top: 4px"
           >
             {{ jsonError }}
           </div>
@@ -1124,13 +1124,13 @@
           </el-alert>
           <div
             v-if="testResult.errorMessage || testResult.error"
-            style="color: #f56c6c; margin-bottom: 8px"
+            style="color: var(--tianshu-danger-text); margin-bottom: 8px"
           >
             {{ testResult.errorMessage || testResult.error }}
           </div>
           <div
             v-if="testResult.message"
-            style="color: #e6a23c; margin-bottom: 8px"
+            style="color: var(--tianshu-warning-text); margin-bottom: 8px"
           >
             {{ testResult.message }}
           </div>
@@ -3457,7 +3457,7 @@ export default {
   font-style: italic;
 }
 .open-api-panel {
-  color: #334155;
+  color: var(--tianshu-text-primary);
 }
 .open-api-toolbar,
 .open-api-section-head,
@@ -3496,8 +3496,8 @@ export default {
   margin-right: 6px;
   padding: 1px 4px;
   border-radius: 3px;
-  color: #1e40af;
-  background: #eff6ff;
+  color: var(--tianshu-info-text);
+  background: var(--tianshu-info-bg);
 }
 .open-api-editors {
   margin-top: 12px;
@@ -3526,7 +3526,7 @@ export default {
   word-break: break-all;
 }
 .btn-delete {
-  color: #dc2626;
+  color: var(--tianshu-danger-text);
 }
 :deep(.version-history-dialog) {
   min-width: 1040px;
@@ -3547,7 +3547,7 @@ export default {
   padding: 12px 16px;
   border: 1px solid var(--tianshu-border);
   border-radius: 4px;
-  background: #f8f9fb;
+  background: var(--tianshu-bg-soft);
 }
 .version-compare-toolbar-label {
   color: var(--tianshu-text-secondary);
@@ -3581,10 +3581,10 @@ export default {
   margin-top: 12px;
 }
 :deep(.editing-row) {
-  background-color: #f0f9eb;
+  background-color: var(--tianshu-success-bg);
 }
 :deep(.el-table .editing-row td) {
-  background-color: #f0f9eb;
+  background-color: var(--tianshu-success-bg);
 }
 .test-form-wrapper {
   max-height: 420px;
@@ -3657,7 +3657,7 @@ export default {
   align-items: center;
   gap: 12px;
   margin-bottom: 12px;
-  color: #4b5563;
+  color: var(--tianshu-text-secondary);
   font-size: 13px;
 }
 .governance-revision-selector :deep(.el-select) {
@@ -3678,7 +3678,7 @@ export default {
   justify-content: space-between;
   gap: 16px;
   margin-top: 16px;
-  color: #4b5563;
+  color: var(--tianshu-text-secondary);
   font-size: 13px;
 }
 .governance-card-header {

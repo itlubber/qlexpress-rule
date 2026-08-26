@@ -69,7 +69,10 @@ function mountPage(current = session(), options = {}) {
       'el-tag': true,
       'el-empty': true
     },
-    directives: { loading: () => {} }
+    directives: {
+      loading: () => {},
+      ...(options.directives || {})
+    }
   })
   return { wrapper, dispatch, back, push }
 }
@@ -77,6 +80,20 @@ function mountPage(current = session(), options = {}) {
 afterEach(() => vi.clearAllMocks())
 
 describe('ExpressionEditorPage', () => {
+  test('保存表达式入口受规则编辑权限控制', () => {
+    const permissions = []
+    const { wrapper } = mountPage(session(), {
+      directives: {
+        permission: {
+          mounted: (_element, binding) => permissions.push(binding.value)
+        }
+      }
+    })
+
+    expect(permissions).toContain('rule:edit')
+    wrapper.unmount()
+  })
+
   test('嵌入 layout-main 并可临时保存当前草稿', async() => {
     const { wrapper, dispatch } = mountPage()
 

@@ -255,6 +255,7 @@ function mountDesigner(component, query = {}, options = {}) {
       ScriptPanel: true,
       ...(options.stubs || {}),
     },
+    directives: options.directives,
   })
 }
 
@@ -262,6 +263,25 @@ describe('九类设计器草稿保护', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     configureQueryApis()
+  })
+
+  test.each(designers)('%s 的保存与编译入口受规则编辑权限控制', async (
+    _name,
+    component
+  ) => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({ data: [] })
+    const permissions = []
+    const wrapper = mountDesigner(component, {}, {
+      directives: {
+        permission: {
+          mounted: (_element, binding) => permissions.push(binding.value)
+        }
+      }
+    })
+    await flushPromises()
+
+    expect(permissions).toContain('rule:edit')
+    wrapper.unmount()
   })
 
   test('可视化设计器从共享提示点击进入当前规则生命周期', async () => {

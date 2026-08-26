@@ -108,6 +108,47 @@ test('变量管理四类业务页签的数据、复制、按钮和弹框均可�
   assertClean()
 })
 
+test('变量新建和编辑弹窗的高级设置居中且数字输入框无加减控件', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  const apiData = createManagementApiData()
+  apiData.set('/api/rule/variable/source-options', {
+    apiOptions: [],
+    dbOptions: [],
+    listOptions: []
+  })
+  const { assertClean } = await installDistRoutes(page, {
+    apiData
+  })
+  await page.goto('http://tianshu.local/index.html#/variable')
+
+  for (const action of ['新建字段', '编辑']) {
+    await page.getByRole('button', { name: action, exact: true }).first().click()
+    const dialog = page.locator('.el-dialog:visible').last()
+    const form = dialog.locator('form').first()
+    const collapse = dialog.locator('.variable-advanced-collapse')
+    await expect(collapse).toBeVisible()
+
+    const gaps = await Promise.all([
+      form.boundingBox(),
+      collapse.boundingBox(),
+    ]).then(([formBox, collapseBox]) => ({
+      left: collapseBox.x - formBox.x,
+      right: formBox.x + formBox.width - collapseBox.x - collapseBox.width,
+    }))
+    expect(Math.abs(gaps.left - gaps.right)).toBeLessThanOrEqual(1)
+
+    await collapse.locator('.el-collapse-item__header').click()
+    await expect(collapse.locator('.el-input-number').first()).toBeVisible()
+    await expect(collapse.locator('.el-input-number__decrease:visible')).toHaveCount(0)
+    await expect(collapse.locator('.el-input-number__increase:visible')).toHaveCount(0)
+
+    await page.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
+  }
+
+  assertClean()
+})
+
 test('外数的数据源、API、调用日志和质量看板均正常', async ({ page }) => {
   const pageErrors = []
   page.on('pageerror', error => pageErrors.push(error.message))

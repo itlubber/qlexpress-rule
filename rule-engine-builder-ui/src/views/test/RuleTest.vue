@@ -374,7 +374,8 @@
         <div class="uiue-card test-result-card">
           <div class="uiue-card-title">执行结果</div>
           <div v-if="!result && !executing" class="result-empty">
-            <el-icon style="font-size: 48px; color: #ddd"
+            <el-icon
+              style="font-size: 48px; color: var(--tianshu-text-disabled)"
               ><el-icon-video-play
             /></el-icon>
             <p style="color: var(--tianshu-text-tertiary); margin-top: 12px">
@@ -402,14 +403,8 @@
             </el-alert>
 
             <div v-if="result.errorMessage" style="margin-bottom: 16px">
-              <div class="result-section-title" style="color: #f76e6c">
-                错误信息
-              </div>
-              <pre
-                class="result-pre"
-                style="background: #fff2f2; border-color: #fde2e2"
-                >{{ result.errorMessage }}</pre
-              >
+              <div class="result-section-title is-error">错误信息</div>
+              <pre class="result-pre is-error">{{ result.errorMessage }}</pre>
             </div>
 
             <div style="margin-bottom: 16px">
@@ -1713,7 +1708,7 @@ export default {
   text-align: center;
 }
 .case-state-error {
-  color: #f56c6c;
+  color: var(--tianshu-danger-text);
 }
 .fixed-case-list {
   max-height: 168px;
@@ -1724,18 +1719,18 @@ export default {
   align-items: center;
   justify-content: space-between;
   padding: 6px 0;
-  border-bottom: 1px solid #f2f3f5;
+  border-bottom: 1px solid var(--tianshu-border-subtle);
 }
 .batch-result-table {
   margin-top: 12px;
 }
 .diff-pass {
-  color: #67c23a;
+  color: var(--tianshu-success-text);
 }
 .diff-lines {
   max-height: 96px;
   overflow: auto;
-  color: #f56c6c;
+  color: var(--tianshu-danger-text);
   font-size: 12px;
   line-height: 1.6;
 }
@@ -1809,7 +1804,7 @@ export default {
   gap: 12px;
   margin-top: 10px;
   padding: 10px 12px;
-  border: 1px solid #dce5ef;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 6px;
   background: var(--tianshu-bg-soft);
 }
@@ -1821,7 +1816,7 @@ export default {
 }
 .test-setup-state strong,
 .input-load-state strong {
-  color: #334155;
+  color: var(--tianshu-text-primary);
   font-size: 12px;
 }
 .test-setup-state span,
@@ -1833,31 +1828,31 @@ export default {
 }
 .test-setup-state.is-error,
 .input-load-state.is-error {
-  border-color: #f4c7c7;
-  background: #fff7f7;
+  border-color: var(--tianshu-danger-border);
+  background: var(--tianshu-danger-bg);
 }
 .test-setup-state.is-error strong,
 .input-load-state.is-error strong {
-  color: #b42318;
+  color: var(--tianshu-danger-text);
 }
 .input-load-state.is-ready {
-  border-color: #bfe3ce;
-  background: #f4fbf7;
+  border-color: var(--tianshu-success-border);
+  background: var(--tianshu-success-bg);
 }
 .input-load-state.is-ready strong {
-  color: #16794b;
+  color: var(--tianshu-success-text);
 }
 .input-load-state.is-loading {
-  border-color: #c9daf6;
-  background: #f5f8ff;
+  border-color: var(--tianshu-info-border);
+  background: var(--tianshu-info-bg);
 }
 .input-load-warnings,
 .context-load-warnings {
   margin: 8px 0 0;
   padding: 8px 10px 8px 28px;
   border-radius: 5px;
-  background: #fff8eb;
-  color: #946200;
+  background: var(--tianshu-warning-bg);
+  color: var(--tianshu-warning-text);
   font-size: 11px;
   line-height: 1.55;
 }
@@ -1892,12 +1887,16 @@ export default {
   font-weight: bold;
   font-size: 13px;
   margin-bottom: 8px;
-  color: #282828;
+  color: var(--tianshu-text-primary);
+}
+.result-section-title.is-error {
+  color: var(--tianshu-danger-text);
 }
 .result-pre {
   background: var(--tianshu-bg-muted);
   border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
+  color: var(--tianshu-text-primary);
   padding: 12px;
   font-size: 13px;
   line-height: 1.5;
@@ -1905,6 +1904,11 @@ export default {
   max-height: 300px;
   white-space: pre-wrap;
   word-break: break-all;
+}
+.result-pre.is-error {
+  border-color: var(--tianshu-danger-border);
+  background: var(--tianshu-danger-bg);
+  color: var(--tianshu-danger-text);
 }
 .trace-tree-wrap {
   min-height: 100%;

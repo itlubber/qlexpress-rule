@@ -15,7 +15,7 @@ async function flush() {
   await new Promise(resolve => setTimeout(resolve, 0))
 }
 
-async function mountPage() {
+async function mountPage(permissionValues) {
   projectApi.listProjects.mockResolvedValue({
     data: { records: [{ id: 1, projectName: 'Project A' }] }
   })
@@ -55,7 +55,12 @@ async function mountPage() {
       'el-row': true,
       'el-col': true,
       'el-switch': true
-    }
+    },
+    directives: permissionValues ? {
+      permission: {
+        mounted: (_element, binding) => permissionValues.push(binding.value)
+      }
+    } : undefined
   })
   await flush()
   return wrapper
@@ -76,6 +81,14 @@ describe('ListLibrary governed changes', () => {
     expect(ruleListApi.listLibraries).toHaveBeenCalled()
     expect(wrapper.vm.tableData[0].listCode).toBe('mobile_black')
     expect(wrapper.vm.activeTab).toBe('list')
+  })
+
+  test('名单库变更入口受字段编辑权限控制', async () => {
+    wrapper.unmount()
+    const permissions = []
+    wrapper = await mountPage(permissions)
+
+    expect(permissions).toContain('field:edit')
   })
 
   test('new library creates an approval draft and opens it', async () => {

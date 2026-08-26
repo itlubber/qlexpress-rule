@@ -1,6 +1,6 @@
 <template>
   <div class="uiue-list-page">
-    <div class="uiue-search-container">
+    <div class="uiue-search-container uiue-filter-toolbar">
       <el-form :inline="true" size="small" @keyup.enter="handleQuery">
         <el-form-item label="项目编码">
           <project-filter-select
@@ -48,17 +48,17 @@
           <el-button @click="resetQuery">重置</el-button>
         </el-form-item>
       </el-form>
-    </div>
-    <div class="uiue-btn-bar">
-      <div class="btn-right">
-        <el-button
-          v-permission="'project:edit'"
-          type="primary"
-          size="small"
-          :icon="ElIconPlus"
-          @click="handleCreate"
-          >新建项目</el-button
-        >
+      <div class="uiue-btn-bar">
+        <div class="btn-right">
+          <el-button
+            v-permission="'project:edit'"
+            type="primary"
+            size="small"
+            :icon="ElIconPlus"
+            @click="handleCreate"
+            >新建项目</el-button
+          >
+        </div>
       </div>
     </div>
     <el-table
@@ -97,25 +97,27 @@
       <el-table-column label="操作" width="300" align="center" fixed="right">
         <template v-slot="{ row }">
           <div class="table-operation-group project-action-links">
-            <el-button v-permission="'project:edit'" link size="small" type="primary" @click="handleEdit(row)"
+            <el-button v-permission="'project:edit'" link data-action="edit" size="small" type="primary" @click="handleEdit(row)"
               >编辑</el-button
             >
             <el-button
               link
+              data-action="detail"
               size="small"
               type="success"
               @click="$router.push('/project/' + row.id)"
               >进入</el-button
             >
-            <el-button link size="small" type="warning" @click="handleAuth(row)"
+            <el-button link data-action="configure" size="small" type="warning" @click="handleAuth(row)"
               >鉴权</el-button
             >
-            <el-button link size="small" type="info" @click="handleExportDoc(row)"
+            <el-button link data-action="docs" size="small" type="info" @click="handleExportDoc(row)"
               >API</el-button
             >
             <el-button
               v-permission="'project:edit'"
               link
+              data-action="delete"
               size="small"
               type="danger"
               class="btn-delete"

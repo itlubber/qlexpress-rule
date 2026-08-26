@@ -5,22 +5,72 @@
       :compact="isSidebarCompact"
       :active-menu="activeMenuIndex"
       :menus="sidebarMenus"
-      :login-enabled="loginEnabled"
-      :username="username"
-      :avatar-initial="avatarInitial"
       @navigate="navigateTo"
       @toggle-collapse="toggleSidebar"
       @resize="handleSidebarResize"
       @resize-end="handleSidebarResizeEnd"
-      @logout="doLogout"
     />
     <section class="layout-workspace">
-      <workspace-tabs
-        :tabs="workspaceTabs"
-        :active-path="activeTabPath"
-        @activate="activateTab"
-        @operate="handleTabOperation"
-      />
+      <header class="layout-topbar">
+        <workspace-tabs
+          :tabs="workspaceTabs"
+          :active-path="activeTabPath"
+          @activate="activateTab"
+          @operate="handleTabOperation"
+        />
+        <div class="layout-account">
+          <el-dropdown
+            trigger="click"
+            placement="bottom-end"
+            popper-class="layout-account-dropdown"
+            @command="handleAccountCommand"
+          >
+            <button
+              type="button"
+              class="layout-account-trigger"
+              :aria-label="accountDisplayName + '的账户菜单'"
+              :title="accountDisplayName"
+            >
+              <span class="layout-account-avatar" aria-hidden="true">{{
+                avatarInitial
+              }}</span>
+              <span class="layout-account-name">{{ accountDisplayName }}</span>
+              <app-icon
+                name="ArrowDown"
+                class="layout-account-arrow"
+                aria-hidden="true"
+              />
+            </button>
+            <template v-slot:dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item
+                  v-if="loginEnabled"
+                  command="settings"
+                  data-account-command="settings"
+                >
+                  <app-icon name="User" />
+                  <span>用户设置</span>
+                </el-dropdown-item>
+                <el-dropdown-item
+                  command="theme"
+                  data-account-command="theme"
+                >
+                  <app-icon name="Setting" />
+                  <span>主题设置</span>
+                </el-dropdown-item>
+                <el-dropdown-item
+                  command="logout"
+                  data-account-command="logout"
+                  divided
+                >
+                  <app-icon name="SwitchButton" />
+                  <span>退出账号</span>
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+      </header>
       <project-context-bar />
       <main class="layout-main">
         <router-view v-slot="{ Component }">
@@ -39,16 +89,6 @@
         </router-view>
       </main>
     </section>
-    <button
-      v-if="!themeDrawerOpen"
-      type="button"
-      class="theme-settings-trigger"
-      aria-label="主题设置"
-      title="主题设置"
-      @click="openThemeSettings"
-    >
-      <app-icon name="Setting" />
-    </button>
     <theme-settings-drawer
       v-model="themeDrawerOpen"
       :config="confirmedTheme"
@@ -171,7 +211,10 @@ export default {
         : baseKey
     },
     avatarInitial() {
-      return getAvatarInitial(this.username)
+      return getAvatarInitial(this.accountDisplayName)
+    },
+    accountDisplayName() {
+      return this.loginEnabled ? this.username || '用户' : '本地用户'
     },
   },
   watch: {
@@ -333,6 +376,13 @@ export default {
     openThemeSettings() {
       this.themeDrawerOpen = true
     },
+    handleAccountCommand(command) {
+      if (command === 'theme') return this.openThemeSettings()
+      if (command === 'settings' && this.loginEnabled) {
+        return this.navigateTo('/account')
+      }
+      if (command === 'logout') return this.doLogout()
+    },
     handleThemePreview(theme) {
       applyTheme(theme)
     },
@@ -423,6 +473,7 @@ export default {
   display: flex;
   width: 100%;
   height: 100vh;
+  height: 100dvh;
   min-width: 0;
   overflow: hidden;
   background: var(--tianshu-bg-page);
@@ -435,6 +486,91 @@ export default {
   flex: 1;
   flex-direction: column;
 }
+.layout-topbar {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex: none;
+  height: 52px;
+  min-width: 0;
+  align-items: stretch;
+  background: var(--tianshu-bg-elevated, var(--tianshu-bg-surface));
+  border-bottom: 1px solid var(--tianshu-border-subtle, #dde3ee);
+  box-shadow: var(--tianshu-shadow-small, 0 2px 8px rgba(15, 23, 42, 0.05));
+}
+.layout-account {
+  display: flex;
+  flex: none;
+  padding: 0 12px;
+  align-items: center;
+  border-left: 1px solid var(--tianshu-border-subtle);
+}
+.layout-account-trigger {
+  appearance: none;
+  display: inline-flex;
+  height: 36px;
+  max-width: 180px;
+  padding: 0 10px;
+  align-items: center;
+  color: var(--tianshu-text-primary);
+  font: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  gap: 8px;
+  transition: color 160ms ease, background-color 160ms ease;
+
+  &:hover {
+    color: var(--el-color-primary);
+    background: var(--tianshu-bg-soft);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--tianshu-focus-ring, rgba(38, 57, 233, 0.3));
+    outline-offset: 2px;
+  }
+}
+.layout-account-avatar,
+.layout-account-name {
+  height: 24px;
+  line-height: 24px;
+}
+.layout-account-avatar {
+  display: inline-flex;
+  flex: none;
+  width: 24px;
+  align-items: center;
+  justify-content: center;
+  color: var(--tianshu-brand-foreground, #ffffff);
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--tianshu-brand-background, #2639e9);
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+.layout-account-name {
+  min-width: 0;
+  max-width: 112px;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.layout-account-arrow {
+  flex: none;
+  color: var(--tianshu-text-tertiary);
+  font-size: 12px;
+  transition: transform 160ms ease;
+}
+:global(.layout-account-dropdown .el-dropdown-menu__item) {
+  min-width: 132px;
+  gap: 8px;
+}
+:global(.layout-account-dropdown .el-dropdown-menu__item .app-icon) {
+  color: var(--tianshu-text-tertiary);
+}
 .layout-main {
   min-width: 0;
   min-height: 0;
@@ -444,32 +580,5 @@ export default {
   flex: 1;
   box-sizing: border-box;
   background: var(--tianshu-bg-page);
-}
-.theme-settings-trigger {
-  position: fixed;
-  z-index: 1900;
-  top: 50%;
-  right: 0;
-  display: flex;
-  width: 42px;
-  height: 42px;
-  padding: 0;
-  align-items: center;
-  justify-content: center;
-  color: var(--tianshu-brand-foreground, #ffffff);
-  font-size: 18px;
-  background: var(--tianshu-brand-background, #2639e9);
-  border: 0;
-  border-radius: 8px 0 0 8px;
-  box-shadow: var(--tianshu-shadow-medium, 0 8px 22px rgba(15, 23, 42, 0.18));
-  cursor: pointer;
-  transform: translateY(-50%);
-
-  &:hover,
-  &:focus-visible {
-    width: 46px;
-    outline: 2px solid var(--tianshu-focus-ring, rgba(38, 57, 233, 0.18));
-    outline-offset: 2px;
-  }
 }
 </style>

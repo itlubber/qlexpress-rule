@@ -396,6 +396,7 @@ CREATE TABLE IF NOT EXISTS `rule_definition` (
   UNIQUE KEY `uk_rule_code` (`rule_code`),
   KEY `idx_project_id` (`project_id`),
   KEY `idx_model_type` (`model_type`),
+  KEY `idx_dashboard_definition_project_status_scope` (`project_id`, `status`, `scope`),
   KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='规则定义表';
 
@@ -1038,6 +1039,8 @@ CREATE TABLE IF NOT EXISTS `rule_execution_log` (
    KEY `idx_rule_code` (`rule_code`, `create_time`),
    KEY `idx_project_code` (`project_code`, `create_time`),
    KEY `idx_source` (`source`, `create_time`),
+    KEY `idx_dashboard_execution_time_project` (`create_time`, `project_code`),
+    KEY `idx_dashboard_execution_rule_time` (`project_code`, `rule_code`, `create_time`),
     KEY `idx_execution_trace` (`trace_id`, `create_time`),
     KEY `idx_client_app` (`client_app_name`, `create_time`),
     KEY `idx_execution_log_auth` (`auth_id`, `token_id`, `create_time`)
@@ -1411,6 +1414,7 @@ CREATE TABLE IF NOT EXISTS `rule_runtime_call_log` (
   `create_time`     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '发生时间',
   PRIMARY KEY (`id`),
   KEY `idx_runtime_log_module_time` (`module_type`, `create_time`),
+  KEY `idx_dashboard_runtime_project_module_action_time` (`module_type`, `action_type`, `provider_request`, `create_time`, `project_code`),
   KEY `idx_runtime_log_target_time` (`target_ref_id`, `create_time`),
   KEY `idx_runtime_trace` (`trace_id`, `rule_trace_id`),
   KEY `idx_runtime_log_success` (`success`, `create_time`)
@@ -1628,6 +1632,7 @@ CREATE TABLE IF NOT EXISTS `rule_billing_record` (
   KEY `idx_billing_record_occur` (`occur_time`),
   KEY `idx_billing_record_target` (`billing_target`, `target_ref_id`),
   KEY `idx_billing_record_project` (`project_code`, `occur_time`),
+  KEY `idx_dashboard_billing_rule_time` (`rule_code`, `occur_time`, `project_code`),
   KEY `idx_billing_record_auth` (`auth_id`, `token_id`, `occur_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='计费明细表';
 

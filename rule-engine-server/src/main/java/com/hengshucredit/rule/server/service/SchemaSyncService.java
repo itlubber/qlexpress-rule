@@ -85,6 +85,7 @@ public class SchemaSyncService {
             ensureModelScopeConsistency();
             ensureModelFieldForeignKeysRemoved();
             ensureDataObjectFieldUniqueKey();
+            ensureDashboardIndexes();
         } catch (Exception e) {
             log.warn("运行时数据库结构同步失败，请检查 sql/schema.sql 与当前数据库: {}", e.getMessage());
         }
@@ -883,6 +884,34 @@ public class SchemaSyncService {
         }
         if (!indexExists(table, "uk_object_var_code")) {
             jdbcTemplate.execute("ALTER TABLE `" + table + "` ADD UNIQUE KEY `uk_object_var_code` (`object_id`, `parent_field_id`, `var_code`)");
+        }
+    }
+
+    private void ensureDashboardIndexes() {
+        addIndexIfMissing("rule_execution_log",
+                "idx_dashboard_execution_time_project",
+                "`create_time`, `project_code`");
+        addIndexIfMissing("rule_execution_log",
+                "idx_dashboard_execution_rule_time",
+                "`project_code`, `rule_code`, `create_time`");
+        addIndexIfMissing("rule_runtime_call_log",
+                "idx_dashboard_runtime_project_module_action_time",
+                "`module_type`, `action_type`, `provider_request`, "
+                        + "`create_time`, `project_code`");
+        addIndexIfMissing("rule_definition",
+                "idx_dashboard_definition_project_status_scope",
+                "`project_id`, `status`, `scope`");
+        addIndexIfMissing("rule_billing_record",
+                "idx_dashboard_billing_rule_time",
+                "`rule_code`, `occur_time`, `project_code`");
+    }
+
+    private void addIndexIfMissing(String tableName,
+                                   String indexName,
+                                   String columns) {
+        if (tableExists(tableName) && !indexExists(tableName, indexName)) {
+            jdbcTemplate.execute("ALTER TABLE `" + tableName
+                    + "` ADD INDEX `" + indexName + "` (" + columns + ")");
         }
     }
 

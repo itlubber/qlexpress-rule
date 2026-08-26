@@ -85,7 +85,7 @@ export default {
 <style lang="scss" scoped>
 .group-action-form {
   .field-label {
-    color: #334155;
+    color: var(--tianshu-text-primary);
     font-weight: 700;
     font-size: 12px;
     margin-bottom: 6px;
@@ -104,7 +104,7 @@ export default {
   }
 
   .btn-delete {
-    color: #f56c6c;
+    color: var(--tianshu-danger-text);
     margin-left: auto;
   }
 }

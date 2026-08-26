@@ -48,10 +48,15 @@
           >添加等级</el-button
         >
         <el-divider direction="vertical" />
-        <el-button size="small" :icon="ElIconDocument" @click="handleSave"
+        <el-button
+          v-permission="'rule:edit'"
+          size="small"
+          :icon="ElIconDocument"
+          @click="handleSave"
           >临时保存配置</el-button
         >
         <el-button
+          v-permission="'rule:edit'"
           size="small"
           type="warning"
           :icon="ElIconCpu"
@@ -59,6 +64,7 @@
           >保存并编译</el-button
         >
         <el-button
+          v-permission="'rule:edit'"
           size="small"
           type="primary"
           :icon="ElIconVideoPlay"

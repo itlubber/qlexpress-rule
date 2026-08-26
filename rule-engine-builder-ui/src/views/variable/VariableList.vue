@@ -7,67 +7,16 @@
       >中可加载项目变量作为入参。支持从 Java 实体类、JSON、建表 DDL 批量导入。
     </div>
 
-    <div class="uiue-btn-bar">
-      <div class="btn-right">
-        <el-dropdown
-          v-if="activeTab !== 'validations'"
-          trigger="click"
-          @command="handleImportCmd"
-        >
-          <el-button size="small" type="primary" :icon="ElIconUpload2"
-            >批量导入
-            <el-icon class="el-icon--right"><el-icon-arrow-down /></el-icon
-          ></el-button>
-          <template v-slot:dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="java-entity" :icon="ElIconDocument"
-                >导入 Java 实体类</el-dropdown-item
-              >
-              <el-dropdown-item command="json-object" :icon="ElIconTickets"
-                >导入 JSON 对象</el-dropdown-item
-              >
-              <el-dropdown-item command="ddl-table" :icon="ElIconSGrid"
-                >导入 DDL 建表语句</el-dropdown-item
-              >
-              <el-dropdown-item command="java-const" :icon="ElIconCoin" divided
-                >导入 Java 常量类</el-dropdown-item
-              >
-              <el-dropdown-item command="json-const" :icon="ElIconPriceTag"
-                >导入 JSON 常量</el-dropdown-item
-              >
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-        <el-button
-          v-permission="'field:edit'"
-          size="small"
-          :icon="ElIconPlus"
-          @click="handlePrimaryCreate"
-          >{{ primaryCreateLabel }}</el-button
-        >
-        <el-button
-          v-if="activeTab !== 'validations'"
-          size="small"
-          :icon="ElIconVideoPlay"
-          type="warning"
-          style="margin-left: 0"
-          @click="handleBatchValidate"
-          :loading="validating"
-          >验证规则</el-button
-        >
-      </div>
-    </div>
-
     <!-- Tabs -->
     <el-tabs
       v-model="activeTab"
-      type="border-card"
       class="var-tabs"
       @tab-click="onTabClick"
     >
       <!-- Tab 1: Variable List -->
       <el-tab-pane label="变量列表" name="list">
         <div class="tab-filter-row" @keyup.enter="handleQuery">
+          <div class="tab-filter-fields">
           <el-select
             v-model="qp.scope"
             clearable
@@ -148,6 +97,14 @@
           />
           <el-button type="primary" @click="handleQuery">查询</el-button>
           <el-button @click="resetQuery">重置</el-button>
+          </div>
+          <variable-toolbar-actions
+            :primary-create-label="primaryCreateLabel"
+            :validating="validating"
+            @import="handleImportCmd"
+            @create="handlePrimaryCreate"
+            @validate="handleBatchValidate"
+          />
         </div>
 
         <!-- 1. 普通变量（系统新增） -->
@@ -195,6 +152,7 @@
               <template v-slot="{ row }">
                 <el-input
                   v-model="row.scriptName"
+                  :disabled="!canEditFields"
                   size="small"
                   placeholder="脚本名称"
                   @blur="onVarScriptNameChange(row)"
@@ -262,6 +220,7 @@
                 <el-button
                   v-permission="'field:edit'"
                   link
+                  data-action="edit"
                   size="small"
                   type="warning"
                   @click="handleEdit(row)"
@@ -270,6 +229,7 @@
                 <el-button
                   v-if="isTestableSource(row)"
                   link
+                  data-action="detail"
                   size="small"
                   type="primary"
                   @click="handleViewSourceDetail(row)"
@@ -278,13 +238,16 @@
                 <el-button
                   v-if="isTestableSource(row)"
                   link
+                  data-action="execute"
                   size="small"
                   type="success"
                   @click="handleTestVariable(row)"
                   >测试</el-button
                 >
                 <el-button
+                  v-permission="'field:edit'"
                   link
+                  data-action="configure"
                   size="small"
                   type="info"
                   @click="handleOptions(row)"
@@ -293,7 +256,9 @@
                 >
                 <el-button
                   v-if="row.scope === 'PROJECT'"
+                  v-permission="'field:edit'"
                   link
+                  data-action="global"
                   size="small"
                   type="success"
                   @click="handleToGlobal(row)"
@@ -302,6 +267,7 @@
                 <el-button
                   v-permission="'field:edit'"
                   link
+                  data-action="delete"
                   size="small"
                   type="danger"
                   class="btn-delete"
@@ -343,6 +309,7 @@
       <!-- Tab 2: Data Objects -->
       <el-tab-pane label="数据对象" name="objects">
         <div class="tab-filter-row" @keyup.enter="onObjFilterChange">
+          <div class="tab-filter-fields">
           <el-select
             v-model="objQp.scope"
             clearable
@@ -395,6 +362,14 @@
           />
           <el-button type="primary" @click="onObjFilterChange">查询</el-button>
           <el-button @click="resetObjQuery">重置</el-button>
+          </div>
+          <variable-toolbar-actions
+            :primary-create-label="primaryCreateLabel"
+            :validating="validating"
+            @import="handleImportCmd"
+            @create="handlePrimaryCreate"
+            @validate="handleBatchValidate"
+          />
         </div>
         <div
           v-if="filteredObjectTree.length === 0 && !objLoading"
@@ -444,6 +419,7 @@
             <div class="var-group-toolbar">
               <el-input
                 v-model="node.object.scriptName"
+                :disabled="!canEditFields"
                 size="small"
                 placeholder="脚本名称"
                 style="width: 130px; margin-left: 6px"
@@ -452,6 +428,7 @@
               />
               <el-select
                 v-model="node.object.objectType"
+                :disabled="!canEditFields"
                 size="small"
                 style="width: 100px"
                 @change="onObjectTypeChange(node.object)"
@@ -483,12 +460,14 @@
               >
               <el-button
                 v-if="node.object.scope === 'PROJECT'"
+                v-permission="'field:edit'"
                 link
                 size="small"
                 @click.stop="handleObjectToGlobal(node.object)"
                 >转为全局</el-button
               >
               <el-button
+                v-permission="'field:edit'"
                 link
                 size="small"
                 :icon="ElIconPlus"
@@ -497,6 +476,7 @@
                 >添加字段</el-button
               >
               <el-button
+                v-permission="'field:edit'"
                 link
                 size="small"
                 :icon="ElIconDelete"
@@ -529,6 +509,7 @@
                   <template v-slot="{ row }">
                     <el-input
                       v-model="row.scriptName"
+                      :disabled="!canEditFields"
                       size="small"
                       placeholder="脚本名称"
                       @blur="onObjectFieldScriptNameBlur(row)"
@@ -570,14 +551,18 @@
                 <el-table-column label="操作" width="140" align="center">
                   <template v-slot="{ row }">
                     <el-button
+                      v-permission="'field:edit'"
                       link
+                      data-action="edit"
                       size="small"
                       type="warning"
                       @click="handleEditObjectField(row, node)"
                       >编辑</el-button
                     >
                     <el-button
+                      v-permission="'field:edit'"
                       link
+                      data-action="configure"
                       size="small"
                       type="info"
                       @click="handleOptions(row, true)"
@@ -585,7 +570,9 @@
                       >选项</el-button
                     >
                     <el-button
+                      v-permission="'field:edit'"
                       link
+                      data-action="delete"
                       size="small"
                       type="danger"
                       class="btn-delete"
@@ -620,6 +607,7 @@
       <!-- Tab 3: 常量列表（与变量列表相同分页模型，必须有默认值） -->
       <el-tab-pane label="常量列表" name="constants">
         <div class="tab-filter-row" @keyup.enter="handleConstQuery">
+          <div class="tab-filter-fields">
           <el-select
             v-model="constQp.scope"
             clearable
@@ -684,6 +672,14 @@
           />
           <el-button type="primary" @click="handleConstQuery">查询</el-button>
           <el-button @click="resetConstQuery">重置</el-button>
+          </div>
+          <variable-toolbar-actions
+            :primary-create-label="primaryCreateLabel"
+            :validating="validating"
+            @import="handleImportCmd"
+            @create="handlePrimaryCreate"
+            @validate="handleBatchValidate"
+          />
         </div>
         <el-table
           v-loading="constLoading"
@@ -772,7 +768,9 @@
           <el-table-column label="操作" width="180" align="center" fixed="right">
             <template v-slot="{ row }">
               <el-button
+                v-permission="'field:edit'"
                 link
+                data-action="edit"
                 size="small"
                 type="warning"
                 @click="handleEdit(row)"
@@ -780,14 +778,18 @@
               >
               <el-button
                 v-if="row.scope === 'PROJECT'"
+                v-permission="'field:edit'"
                 link
+                data-action="global"
                 size="small"
                 type="success"
                 @click="handleToGlobal(row)"
                 >转为全局</el-button
               >
               <el-button
+                v-permission="'field:edit'"
                 link
+                data-action="delete"
                 size="small"
                 type="danger"
                 class="btn-delete"
@@ -829,6 +831,7 @@
           style="margin-bottom: 12px"
         />
         <div class="tab-filter-row" @keyup.enter="handleFieldValidationQuery">
+          <div class="tab-filter-fields">
           <el-select
             v-model="validationQp.scope"
             clearable
@@ -882,6 +885,12 @@
             >查询</el-button
           >
           <el-button @click="resetFieldValidationQuery">重置</el-button>
+          </div>
+          <variable-toolbar-actions
+            :primary-create-label="primaryCreateLabel"
+            :show-batch-actions="false"
+            @create="handlePrimaryCreate"
+          />
         </div>
         <el-table
           v-loading="validationLoading"
@@ -972,7 +981,9 @@
             <template v-slot="{ row }">
               <el-button
                 v-if="!row.builtIn"
+                v-permission="'field:edit'"
                 link
+                data-action="edit"
                 size="small"
                 type="warning"
                 @click="editFieldValidation(row)"
@@ -980,7 +991,9 @@
               >
               <el-button
                 v-if="!row.builtIn"
+                v-permission="'field:edit'"
                 link
+                data-action="delete"
                 size="small"
                 type="danger"
                 class="btn-delete"
@@ -1341,7 +1354,6 @@
             <monaco-editor
               v-model:value="form.dbSql"
               language="sql"
-              theme="rule-sql-light"
               height="130px"
             />
           </el-form-item>
@@ -1496,7 +1508,6 @@
             </div>
             <el-button
               type="primary"
-              plain
               :loading="draftPreviewing"
               @click="previewDraftVariable"
             >
@@ -1747,6 +1758,7 @@
           <template v-slot="{ $index }"
             ><el-button
               link
+              data-action="delete"
               size="small"
               type="danger"
               @click="optionList.splice($index, 1)"
@@ -2104,7 +2116,6 @@
           <monaco-editor
             v-model:value="importForm.ddlSource"
             language="sql"
-            theme="rule-sql-light"
             height="320px"
           />
         </el-form-item>
@@ -2397,16 +2408,8 @@
 import { markRaw } from 'vue'
 import {
   InfoFilled as ElIconInfo,
-  ArrowDown as ElIconArrowDown,
   CircleCheckFilled as ElIconSuccess,
-  Upload as ElIconUpload2,
-  Document as ElIconDocument,
-  Tickets as ElIconTickets,
-  Grid as ElIconSGrid,
-  Coin as ElIconCoin,
-  PriceTag as ElIconPriceTag,
   Plus as ElIconPlus,
-  VideoPlay as ElIconVideoPlay,
   Edit as ElIconEdit,
   Delete as ElIconDelete,
   Upload as ElIconUpload,
@@ -2503,6 +2506,8 @@ import RemoteFilterSelect from '@/components/RemoteFilterSelect.vue'
 import ProjectFilterSelect from '@/components/ProjectFilterSelect.vue'
 import OperandPicker from '@/components/common/OperandPicker.vue'
 import VariableSourceSelector from './components/VariableSourceSelector.vue'
+import VariableToolbarActions from './components/VariableToolbarActions.vue'
+import { hasPermission } from '@/security/permissionState'
 
 export default {
   data() {
@@ -2721,17 +2726,11 @@ export default {
       },
       /** 铁律四：id → objectCode 映射，供 refObjectId 展示引用对象名 */
       objectIdMap: {},
-      ElIconUpload2: markRaw(ElIconUpload2),
-      ElIconDocument: markRaw(ElIconDocument),
-      ElIconTickets: markRaw(ElIconTickets),
-      ElIconSGrid: markRaw(ElIconSGrid),
-      ElIconCoin: markRaw(ElIconCoin),
-      ElIconPriceTag: markRaw(ElIconPriceTag),
       ElIconPlus: markRaw(ElIconPlus),
-      ElIconVideoPlay: markRaw(ElIconVideoPlay),
       ElIconEdit: markRaw(ElIconEdit),
       ElIconDelete: markRaw(ElIconDelete),
       ElIconUpload: markRaw(ElIconUpload),
+      canEditFields: hasPermission('field:edit'),
     }
   },
   components: {
@@ -2740,8 +2739,8 @@ export default {
     RemoteFilterSelect,
     ProjectFilterSelect,
     VariableSourceSelector,
+    VariableToolbarActions,
     ElIconInfo,
-    ElIconArrowDown,
     ElIconSuccess,
   },
   name: 'VariableList',
@@ -5068,10 +5067,22 @@ export default {
 }
 .tab-filter-row {
   display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+.tab-filter-fields {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
   gap: 8px;
   align-items: center;
-  margin-bottom: 12px;
   flex-wrap: wrap;
+}
+@media (max-width: 768px) {
+  .tab-filter-row {
+    flex-wrap: wrap;
+  }
 }
 .tab-empty {
   text-align: center;
@@ -5363,9 +5374,9 @@ export default {
 .variable-config-guide {
   margin-bottom: 18px;
   padding: 15px 16px;
-  border: 1px solid #dbe5f3;
+  border: 1px solid var(--tianshu-info-border);
   border-radius: 10px;
-  background: linear-gradient(135deg, #f8fbff 0%, #f4f7fc 100%);
+  background: var(--tianshu-info-bg);
 }
 .variable-config-guide__heading,
 .draft-preview-panel__heading {
@@ -5377,14 +5388,14 @@ export default {
 .variable-config-guide__heading strong,
 .draft-preview-panel__heading strong {
   display: block;
-  color: #172033;
+  color: var(--tianshu-text-primary);
   font-size: 14px;
 }
 .variable-config-guide__heading span,
 .draft-preview-panel__heading span {
   display: block;
   margin-top: 3px;
-  color: #68758a;
+  color: var(--tianshu-text-secondary);
   font-size: 12px;
 }
 .variable-config-checklist {
@@ -5401,7 +5412,7 @@ export default {
   padding: 9px;
   border: 1px solid var(--tianshu-border-subtle);
   border-radius: 7px;
-  background: rgb(255 255 255 / 82%);
+  background: var(--tianshu-bg-surface);
 }
 .variable-config-check > span {
   display: inline-flex;
@@ -5412,7 +5423,7 @@ export default {
   justify-content: center;
   border-radius: 50%;
   background: #e8edf5;
-  color: #60708a;
+  color: var(--tianshu-text-tertiary);
   font-size: 11px;
   font-weight: 700;
 }
@@ -5421,29 +5432,30 @@ export default {
   display: block;
 }
 .variable-config-check strong {
-  color: #334155;
+  color: var(--tianshu-text-primary);
   font-size: 12px;
 }
 .variable-config-check small {
   margin-top: 2px;
-  color: #7b8798;
+  color: var(--tianshu-text-tertiary);
   font-size: 10px;
   line-height: 1.35;
 }
 .variable-config-check.is-ready {
-  border-color: #b9e3cd;
-  background: #f3fbf6;
+  border-color: var(--tianshu-success-border);
+  background: var(--tianshu-success-bg);
 }
 .variable-config-check.is-ready > span {
-  background: #daf2e4;
-  color: #16834b;
+  background: var(--tianshu-success-border);
+  color: var(--tianshu-success-text);
 }
 .source-catalog-help {
   margin-top: 7px;
 }
 .variable-advanced-collapse {
-  margin: 2px 0 16px 120px;
-  border: 1px solid #e1e7ef;
+  width: calc(100% - 120px);
+  margin: 2px auto 16px;
+  border: 1px solid var(--tianshu-info-border);
   border-radius: 7px;
 }
 .variable-advanced-collapse :deep(.el-collapse-item__header) {
@@ -5452,9 +5464,11 @@ export default {
   padding: 0 12px;
   border-bottom: 0;
   border-radius: 7px;
+  background: var(--tianshu-info-bg) !important;
 }
 .variable-advanced-collapse :deep(.el-collapse-item__wrap) {
   border-bottom: 0;
+  background: var(--tianshu-info-bg) !important;
 }
 .variable-advanced-collapse :deep(.el-collapse-item__content) {
   padding: 4px 12px 4px 0;
@@ -5465,19 +5479,19 @@ export default {
   line-height: 1.4;
 }
 .variable-advanced-title strong {
-  color: #334155;
+  color: var(--tianshu-info-text);
   font-size: 12px;
 }
 .variable-advanced-title span {
-  color: #8290a3;
+  color: var(--tianshu-text-tertiary);
   font-size: 10px;
 }
 .draft-preview-panel {
   margin: 4px 0 18px;
   padding: 15px 16px;
-  border: 1px solid #d9e3f0;
+  border: 1px solid var(--tianshu-info-border);
   border-radius: 9px;
-  background: var(--tianshu-bg-soft);
+  background: var(--tianshu-info-bg);
 }
 .draft-preview-panel :deep(.el-alert) {
   margin-top: 12px;
@@ -5501,7 +5515,7 @@ export default {
   min-height: 120px;
   margin: 0;
   padding: 10px;
-  border: 1px solid #d8e0ea;
+  border: 1px solid var(--tianshu-border);
   border-radius: 5px;
   background: var(--tianshu-bg-surface);
 }

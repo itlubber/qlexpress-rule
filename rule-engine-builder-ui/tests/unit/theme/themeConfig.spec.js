@@ -3,13 +3,14 @@ import {
   DEFAULT_THEME_CONFIG,
   normalizeThemeConfig,
   resolveAccentPreset,
+  resolveThemeAccent,
 } from '@/theme/themeConfig'
 
 describe('themeConfig — 配置白名单和固定色卡', () => {
   test('损坏、缺字段或未来版本配置整体回退默认值', () => {
     expect(normalizeThemeConfig(null)).toEqual(DEFAULT_THEME_CONFIG)
     expect(normalizeThemeConfig({
-      schemaVersion: 2,
+      schemaVersion: 3,
       colorScheme: 'DARK',
       accentPreset: 'url(evil)',
     })).toEqual(DEFAULT_THEME_CONFIG)
@@ -22,7 +23,7 @@ describe('themeConfig — 配置白名单和固定色卡', () => {
 
   test('有效配置只返回白名单字段且保持布尔值', () => {
     const value = {
-      schemaVersion: 1,
+      ...DEFAULT_THEME_CONFIG,
       colorScheme: 'DARK',
       accentPreset: 'PEACH_PINK_GRADIENT',
       sidebarTheme: 'LIGHT',
@@ -41,14 +42,100 @@ describe('themeConfig — 配置白名单和固定色卡', () => {
       id: 'THEME_BLUE',
       name: '主题蓝',
       primary: '#2639E9',
+      secondary: '#F76E6C',
       background: '#2639E9',
     })
+    expect(resolveAccentPreset('LIQUID_PURPLE')).toMatchObject({
+      primary: '#873FF2',
+      secondary: '#2CC7B8',
+    })
+  })
+
+  test('v1 配置自动迁移到 v2 并保留原有外观选择', () => {
+    const legacy = {
+      schemaVersion: 1,
+      colorScheme: 'DARK',
+      accentPreset: 'PEACH_PINK_GRADIENT',
+      sidebarTheme: 'LIGHT',
+      contentWidth: 'FIXED',
+      fixedSidebar: false,
+      colorWeak: true,
+    }
+
+    expect(normalizeThemeConfig(legacy)).toEqual({
+      ...DEFAULT_THEME_CONFIG,
+      colorScheme: 'DARK',
+      accentPreset: 'PEACH_PINK_GRADIENT',
+      sidebarTheme: 'LIGHT',
+      contentWidth: 'FIXED',
+      fixedSidebar: false,
+      colorWeak: true,
+    })
+  })
+
+  test('自定义纯色生成与主色协调但不同的辅助色', () => {
+    const config = normalizeThemeConfig({
+      ...DEFAULT_THEME_CONFIG,
+      accentMode: 'CUSTOM_SOLID',
+      customSolidColor: '#125DFF',
+    })
+    const accent = resolveThemeAccent(config)
+
+    expect(accent).toMatchObject({
+      kind: 'solid',
+      primary: '#125DFF',
+      background: '#125DFF',
+    })
+    expect(accent.secondary).toMatch(/^#[0-9A-F]{6}$/)
+    expect(accent.secondary).not.toBe(accent.primary)
+  })
+
+  test('自定义渐变支持二色、三色、线性和径向方式', () => {
+    const linear = resolveThemeAccent({
+      ...DEFAULT_THEME_CONFIG,
+      accentMode: 'CUSTOM_GRADIENT',
+      customGradientColors: ['#125DFF', '#6C3BFF', '#E94FC7'],
+      customGradientType: 'LINEAR',
+      customGradientAngle: 120,
+    })
+    const radial = resolveThemeAccent({
+      ...DEFAULT_THEME_CONFIG,
+      accentMode: 'CUSTOM_GRADIENT',
+      customGradientColors: ['#125DFF', '#E94FC7'],
+      customGradientType: 'RADIAL',
+    })
+
+    expect(linear.background).toBe(
+      'linear-gradient(120deg, #125DFF 0%, #6C3BFF 50%, #E94FC7 100%)'
+    )
+    expect(radial.background).toBe(
+      'radial-gradient(circle at center, #125DFF 0%, #E94FC7 100%)'
+    )
+  })
+
+  test('自定义配置拒绝非法颜色、色数、渐变方式和菜单布局', () => {
+    const invalidValues = [
+      { customSolidColor: 'url(evil)' },
+      { customGradientColors: ['#125DFF'] },
+      { customGradientColors: ['#125DFF', '#GGGGGG'] },
+      { customGradientType: 'CONIC' },
+      { customGradientAngle: 361 },
+      { navigationLayout: 'FLOATING' },
+    ]
+
+    for (const patch of invalidValues) {
+      expect(normalizeThemeConfig({
+        ...DEFAULT_THEME_CONFIG,
+        ...patch,
+      })).toEqual(DEFAULT_THEME_CONFIG)
+    }
   })
 
   test('渐变预设同时提供实色主色和固定渐变背景', () => {
     expect(resolveAccentPreset('LIQUID_PURPLE_GRADIENT')).toEqual(
       expect.objectContaining({
         primary: '#873FF2',
+        secondary: '#2CC7B8',
         foreground: '#FFFFFF',
         background: 'linear-gradient(135deg, #19103B 0%, #873FF2 100%)',
       })

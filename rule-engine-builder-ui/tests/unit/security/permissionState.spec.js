@@ -3,11 +3,15 @@ import {
   filterMenus,
   getCurrentUser,
   hasPermission,
+  setPermissionEnforcement,
   setCurrentUser
 } from '@/security/permissionState'
 
 describe('控制台最终权限状态', () => {
-  afterEach(() => clearCurrentUser())
+  afterEach(() => {
+    clearCurrentUser()
+    setPermissionEnforcement(false)
+  })
 
   test('仅保留当前用户拥有访问权限的菜单', () => {
     setCurrentUser({
@@ -34,6 +38,17 @@ describe('控制台最终权限状态', () => {
     ]
 
     expect(filterMenus(menus)).toEqual(menus)
+  })
+
+  test('登录鉴权启用后未加载账户时默认拒绝权限与菜单', () => {
+    setPermissionEnforcement(true)
+    const menus = [
+      { index: '/project', permission: 'project:view' },
+      { index: '/login' }
+    ]
+
+    expect(hasPermission('project:view')).toBe(false)
+    expect(filterMenus(menus)).toEqual([{ index: '/login' }])
   })
 
   test('状态保存不可变副本并可清空', () => {

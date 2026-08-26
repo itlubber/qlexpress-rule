@@ -11,7 +11,7 @@
       <el-button link size="small" @click="loadProjects">重试</el-button>
     </div>
 
-    <div class="uiue-search-container">
+    <div class="uiue-search-container uiue-filter-toolbar">
       <el-form :inline="true" size="small" @keyup.enter="handleQuery">
         <el-form-item label="作用范围">
           <el-select
@@ -81,17 +81,17 @@
           <el-button @click="resetQuery">重置</el-button>
         </el-form-item>
       </el-form>
-    </div>
-    <div class="uiue-btn-bar">
-      <div class="btn-right">
-        <el-button
-          v-permission="'function:edit'"
-          size="small"
-          :icon="ElIconPlus"
-          type="primary"
-          @click="handleCreate"
-          >新建函数</el-button
-        >
+      <div class="uiue-btn-bar">
+        <div class="btn-right">
+          <el-button
+            v-permission="'function:edit'"
+            size="small"
+            :icon="ElIconPlus"
+            type="primary"
+            @click="handleCreate"
+            >新建函数</el-button
+          >
+        </div>
       </div>
     </div>
 
@@ -180,6 +180,7 @@
         <template v-slot="{ row }">
           <el-button
             link
+            data-action="execute"
             size="small"
             type="success"
             @click="handleTestFunction(row)"
@@ -188,6 +189,7 @@
           <el-button
             v-permission="'function:edit'"
             link
+            data-action="edit"
             size="small"
             type="warning"
             @click="handleEdit(row)"
@@ -195,6 +197,7 @@
           >
           <el-button
             link
+            data-action="version"
             size="small"
             type="info"
             @click="openVersionDialog(row)"
@@ -203,6 +206,7 @@
           <el-button
             v-permission="'function:edit'"
             link
+            data-action="delete"
             size="small"
             type="danger"
             class="btn-delete"
@@ -366,7 +370,6 @@
           <monaco-editor
             v-model:value="editForm.implScript"
             language="ql"
-            theme="qlexpress-dark"
             height="180px"
           />
         </el-form-item>
@@ -496,6 +499,7 @@
           <template v-slot="{ row, $index }">
             <el-button
               link
+              data-action="inspect"
               size="small"
               type="primary"
               @click="viewVersion(row)"
@@ -504,6 +508,7 @@
             <el-button
               v-if="$index < versionList.length - 1"
               link
+              data-action="compare"
               size="small"
               type="info"
               @click="compareWithNext(row, $index)"
@@ -511,6 +516,7 @@
             >
             <el-button
               link
+              data-action="rollback"
               size="small"
               type="warning"
               @click="rollbackFunctionVersion(row)"

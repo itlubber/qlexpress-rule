@@ -20,7 +20,7 @@
 
     <el-tabs v-model="activeTab" @tab-click="onTabChange">
       <el-tab-pane label="数据源" name="datasource">
-        <div class="uiue-search-container">
+        <div class="uiue-search-container uiue-filter-toolbar">
           <el-form
             :inline="true"
             size="small"
@@ -108,18 +108,17 @@
               <el-button @click="resetDatasourceQuery">重置</el-button>
             </el-form-item>
           </el-form>
-        </div>
-
-        <div class="uiue-btn-bar">
-          <div class="btn-right">
-            <el-button
-              v-permission="'datasource:edit'"
-              type="primary"
-              size="small"
-              :icon="ElIconPlus"
-              @click="handleCreateDatasource"
-              >新建数据源</el-button
-            >
+          <div class="uiue-btn-bar">
+            <div class="btn-right">
+              <el-button
+                v-permission="'datasource:edit'"
+                type="primary"
+                size="small"
+                :icon="ElIconPlus"
+                @click="handleCreateDatasource"
+                >新建数据源</el-button
+              >
+            </div>
           </div>
         </div>
 
@@ -199,6 +198,7 @@
               <el-button
                 v-permission="'datasource:edit'"
                 link
+                data-action="edit"
                 size="small"
                 type="warning"
                 @click="handleEditDatasource(row)"
@@ -206,6 +206,7 @@
               >
               <el-button
                 link
+                data-action="execute"
                 size="small"
                 type="success"
                 @click="handleTestDatasource(row)"
@@ -213,6 +214,7 @@
               >
               <el-button
                 link
+                data-action="add"
                 size="small"
                 type="primary"
                 @click="handleCreateApi(row)"
@@ -221,6 +223,7 @@
               <el-button
                 v-permission="'datasource:edit'"
                 link
+                data-action="delete"
                 size="small"
                 type="danger"
                 class="btn-delete"
@@ -253,7 +256,7 @@
       </el-tab-pane>
 
       <el-tab-pane label="API 接口" name="api">
-        <div class="uiue-search-container">
+        <div class="uiue-search-container uiue-filter-toolbar">
           <el-form :inline="true" size="small" @keyup.enter="handleApiQuery">
             <el-form-item label="项目编码">
               <project-filter-select
@@ -331,18 +334,17 @@
               <el-button @click="resetApiQuery">重置</el-button>
             </el-form-item>
           </el-form>
-        </div>
-
-        <div class="uiue-btn-bar">
-          <div class="btn-right">
-            <el-button
-              v-permission="'datasource:edit'"
-              type="primary"
-              size="small"
-              :icon="ElIconPlus"
-              @click="handleCreateApi()"
-              >新建接口</el-button
-            >
+          <div class="uiue-btn-bar">
+            <div class="btn-right">
+              <el-button
+                v-permission="'datasource:edit'"
+                type="primary"
+                size="small"
+                :icon="ElIconPlus"
+                @click="handleCreateApi()"
+                >新建接口</el-button
+              >
+            </div>
           </div>
         </div>
 
@@ -417,6 +419,7 @@
               <el-button
                 v-permission="'datasource:edit'"
                 link
+                data-action="edit"
                 size="small"
                 type="warning"
                 @click="handleEditApi(row)"
@@ -424,6 +427,7 @@
               >
               <el-button
                 link
+                data-action="execute"
                 size="small"
                 type="success"
                 @click="handleInvokeApi(row)"
@@ -432,6 +436,7 @@
               <el-button
                 v-permission="'datasource:edit'"
                 link
+                data-action="delete"
                 size="small"
                 type="danger"
                 class="btn-delete"

@@ -22,7 +22,6 @@
           <monaco-editor
             v-model:value="edgeProps.conditionExpr"
             language="ql"
-            theme="qlexpress-dark"
             height="90px"
             @change="onEdgeChange"
           />
@@ -258,7 +257,6 @@
             <monaco-editor
               v-model:value="nodeProps.scriptContent"
               language="ql"
-              theme="qlexpress-dark"
               height="180px"
               @change="onNodeChange"
             />

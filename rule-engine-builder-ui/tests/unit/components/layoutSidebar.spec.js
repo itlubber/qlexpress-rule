@@ -9,21 +9,13 @@ function mountSidebar(overrides = {}) {
       compact: false,
       activeMenu: '/project',
       menus: SIDEBAR_MENUS,
-      loginEnabled: false,
-      username: '',
-      avatarInitial: 'U',
       ...overrides
-    },
-    stubs: {
-      'el-dropdown': { template: '<div class="dropdown-stub"><slot /><slot name="dropdown" /></div>' },
-      'el-dropdown-menu': { template: '<div><slot /></div>' },
-      'el-dropdown-item': { template: '<button><slot /></button>' }
     }
   })
 }
 
 describe('LayoutSidebar', () => {
-  test('展开状态显示完整品牌、菜单名称和账号操作', () => {
+  test('展开状态显示完整品牌和菜单且不再承载账号信息', () => {
     const wrapper = mountSidebar({
       loginEnabled: true,
       username: 'admin',
@@ -33,12 +25,11 @@ describe('LayoutSidebar', () => {
     expect(wrapper.find('.brand-copy').text()).toContain('天枢决策引擎')
     expect(wrapper.find('.brand-copy').text()).toContain('天工开物，枢衡定策')
     expect(wrapper.findAll('.menu-label')).toHaveLength(SIDEBAR_MENUS.length)
-    expect(wrapper.find('.account-name').text()).toBe('admin')
-    expect(wrapper.find('.account-logout').exists()).toBe(true)
+    expect(wrapper.find('.sidebar-account').exists()).toBe(false)
     wrapper.unmount()
   })
 
-  test('窄栏只保留 Logo、菜单图标和头像', () => {
+  test('窄栏只保留 Logo 和菜单图标', () => {
     const wrapper = mountSidebar({
       width: 64,
       compact: true,
@@ -50,9 +41,7 @@ describe('LayoutSidebar', () => {
     expect(wrapper.find('.sidebar-brand__logo').exists()).toBe(true)
     expect(wrapper.find('.brand-copy').exists()).toBe(false)
     expect(wrapper.findAll('.menu-label')).toHaveLength(0)
-    expect(wrapper.find('.account-name').exists()).toBe(false)
-    expect(wrapper.find('.account-logout').exists()).toBe(false)
-    expect(wrapper.find('.account-avatar').text()).toBe('A')
+    expect(wrapper.find('.sidebar-account').exists()).toBe(false)
     wrapper.unmount()
   })
 
@@ -60,8 +49,8 @@ describe('LayoutSidebar', () => {
     const wrapper = mountSidebar({ compact: true, width: 64 })
     const items = wrapper.findAll('.sidebar-menu__item')
 
-    expect(items.at(0).attributes('title')).toBe('项目管理')
-    expect(items.at(12).attributes('title')).toBe('账单管理')
+    expect(items.at(0).attributes('title')).toBe('数据看板')
+    expect(items.at(13).attributes('title')).toBe('账单管理')
     wrapper.unmount()
   })
 
@@ -120,27 +109,4 @@ describe('LayoutSidebar', () => {
     removeSpy.mockRestore()
   })
 
-  test('展开账号区和窄栏账号菜单都可发送退出事件', async() => {
-    const expanded = mountSidebar({ loginEnabled: true, username: 'admin', avatarInitial: 'A' })
-    await expanded.find('.account-logout').trigger('click')
-    expect(expanded.emitted('logout')).toHaveLength(1)
-    expanded.unmount()
-
-    const compact = mountSidebar({
-      compact: true,
-      width: 64,
-      loginEnabled: true,
-      username: 'admin',
-      avatarInitial: 'A'
-    })
-    compact.vm.handleAccountCommand('logout')
-    expect(compact.emitted('logout')).toHaveLength(1)
-    compact.unmount()
-  })
-
-  test('未启用登录时不显示账号区', () => {
-    const wrapper = mountSidebar({ loginEnabled: false })
-    expect(wrapper.find('.sidebar-account').exists()).toBe(false)
-    wrapper.unmount()
-  })
 })

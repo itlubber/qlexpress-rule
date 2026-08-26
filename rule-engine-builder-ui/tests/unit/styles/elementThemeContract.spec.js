@@ -12,10 +12,28 @@ const overrideSource = fs.readFileSync(
   'utf8'
 )
 const css = compileString(overrideSource, { loadPaths: [stylesDir] }).css
+const themeCss = compileString(`
+  @use "element-override";
+  @use "theme-tokens";
+  @use "theme-components";
+`, { loadPaths: [stylesDir] }).css
 
 function declarationBlock(selector) {
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return css.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`))?.[1] || ''
+  const matches = Array.from(css.matchAll(/([^{}]+)\{([^}]*)\}/g))
+    .filter(match => match[1]
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .split(',')
+      .some(item => item.trim() === selector))
+  return matches.at(-1)?.[2] || ''
+}
+
+function themeRuleBlock(selector) {
+  const matches = Array.from(themeCss.matchAll(/([^{}]+)\{([^}]*)\}/g))
+    .filter(match => match[1]
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .split(',')
+      .some(item => item.trim() === selector))
+  return matches.at(-1)?.[2] || ''
 }
 
 function collectThemeSources(directory) {
@@ -92,5 +110,63 @@ test('字段选择器和表达式控件显式读取统一主题变量', () => {
   for (const control of controls) {
     const source = fs.readFileSync(path.join(uiRoot, control), 'utf8')
     expect(source, control).toContain('var(--el-color-primary)')
+  }
+})
+
+test('主按钮变体保持背景和文字的可读性契约', () => {
+  const solid = themeRuleBlock(
+    '.el-button--primary:not(.is-link):not(.is-text):not(.is-plain)'
+  )
+  const plain = themeRuleBlock('.el-button--primary.is-plain')
+
+  expect(solid).toContain('color: var(--tianshu-brand-foreground)')
+  expect(solid).toContain('background-color: var(--el-color-primary)')
+  expect(plain).toContain('color: var(--tianshu-text-primary)')
+  expect(plain).toContain('background-color: var(--el-color-primary-light-9)')
+  expect(themeCss).not.toMatch(
+    /\.el-button--primary\s*\{[^}]*background-color:\s*var\(--el-color-primary\)/
+  )
+})
+
+test('文字拖选和组件选中态统一读取当前主题色', () => {
+  const selection = themeRuleBlock('::selection')
+  const option = themeRuleBlock('.el-select-dropdown__item.is-selected')
+  const tab = themeRuleBlock('.el-tabs__item.is-active')
+  const tableRow = themeRuleBlock(
+    '.el-table__body tr.current-row > td.el-table__cell'
+  )
+  const treeNode = themeRuleBlock(
+    '.el-tree-node.is-current > .el-tree-node__content'
+  )
+
+  expect(themeCss).toContain('--tianshu-selection-bg:')
+  expect(themeCss).toContain('--tianshu-selection-foreground:')
+  expect(selection).toContain('background: var(--tianshu-selection-bg)')
+  expect(selection).toContain('color: var(--tianshu-selection-foreground)')
+  for (const block of [option, tab, tableRow, treeNode]) {
+    expect(block).toContain('var(--el-color-primary)')
+  }
+})
+
+test('页面提示容器统一读取当前主题衍生提示色', () => {
+  const moduleHint = themeRuleBlock('.module-hint')
+  const linkageHint = themeRuleBlock('.linkage-hint')
+
+  for (const block of [moduleHint, linkageHint]) {
+    expect(block).toContain('color: var(--tianshu-info-text)')
+    expect(block).toContain('background: var(--tianshu-info-bg)')
+    expect(block).toContain('border-color: var(--tianshu-info-border)')
+  }
+})
+
+test('表格操作按钮按 data-action 使用独立主题色和悬停背景', () => {
+  expect(themeCss).toContain('.el-table .el-button[data-action]')
+  expect(themeCss).toContain('color: var(--tianshu-action-color)')
+  expect(themeCss).toContain('rgba(var(--tianshu-action-rgb), 0.12)')
+
+  for (const role of ['edit', 'detail', 'execute', 'inspect', 'configure', 'delete']) {
+    expect(themeCss).toContain(`[data-action=${role}]`)
+    expect(themeCss).toContain(`--tianshu-action-${role},`)
+    expect(themeCss).toContain(`--tianshu-action-${role}-rgb,`)
   }
 })

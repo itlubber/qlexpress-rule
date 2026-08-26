@@ -6,6 +6,7 @@
     direction="rtl"
     :size="drawerSize"
     :before-close="handleBeforeClose"
+    :lock-scroll="false"
     append-to-body
   >
     <div class="theme-settings">
@@ -142,14 +143,6 @@
             </button>
           </div>
         </div>
-        <label class="setting-row">
-          <span>固定侧栏</span>
-          <el-switch
-            v-model="draft.fixedSidebar"
-            aria-label="固定侧栏"
-            @change="emitPreview"
-          />
-        </label>
       </section>
 
       <section class="theme-section" aria-labelledby="other-settings-title">

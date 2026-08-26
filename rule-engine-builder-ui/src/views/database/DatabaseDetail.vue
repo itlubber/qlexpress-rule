@@ -308,7 +308,6 @@
         <monaco-editor
           v-model:value="form.validationQuery"
           language="sql"
-          theme="rule-sql-light"
           height="90px"
         />
       </el-form-item>

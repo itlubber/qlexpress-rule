@@ -5,6 +5,26 @@
 //       因此 setup.js 只提供基础 mock（vi.fn()），测试文件通过
 //       .mockResolvedValueOnce() / .mockResolvedValue() 配置返回值。
 
+// Node.js 26 在未设置 --localstorage-file 时会向测试全局暴露一个
+// 不可用的 localStorage。确保 jsdom 测试继续使用隔离的内存存储。
+if (typeof window !== 'undefined' && !window.localStorage) {
+  let values = new Map()
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: {
+      clear() { values.clear() },
+      getItem(key) {
+        const normalized = String(key)
+        return values.has(normalized) ? values.get(normalized) : null
+      },
+      key(index) { return Array.from(values.keys())[index] || null },
+      get length() { return values.size },
+      removeItem(key) { values.delete(String(key)) },
+      setItem(key, value) { values.set(String(key), String(value)) }
+    }
+  })
+}
+
 // 1. mock Vue Router
 vi.mock('@/router', () => ({
   default: {
@@ -239,6 +259,15 @@ vi.mock('@/api/project', () => ({
   getProjectAuthTokenFull: vi.fn(),
   revokeProjectAuthToken: vi.fn(),
   listProjectAuthAccessLogs: vi.fn(),
+  __esModule: true
+}))
+vi.mock('@/api/dashboard', () => ({
+  getDashboardApplications: vi.fn(),
+  getDashboardOperations: vi.fn(),
+  getDashboardGovernance: vi.fn(),
+  getDashboardSettings: vi.fn(),
+  saveDashboardSettings: vi.fn(),
+  deleteDashboardSetting: vi.fn(),
   __esModule: true
 }))
 vi.mock('@/api/datasource', () => ({

@@ -2,22 +2,10 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <script>
-    (function () {
-      var originalWarn = console.warn.bind(console)
-      console.warn = function () {
-        var message = arguments[0]
-        if (
-          typeof message === 'string' &&
-          (message.toLowerCase().includes('non-passive') || message.includes('touchmove'))
-        ) return
-        originalWarn.apply(console, arguments)
-      }
-    })()
-  </script>
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>天枢决策引擎</title>
+  <link rel="icon" href="./favicon.ico" sizes="any">
   <link rel="icon" type="image/svg+xml" href="./images/hengshucredit_animated.svg">
   <style>
     @font-face {

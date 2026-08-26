@@ -33,43 +33,6 @@
       </button>
     </nav>
 
-    <div v-if="loginEnabled" class="sidebar-account">
-      <template v-if="!compact">
-        <span class="account-avatar" aria-hidden="true">{{
-          avatarInitial
-        }}</span>
-        <span class="account-name" :title="username">{{ username }}</span>
-        <button type="button" class="account-logout" @click="$emit('logout')">
-          退出
-        </button>
-      </template>
-      <el-dropdown
-        v-else
-        trigger="click"
-        placement="right-end"
-        @command="handleAccountCommand"
-      >
-        <button
-          type="button"
-          class="account-avatar account-avatar--button"
-          :title="username || '用户账户'"
-          :aria-label="username ? username + '的账户菜单' : '用户账户菜单'"
-        >
-          {{ avatarInitial }}
-        </button>
-        <template v-slot:dropdown>
-          <el-dropdown-menu>
-            <el-dropdown-item disabled>{{
-              username || '用户'
-            }}</el-dropdown-item>
-            <el-dropdown-item command="logout" divided
-              >退出登录</el-dropdown-item
-            >
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
-    </div>
-
     <button
       type="button"
       class="sidebar-resizer"
@@ -91,9 +54,6 @@ export default {
     compact: { type: Boolean, default: false },
     activeMenu: { type: String, default: '' },
     menus: { type: Array, default: () => [] },
-    loginEnabled: { type: Boolean, default: false },
-    username: { type: String, default: '' },
-    avatarInitial: { type: String, default: 'U' },
   },
   data() {
     return {
@@ -107,9 +67,6 @@ export default {
     this.removeResizeListeners()
   },
   methods: {
-    handleAccountCommand(command) {
-      if (command === 'logout') $emit(this, 'logout')
-    },
     startResize(event) {
       this.resizing = true
       this.resizeStartX = event.clientX
@@ -139,7 +96,7 @@ export default {
       window.removeEventListener('mouseup', this.finishResize)
     },
   },
-  emits: ['navigate', 'logout', 'resize', 'resize-end'],
+  emits: ['navigate', 'resize', 'resize-end'],
 }
 </script>
 
@@ -295,56 +252,6 @@ export default {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.sidebar-account {
-  display: flex;
-  min-height: 64px;
-  padding: 12px 16px;
-  align-items: center;
-  box-sizing: border-box;
-  border-top: 1px solid var(--tianshu-sidebar-border, rgba(255, 255, 255, 0.08));
-}
-.account-avatar {
-  display: inline-flex;
-  flex: none;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  align-items: center;
-  justify-content: center;
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 600;
-  background: var(--tianshu-brand-background, linear-gradient(145deg, #5264f2, #2639e9));
-  border-radius: 50%;
-}
-.account-avatar--button {
-  cursor: pointer;
-}
-.account-name {
-  min-width: 0;
-  margin-left: 10px;
-  overflow: hidden;
-  color: var(--tianshu-sidebar-text, #e2e8f0);
-  font-size: 14px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.account-logout {
-  flex: none;
-  padding: 4px;
-  margin-left: auto;
-  color: var(--tianshu-sidebar-text, #9caafb);
-  font: inherit;
-  font-size: 13px;
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  &:hover,
-  &:focus-visible {
-    color: #ffffff;
-    outline: none;
-  }
-}
 .sidebar-resizer {
   position: absolute;
   z-index: 4;
@@ -376,9 +283,6 @@ export default {
   color: var(--tianshu-text-primary, #172033);
 }
 
-:global([data-sidebar-theme='light']) .account-name {
-  color: var(--tianshu-text-secondary);
-}
 }
 .layout-sidebar.is-compact {
   .sidebar-brand {
@@ -407,11 +311,6 @@ export default {
 
   .menu-icon {
     width: auto;
-  }
-
-  .sidebar-account {
-    padding: 12px 0;
-    justify-content: center;
   }
 }
 </style>

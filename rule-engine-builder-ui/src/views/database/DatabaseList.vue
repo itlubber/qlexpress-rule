@@ -19,7 +19,7 @@
 
     <el-tabs v-model="activeTab">
       <el-tab-pane label="数据源配置" name="datasource">
-        <div class="uiue-search-container">
+        <div class="uiue-search-container uiue-filter-toolbar">
           <el-form :inline="true" size="small" @keyup.enter="handleQuery">
             <el-form-item label="项目编码">
               <project-filter-select
@@ -101,18 +101,17 @@
               <el-button @click="resetQuery">重置</el-button>
             </el-form-item>
           </el-form>
-        </div>
-
-        <div class="uiue-btn-bar">
-          <div class="btn-right">
-            <el-button
-              v-permission="'database:edit'"
-              type="primary"
-              size="small"
-              :icon="ElIconPlus"
-              @click="handleCreate"
-              >新建数据库</el-button
-            >
+          <div class="uiue-btn-bar">
+            <div class="btn-right">
+              <el-button
+                v-permission="'database:edit'"
+                type="primary"
+                size="small"
+                :icon="ElIconPlus"
+                @click="handleCreate"
+                >新建数据库</el-button
+              >
+            </div>
           </div>
         </div>
 
@@ -212,6 +211,7 @@
               <el-button
                 v-permission="'database:edit'"
                 link
+                data-action="edit"
                 size="small"
                 type="warning"
                 @click="handleEdit(row)"
@@ -219,6 +219,7 @@
               >
               <el-button
                 link
+                data-action="execute"
                 size="small"
                 type="success"
                 @click="handleTest(row)"
@@ -226,6 +227,7 @@
               >
               <el-button
                 link
+                data-action="inspect"
                 size="small"
                 type="primary"
                 @click="openQuery(row)"
@@ -234,6 +236,7 @@
               <el-button
                 v-permission="'database:edit'"
                 link
+                data-action="delete"
                 size="small"
                 type="danger"
                 class="btn-delete"
@@ -557,7 +560,6 @@
           <monaco-editor
             v-model:value="form.validationQuery"
             language="sql"
-            theme="rule-sql-light"
             height="90px"
           />
         </el-form-item>
@@ -603,7 +605,6 @@
           <monaco-editor
             v-model:value="queryForm.sql"
             language="sql"
-            theme="rule-sql-light"
             height="170px"
             :read-only="queryLoading"
             @change="syncQueryParamsToSql"

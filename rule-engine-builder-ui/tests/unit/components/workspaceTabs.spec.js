@@ -110,14 +110,12 @@ describe('WorkspaceTabs', () => {
     wrapper.unmount()
   })
 
-  test('统一操作入口作用于当前活动页签', () => {
+  test('移除页签省略号入口且保留右键操作能力', async() => {
     const wrapper = mountTabs()
-    wrapper.vm.handleOverflowCommand('all')
+    expect(wrapper.find('.workspace-tabs__more').exists()).toBe(false)
 
-    expect(wrapper.emitted('operate')[0]).toEqual([{
-      operation: 'all',
-      targetPath: '/rule'
-    }])
+    await wrapper.find('[data-tab="/rule"]').trigger('contextmenu')
+    expect(wrapper.find('[data-operation="all"]').exists()).toBe(true)
     wrapper.unmount()
   })
 

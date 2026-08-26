@@ -13,6 +13,7 @@
           >模板</el-button
         >
         <el-button
+          v-permission="'field:edit'"
           size="small"
           :icon="ElIconUpload2"
           @click="$refs.fileInput.click()"
@@ -117,6 +118,7 @@
         <div class="uiue-btn-bar">
           <div class="btn-right">
             <el-button
+              v-permission="'field:edit'"
               type="primary"
               size="small"
               :icon="ElIconPlus"
@@ -182,6 +184,7 @@
           <el-table-column label="执行操作" width="160" align="center">
             <template v-slot="{ row }">
               <el-button
+                v-permission="'field:edit'"
                 link
                 size="small"
                 type="warning"
@@ -196,6 +199,7 @@
                 >追踪</el-button
               >
               <el-button
+                v-permission="'field:edit'"
                 link
                 size="small"
                 type="danger"
@@ -361,7 +365,9 @@
       <template v-slot:footer>
         <div>
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submit">生成审批草稿</el-button>
+          <el-button v-permission="'field:edit'" type="primary" @click="submit"
+            >生成审批草稿</el-button
+          >
         </div>
       </template>
     </el-dialog>
@@ -706,12 +712,12 @@ export default {
 .workflow-guide {
   margin-bottom: 12px;
   padding: 12px 14px;
-  border: 1px solid #bfdbfe;
+  border: 1px solid var(--tianshu-info-border);
   border-radius: 6px;
-  background: #eff6ff;
+  background: var(--tianshu-info-bg);
 }
 .workflow-guide-title {
-  color: #1e3a8a;
+  color: var(--tianshu-info-text);
   font-size: 13px;
   font-weight: 600;
 }
@@ -731,7 +737,7 @@ export default {
 }
 .workflow-step.is-current {
   background: var(--el-color-primary);
-  color: #fff;
+  color: var(--tianshu-brand-foreground);
 }
 .workflow-arrow {
   color: var(--tianshu-text-tertiary);
@@ -745,16 +751,16 @@ export default {
 .batch-feedback {
   margin-bottom: 12px;
   padding: 12px 14px;
-  border: 1px solid #86efac;
+  border: 1px solid var(--tianshu-success-border);
   border-radius: 6px;
-  background: #f0fdf4;
+  background: var(--tianshu-success-bg);
 }
 .batch-feedback.is-error {
-  border-color: #fdba74;
-  background: #fff7ed;
+  border-color: var(--tianshu-warning-border);
+  background: var(--tianshu-warning-bg);
 }
 .batch-feedback-title {
-  color: #9a3412;
+  color: var(--tianshu-warning-text);
   font-size: 13px;
   font-weight: 600;
 }
@@ -766,7 +772,7 @@ export default {
 .batch-feedback-errors {
   margin: 8px 0 4px;
   padding-left: 20px;
-  color: #9a3412;
+  color: var(--tianshu-warning-text);
   font-size: 12px;
   line-height: 1.7;
 }

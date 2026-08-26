@@ -7,6 +7,7 @@
   },
   "scripts": {
     "preinstall": "node scripts/check-node-version.cjs",
+    "postinstall": "patch-package",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
@@ -26,6 +27,7 @@
     "axios": "^1.18.1",
     "core-js": "^3.0.0",
     "dayjs": "^1.11.19",
+    "echarts": "^6.1.0",
     "element-plus": "^2.14.3",
     "monaco-editor": "^0.31.1",
     "regenerator-runtime": "^0.14.1",
@@ -44,6 +46,7 @@
     "eslint-plugin-vue": "^10.10.0",
     "globals": "^17.7.0",
     "jsdom": "^29.1.1",
+    "patch-package": "^8.0.1",
     "sass": "^1.101.3",
     "vite": "^8.1.5",
     "vite-plugin-static-copy": "^3.4.0",

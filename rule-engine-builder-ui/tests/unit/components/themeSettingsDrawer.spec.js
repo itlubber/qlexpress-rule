@@ -4,7 +4,7 @@ import { DEFAULT_THEME_CONFIG } from '@/theme/themeConfig'
 
 const drawerStub = {
   name: 'ElDrawer',
-  props: ['modelValue', 'beforeClose'],
+  props: ['modelValue', 'beforeClose', 'lockScroll'],
   template: `
     <section v-if="modelValue" class="drawer-stub">
       <slot />
@@ -28,11 +28,33 @@ function mountDrawer(overrides = {}) {
         props: ['modelValue', 'disabled'],
         template: '<button type="button" class="switch-stub" :disabled="disabled" />',
       },
+      'el-color-picker': {
+        props: ['modelValue'],
+        emits: ['update:modelValue', 'change'],
+        template: '<button type="button" class="color-picker-stub" />',
+      },
+      'el-input-number': {
+        props: ['modelValue'],
+        emits: ['update:modelValue', 'change'],
+        template: '<input class="input-number-stub" />',
+      },
     },
   })
 }
 
 describe('ThemeSettingsDrawer', () => {
+  test('打开主题抽屉时不锁定页面滚动，避免工作区宽度变化', () => {
+    const wrapper = mountDrawer()
+
+    expect(wrapper.getComponent(drawerStub).props('lockScroll')).toBe(false)
+  })
+
+  test('管理端固定使用内容区滚动，不再展示会开启页面滚动的侧栏选项', () => {
+    const wrapper = mountDrawer()
+
+    expect(wrapper.find('[aria-label="固定侧栏"]').exists()).toBe(false)
+  })
+
   test('展示 8 个纯色和 4 个固定渐变色卡', () => {
     const wrapper = mountDrawer()
 
@@ -42,6 +64,33 @@ describe('ThemeSettingsDrawer', () => {
       .toBe('主题蓝')
     expect(wrapper.find('[data-accent="PEACH_PINK_GRADIENT"]').attributes('aria-label'))
       .toBe('桃粉渐变')
+  })
+
+  test('支持自定义纯色和二色或三色渐变，并实时预览渐变方式', async () => {
+    const wrapper = mountDrawer()
+
+    await wrapper.find('[data-accent-mode="CUSTOM_GRADIENT"]').trigger('click')
+    await wrapper.find('[data-gradient-count="3"]').trigger('click')
+    await wrapper.find('[data-gradient-type="RADIAL"]').trigger('click')
+    wrapper.vm.updateGradientColor(1, '#6C3BFF')
+    await wrapper.vm.$nextTick()
+
+    const preview = wrapper.emitted('preview').at(-1)[0]
+    expect(preview.accentMode).toBe('CUSTOM_GRADIENT')
+    expect(preview.customGradientColors).toHaveLength(3)
+    expect(preview.customGradientColors[1]).toBe('#6C3BFF')
+    expect(preview.customGradientType).toBe('RADIAL')
+    expect(wrapper.findAll('[data-custom-gradient-color]')).toHaveLength(3)
+  })
+
+  test('菜单位置可在左侧和顶部间切换并参与草稿预览', async () => {
+    const wrapper = mountDrawer()
+
+    await wrapper.find('[data-navigation-layout="TOP"]').trigger('click')
+
+    expect(wrapper.emitted('preview').at(-1)[0].navigationLayout).toBe('TOP')
+    expect(wrapper.find('[data-navigation-layout="TOP"]')
+      .attributes('aria-pressed')).toBe('true')
   })
 
   test('白天夜间和色卡选择只更新草稿并发送实时预览', async () => {

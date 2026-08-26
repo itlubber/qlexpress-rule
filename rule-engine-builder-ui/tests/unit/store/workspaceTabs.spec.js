@@ -131,7 +131,7 @@ describe('workspaceTabs store', () => {
     ['left', '/b', ['/b', '/c'], '/b'],
     ['right', '/b', ['/a', '/b'], '/b'],
     ['others', '/b', ['/b'], '/b'],
-    ['all', '/b', [], '/project']
+    ['all', '/b', [], '/dashboard']
   ])('%s 操作更新页签并返回下一路径', async(operation, targetPath, expectedTabs, nextPath) => {
     const store = createTestStore()
     for (const path of ['/a', '/b', '/c']) {

@@ -85,14 +85,43 @@
       </span>
     </div>
 
-    <div ref="graphWrap" class="graph-wrap" v-loading="loading">
+    <div
+      ref="graphWrap"
+      class="graph-wrap"
+      :class="{ 'is-interacting': pointerInteraction }"
+      v-loading="loading"
+      @pointerdown="beginCanvasPan"
+      @pointermove="onPointerMove"
+      @pointerup="endPointerInteraction"
+      @pointercancel="endPointerInteraction"
+      @wheel="onCanvasWheel"
+    >
       <div v-if="!startNode" class="empty-graph">请选择起点后生成血缘图</div>
+      <div v-else class="graph-toolbar" @pointerdown.stop>
+        <button type="button" aria-label="缩小血缘图" title="缩小" @click="zoomOut">
+          −
+        </button>
+        <span class="zoom-percent">{{ zoomPercent }}%</span>
+        <button type="button" aria-label="放大血缘图" title="放大" @click="zoomIn">
+          +
+        </button>
+        <button
+          type="button"
+          class="best-layout-button"
+          aria-label="一键回到最佳分布"
+          title="清除手工位置并适配画布"
+          @click="resetToBestLayout"
+        >
+          最佳分布
+        </button>
+      </div>
       <div
-        v-else
+        v-if="startNode"
         class="graph-canvas"
         :style="{
           width: canvasSize.width + 'px',
           height: canvasSize.height + 'px',
+          ...viewportTransformStyle,
         }"
       >
         <div v-if="showUpstream" class="side-caption is-upstream">
@@ -124,12 +153,19 @@
               orient="auto"
               markerUnits="strokeWidth"
             >
-              <path d="M0,0 L0,6 L7,3 z" fill="#94A3B8" />
+              <path
+                d="M0,0 L0,6 L7,3 z"
+                fill="var(--tianshu-border-strong)"
+              />
             </marker>
           </defs>
         </svg>
 
-        <div class="graph-node current-node" :style="currentNodeStyle">
+        <div
+          class="graph-node current-node"
+          :style="currentNodeStyle"
+          @pointerdown.stop="beginNodeDrag($event, 'CURRENT')"
+        >
           <div class="node-head">
             <span
               class="node-type"
@@ -155,12 +191,14 @@
             { 'is-cycle': item.branch.cycle },
           ]"
           :style="branchStyle(item)"
+          @pointerdown.stop="beginNodeDrag($event, item.branch.instanceId)"
         >
           <button
             v-if="canToggle(item.branch)"
             type="button"
             class="branch-toggle"
             :aria-label="item.branch.expanded ? '收起节点' : '展开节点'"
+            @pointerdown.stop
             @click.stop="toggleBranch(item.branch)"
           >
             <app-icon
@@ -210,6 +248,10 @@ const PADDING_X = 48
 const PADDING_Y = 48
 const MIN_CANVAS_W = 960
 const MIN_CANVAS_H = 440
+const MIN_SCALE = 0.4
+const MAX_SCALE = 2
+const ZOOM_STEP = 0.1
+const VIEWPORT_PADDING = 32
 
 export default {
   props: {
@@ -242,6 +284,9 @@ export default {
       downstreamRoots: [],
       loadedDirections: { UPSTREAM: false, DOWNSTREAM: false },
       branchSequence: 0,
+      viewport: { x: 0, y: 0, scale: 1 },
+      positionOverrides: {},
+      pointerInteraction: null,
       query: { nodeType: 'VARIABLE', nodeId: '', direction: 'ALL' },
       nodeTypeOptions: [
         { label: '项目', value: 'PROJECT' },
@@ -334,11 +379,19 @@ export default {
         height: this.mindMapLayout.height,
       }
     },
+    viewportTransformStyle() {
+      return {
+        transform: `translate(${this.viewport.x}px, ${this.viewport.y}px) scale(${this.viewport.scale})`,
+      }
+    },
+    zoomPercent() {
+      return Math.round(this.viewport.scale * 100)
+    },
     edgeLines() {
       return this.visibleBranches
         .map((item) => {
-          const branchPos = this.mindMapLayout.positions[item.branch.instanceId]
-          const parentPos = this.mindMapLayout.positions[item.parentId]
+          const branchPos = this.nodePosition(item.branch.instanceId)
+          const parentPos = this.nodePosition(item.parentId)
           if (!branchPos || !parentPos) return null
           const upstream = item.side === 'UPSTREAM'
           const x1 = upstream
@@ -365,7 +418,7 @@ export default {
         .filter(Boolean)
     },
     currentNodeStyle() {
-      const pos = this.mindMapLayout.positions.CURRENT
+      const pos = this.nodePosition('CURRENT')
       return {
         left: pos.left + 'px',
         top: pos.top + 'px',
@@ -398,13 +451,133 @@ export default {
       this.downstreamRoots = []
       this.loadedDirections = { UPSTREAM: false, DOWNSTREAM: false }
       this.branchSequence = 0
+      this.positionOverrides = {}
+      this.pointerInteraction = null
+      this.viewport = { x: 0, y: 0, scale: 1 }
     },
-    centerGraphOnCurrent() {
+    fitGraph() {
       const graphWrap = this.$refs.graphWrap
       if (!graphWrap) return
-      graphWrap.scrollLeft = Math.max(
-        0,
-        (graphWrap.scrollWidth - graphWrap.clientWidth) / 2
+      const width = graphWrap.clientWidth
+      const height = graphWrap.clientHeight
+      if (!width || !height) return
+      const availableWidth = Math.max(1, width - VIEWPORT_PADDING * 2)
+      const availableHeight = Math.max(1, height - VIEWPORT_PADDING * 2)
+      const scale = Math.max(
+        MIN_SCALE,
+        Math.min(
+          1,
+          availableWidth / this.canvasSize.width,
+          availableHeight / this.canvasSize.height
+        )
+      )
+      this.viewport = {
+        x: (width - this.canvasSize.width * scale) / 2,
+        y: (height - this.canvasSize.height * scale) / 2,
+        scale,
+      }
+    },
+    resetToBestLayout() {
+      this.positionOverrides = {}
+      this.$nextTick(() => this.fitGraph())
+    },
+    setZoom(nextScale, clientPoint) {
+      const graphWrap = this.$refs.graphWrap
+      if (!graphWrap) return
+      const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, nextScale))
+      const rect = graphWrap.getBoundingClientRect()
+      const focusX = clientPoint
+        ? clientPoint.clientX - rect.left
+        : graphWrap.clientWidth / 2
+      const focusY = clientPoint
+        ? clientPoint.clientY - rect.top
+        : graphWrap.clientHeight / 2
+      const contentX = (focusX - this.viewport.x) / this.viewport.scale
+      const contentY = (focusY - this.viewport.y) / this.viewport.scale
+      this.viewport = {
+        x: focusX - contentX * scale,
+        y: focusY - contentY * scale,
+        scale,
+      }
+    },
+    zoomIn() {
+      this.setZoom(this.viewport.scale + ZOOM_STEP)
+    },
+    zoomOut() {
+      this.setZoom(this.viewport.scale - ZOOM_STEP)
+    },
+    onCanvasWheel(event) {
+      if (!this.startNode) return
+      event.preventDefault()
+      const direction = event.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP
+      this.setZoom(this.viewport.scale + direction, event)
+    },
+    beginCanvasPan(event) {
+      if (!this.startNode || (event.button != null && event.button !== 0))
+        return
+      if (
+        event.target &&
+        event.target.closest &&
+        event.target.closest('.graph-node, .graph-toolbar')
+      )
+        return
+      if (event.currentTarget && event.currentTarget.setPointerCapture) {
+        event.currentTarget.setPointerCapture(event.pointerId)
+      }
+      this.pointerInteraction = {
+        type: 'pan',
+        startX: event.clientX,
+        startY: event.clientY,
+        originX: this.viewport.x,
+        originY: this.viewport.y,
+      }
+    },
+    beginNodeDrag(event, instanceId) {
+      if (event.button != null && event.button !== 0) return
+      if (
+        event.target &&
+        event.target.closest &&
+        event.target.closest('.node-label, .node-code')
+      )
+        return
+      if (event.currentTarget && event.currentTarget.setPointerCapture) {
+        event.currentTarget.setPointerCapture(event.pointerId)
+      }
+      const position = this.nodePosition(instanceId)
+      this.pointerInteraction = {
+        type: 'node',
+        instanceId,
+        startX: event.clientX,
+        startY: event.clientY,
+        originLeft: position.left,
+        originTop: position.top,
+      }
+    },
+    onPointerMove(event) {
+      const interaction = this.pointerInteraction
+      if (!interaction) return
+      const deltaX = event.clientX - interaction.startX
+      const deltaY = event.clientY - interaction.startY
+      if (interaction.type === 'pan') {
+        this.viewport = {
+          ...this.viewport,
+          x: interaction.originX + deltaX,
+          y: interaction.originY + deltaY,
+        }
+        return
+      }
+      this.positionOverrides[interaction.instanceId] = {
+        left: interaction.originLeft + deltaX / this.viewport.scale,
+        top: interaction.originTop + deltaY / this.viewport.scale,
+      }
+    },
+    endPointerInteraction() {
+      this.pointerInteraction = null
+    },
+    nodePosition(instanceId) {
+      return (
+        this.positionOverrides[instanceId] ||
+        this.mindMapLayout.positions[instanceId] || { left: 0, top: 0 }
       )
     },
     async loadGraph() {
@@ -426,7 +599,7 @@ export default {
           this.downstreamRoots = this.buildBranches(data, 'DOWNSTREAM', 2)
           this.loadedDirections.DOWNSTREAM = true
         }
-        this.$nextTick(() => this.centerGraphOnCurrent())
+        this.$nextTick(() => this.fitGraph())
       } catch (e) {
         this.resetGraph()
         this.$message.error('血缘图加载失败，请重试')
@@ -609,10 +782,7 @@ export default {
       })
     },
     branchStyle(item) {
-      const pos = this.mindMapLayout.positions[item.branch.instanceId] || {
-        left: 0,
-        top: 0,
-      }
+      const pos = this.nodePosition(item.branch.instanceId)
       return {
         left: pos.left + 'px',
         top: pos.top + 'px',
@@ -652,6 +822,7 @@ export default {
 
     .graph-wrap {
       min-height: 360px;
+      height: min(56vh, 560px);
     }
   }
 
@@ -666,7 +837,7 @@ export default {
     gap: 12px;
   }
   .hint-title {
-    color: #1f2937;
+    color: var(--tianshu-info-text);
     font-weight: 700;
     white-space: nowrap;
   }
@@ -697,7 +868,7 @@ export default {
   }
   .query-panel {
     background: var(--tianshu-bg-surface);
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--tianshu-border-subtle);
     border-radius: 4px;
     padding: 12px 12px 0;
     margin-bottom: 12px;
@@ -721,12 +892,24 @@ export default {
     border-radius: 2px;
   }
   .graph-wrap {
-    background: var(--tianshu-bg-soft);
-    border: 1px solid #e5e7eb;
+    background-color: var(--tianshu-bg-soft);
+    background-image: radial-gradient(
+      var(--tianshu-border-strong) 0.8px,
+      transparent 0.8px
+    );
+    background-size: 16px 16px;
+    border: 1px solid var(--tianshu-border-subtle);
     border-radius: 4px;
+    height: min(64vh, 680px);
     min-height: 440px;
-    overflow: auto;
+    overflow: hidden;
     position: relative;
+    touch-action: none;
+    cursor: grab;
+    user-select: none;
+  }
+  .graph-wrap.is-interacting {
+    cursor: grabbing;
   }
   .empty-graph {
     color: var(--tianshu-text-tertiary);
@@ -736,8 +919,56 @@ export default {
   .graph-canvas {
     position: relative;
     min-width: 100%;
-    background-image: radial-gradient(#cbd5e1 0.8px, transparent 0.8px);
-    background-size: 16px 16px;
+    transform-origin: 0 0;
+    will-change: transform;
+  }
+  .graph-toolbar {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid var(--tianshu-border-subtle);
+    border-radius: 6px;
+    background: var(--tianshu-bg-surface);
+    box-shadow: var(--tianshu-shadow-medium);
+    z-index: 6;
+  }
+  .graph-toolbar button {
+    min-width: 30px;
+    height: 30px;
+    padding: 0 8px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--tianshu-text-primary);
+    background: transparent;
+    cursor: pointer;
+  }
+  .graph-toolbar button:hover,
+  .graph-toolbar button:focus-visible {
+    color: var(--el-color-primary);
+    border-color: var(--el-color-primary-light-5);
+    background: var(--el-color-primary-light-9);
+    outline: none;
+  }
+  .graph-toolbar .best-layout-button {
+    margin-left: 4px;
+    color: var(--tianshu-brand-foreground);
+    background: var(--el-color-primary);
+  }
+  .graph-toolbar .best-layout-button:hover,
+  .graph-toolbar .best-layout-button:focus-visible {
+    color: var(--tianshu-brand-foreground);
+    border-color: var(--el-color-primary-dark-2);
+    background: var(--el-color-primary-dark-2);
+  }
+  .zoom-percent {
+    min-width: 44px;
+    color: var(--tianshu-text-secondary);
+    font-size: 12px;
+    text-align: center;
   }
   .side-caption {
     position: absolute;
@@ -766,15 +997,15 @@ export default {
   }
   .edge-path {
     fill: none;
-    stroke: #94a3b8;
+    stroke: var(--tianshu-border-strong);
     stroke-width: 1.5;
   }
   .edge-label {
-    fill: #64748b;
+    fill: var(--tianshu-text-secondary);
     font-size: 12px;
     text-anchor: middle;
     paint-order: stroke;
-    stroke: #f8fafc;
+    stroke: var(--tianshu-bg-soft);
     stroke-width: 4px;
   }
   .graph-node {
@@ -786,18 +1017,19 @@ export default {
     border-radius: 6px;
     padding: 12px;
     box-sizing: border-box;
+    cursor: move;
     z-index: 3;
   }
   .branch-node {
-    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+    box-shadow: var(--tianshu-shadow-small);
   }
   .current-node {
-    background: #fffbeb;
+    background: var(--tianshu-warning-bg);
     border-width: 2px;
-    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.1);
+    box-shadow: var(--tianshu-shadow-medium);
   }
   .graph-node.is-cycle {
-    background: #fff7ed;
+    background: var(--tianshu-warning-bg);
     border-style: dashed;
   }
   .node-head {
@@ -819,28 +1051,32 @@ export default {
     font-weight: 700;
   }
   .current-badge {
-    color: #92400e;
-    background: #fef3c7;
+    color: var(--tianshu-warning-text);
+    background: var(--tianshu-warning-bg);
   }
   .cycle-badge {
-    color: #9a3412;
-    background: #ffedd5;
+    color: var(--tianshu-warning-text);
+    background: var(--tianshu-warning-bg);
   }
   .node-label {
-    color: #111827;
+    color: var(--tianshu-text-primary);
     font-weight: 700;
+    cursor: text;
+    user-select: text;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .node-code {
     color: var(--tianshu-text-tertiary);
+    cursor: text;
     font-family: Menlo, Monaco, Consolas, monospace;
     font-size: 12px;
     margin-top: 4px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    user-select: text;
   }
   .branch-toggle {
     position: absolute;
@@ -851,9 +1087,9 @@ export default {
     padding: 0;
     border: 1px solid var(--tianshu-border);
     border-radius: 50%;
-    color: #334155;
+    color: var(--tianshu-text-secondary);
     background: var(--tianshu-bg-surface);
-    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+    box-shadow: var(--tianshu-shadow-small);
     cursor: pointer;
     z-index: 4;
   }

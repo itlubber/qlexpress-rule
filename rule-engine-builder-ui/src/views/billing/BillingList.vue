@@ -17,7 +17,7 @@
           show-icon
           style="margin-bottom: 12px"
         />
-        <div class="uiue-search-container">
+        <div class="uiue-search-container uiue-filter-toolbar">
           <el-form :inline="true" size="small" @keyup.enter="handleConfigQuery">
             <el-form-item label="项目编码">
               <project-filter-select
@@ -87,17 +87,17 @@
               <el-button @click="resetConfigQuery">重置</el-button>
             </el-form-item>
           </el-form>
-        </div>
-
-        <div class="uiue-btn-bar">
-          <div class="btn-right">
-            <el-button
-              type="primary"
-              size="small"
-              :icon="ElIconPlus"
-              @click="handleCreateConfig"
-              >新建计费项</el-button
-            >
+          <div class="uiue-btn-bar">
+            <div class="btn-right">
+              <el-button
+                v-permission="'project:edit'"
+                type="primary"
+                size="small"
+                :icon="ElIconPlus"
+                @click="handleCreateConfig"
+                >新建计费项</el-button
+              >
+            </div>
           </div>
         </div>
 
@@ -166,14 +166,18 @@
           <el-table-column label="操作" width="120" align="center" fixed="right">
             <template v-slot="{ row }">
               <el-button
+                v-permission="'project:edit'"
                 link
+                data-action="edit"
                 size="small"
                 type="warning"
                 @click="handleEditConfig(row)"
                 >编辑</el-button
               >
               <el-button
+                v-permission="'project:edit'"
                 link
+                data-action="delete"
                 size="small"
                 type="danger"
                 class="btn-delete"
@@ -409,7 +413,7 @@
       </el-tab-pane>
 
       <el-tab-pane label="计费汇总" name="summary">
-        <div class="uiue-search-container">
+        <div class="uiue-search-container uiue-filter-toolbar">
           <el-form
             :inline="true"
             size="small"
@@ -495,25 +499,25 @@
               <el-button @click="resetSummaryQuery">重置</el-button>
             </el-form-item>
           </el-form>
-        </div>
-
-        <div class="uiue-btn-bar">
-          <div class="btn-right">
-            <el-date-picker
-              v-model="refreshDate"
-              size="small"
-              type="date"
-              value-format="YYYY-MM-DD"
-              placeholder="选择日期"
-              style="width: 150px"
-            />
-            <el-button
-              size="small"
-              type="primary"
-              :icon="ElIconRefresh"
-              @click="handleRefreshSummary"
-              >刷新汇总</el-button
-            >
+          <div class="uiue-btn-bar">
+            <div class="btn-right">
+              <el-date-picker
+                v-model="refreshDate"
+                size="small"
+                type="date"
+                value-format="YYYY-MM-DD"
+                placeholder="选择日期"
+                style="width: 150px"
+              />
+              <el-button
+                v-permission="'project:edit'"
+                size="small"
+                type="primary"
+                :icon="ElIconRefresh"
+                @click="handleRefreshSummary"
+                >刷新汇总</el-button
+              >
+            </div>
           </div>
         </div>
 
@@ -803,6 +807,7 @@
             >取消</el-button
           >
           <el-button
+            v-permission="'project:edit'"
             size="small"
             type="primary"
             :loading="configSaving"

@@ -10,7 +10,7 @@ vi.mock('@/api/auth', () => ({
 
 import { nextTick } from 'vue'
 import { createStore } from 'vuex'
-import { shallowMount } from '@test-utils'
+import { flushPromises, shallowMount } from '@test-utils'
 import * as authApi from '@/api/auth'
 import * as projectApi from '@/api/project'
 import Layout from '@/layout/index.vue'
@@ -39,15 +39,16 @@ import {
   writeSidebarState
 } from '@/layout/layoutState'
 describe('Layout — 菜单与路由归属', () => {
-  test('包含 15 个路由唯一、图标唯一且带访问权限的菜单项', () => {
-    expect(SIDEBAR_MENUS).toHaveLength(15)
-    expect(new Set(SIDEBAR_MENUS.map(item => item.index)).size).toBe(15)
-    expect(new Set(SIDEBAR_MENUS.map(item => item.icon)).size).toBe(15)
-    expect(SIDEBAR_MENUS.every(item => item.permission)).toBe(true)
+  test('包含 16 个路由唯一、图标唯一的平铺一级菜单项', () => {
+    expect(SIDEBAR_MENUS).toHaveLength(16)
+    expect(new Set(SIDEBAR_MENUS.map(item => item.index)).size).toBe(16)
+    expect(new Set(SIDEBAR_MENUS.map(item => item.icon)).size).toBe(16)
+    expect(SIDEBAR_MENUS[0].permission).toBe('')
   })
 
   test('菜单使用确认后的语义图标映射', () => {
     expect(SIDEBAR_MENUS).toEqual([
+      { index: '/dashboard', label: '数据看板', icon: 'DataAnalysis', permission: '' },
       { index: '/project', label: '项目管理', icon: 'FolderOpened', permission: 'project:view' },
       { index: '/rule', label: '规则管理', icon: 'Operation', permission: 'rule:view' },
       { index: '/variable', label: '变量管理', icon: 'Collection', permission: 'field:view' },
@@ -193,8 +194,8 @@ describe('Layout — 页签规范化与关闭决策', () => {
     expect(result.tabs.map(item => item.fullPath)).toEqual(expected)
   })
 
-  test('关闭全部时建议回到项目管理', () => {
-    expect(resolveCloseOperation(tabs, '/b', '/b', 'all').nextPath).toBe('/project')
+  test('关闭全部时建议回到数据看板', () => {
+    expect(resolveCloseOperation(tabs, '/b', '/b', 'all').nextPath).toBe('/dashboard')
   })
 
   test('关闭操作不修改原始数组', () => {
@@ -294,6 +295,16 @@ function mountLayout(route = createRoute('/rule')) {
     plugins: [store],
     mocks: { $route: route, $router: router },
     stubs: {
+      'el-dropdown': {
+        name: 'ElDropdown',
+        emits: ['command'],
+        template: '<div class="dropdown-stub"><slot /><slot name="dropdown" /></div>'
+      },
+      'el-dropdown-menu': { template: '<div><slot /></div>' },
+      'el-dropdown-item': {
+        props: ['command', 'disabled', 'divided'],
+        template: '<button :data-account-command="command" :disabled="disabled"><slot /></button>'
+      },
       'router-view': true,
       'keep-alive': { template: '<div><slot /></div>' }
     }
@@ -362,13 +373,13 @@ describe('Layout — 全局布局集成', () => {
     wrapper.unmount()
   })
 
-  test('关闭全部页签后回到项目管理', async() => {
+  test('关闭全部页签后回到数据看板', async() => {
     const { wrapper, router } = mountLayout()
     await nextTick()
 
     await wrapper.vm.handleTabOperation({ operation: 'all', targetPath: '/rule' })
 
-    expect(router.push).toHaveBeenCalledWith('/project')
+    expect(router.push).toHaveBeenCalledWith('/dashboard')
     wrapper.unmount()
   })
 
@@ -496,6 +507,103 @@ describe('Layout — 全局布局集成', () => {
     expect(wrapper.vm.loginEnabled).toBe(true)
     expect(wrapper.vm.username).toBe('张三')
     expect(wrapper.vm.avatarInitial).toBe('Z')
+    expect(wrapper.find('.layout-account-name').exists()).toBe(true)
+    expect(wrapper.find('.layout-account-name').text()).toBe('张三')
+    expect(wrapper.find('.layout-account-avatar').text()).toBe('Z')
+    expect(wrapper.find('[data-account-command="settings"]').exists()).toBe(true)
+    expect(wrapper.find('[data-account-command="theme"]').exists()).toBe(true)
+    expect(wrapper.find('[data-account-command="logout"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  test('顶部菜单保持全部一级入口平铺且账户区仍位于右上角', async() => {
+    writeLocalTheme(window.localStorage, {
+      ...DEFAULT_THEME_CONFIG,
+      navigationLayout: 'TOP'
+    })
+    const { wrapper } = mountLayout()
+    await nextTick()
+
+    expect(wrapper.findComponent(LayoutSidebar).exists()).toBe(false)
+    expect(wrapper.find('.layout-primary-topbar').exists()).toBe(true)
+    expect(wrapper.findAll('.top-navigation__item')).toHaveLength(16)
+    expect(wrapper.find('.top-navigation__more').exists()).toBe(false)
+    expect(wrapper.find('.layout-account').exists()).toBe(true)
+    expect(wrapper.findComponent(WorkspaceTabs).exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  test('关闭登录时显示本地用户并保留主题设置和退出账号', async() => {
+    const { wrapper } = mountLayout()
+
+    await wrapper.vm.refreshAuthBar()
+    await nextTick()
+
+    expect(wrapper.find('.layout-account-name').exists()).toBe(true)
+    expect(wrapper.find('.layout-account-name').text()).toBe('本地用户')
+    expect(wrapper.find('[data-account-command="settings"]').exists()).toBe(false)
+    expect(wrapper.find('[data-account-command="theme"]').exists()).toBe(true)
+    expect(wrapper.find('[data-account-command="logout"]').exists()).toBe(true)
+    expect(wrapper.find('.theme-settings-trigger').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  test('账户菜单的用户设置进入现有账户管理页面', async() => {
+    authApi.getConsoleAuthConfig.mockResolvedValue({ data: { loginEnabled: true } })
+    authApi.getConsoleMe.mockResolvedValue({ data: { username: 'admin' } })
+    const { wrapper, router } = mountLayout()
+    await wrapper.vm.refreshAuthBar()
+
+    const dropdown = wrapper.findComponent({ name: 'ElDropdown' })
+    expect(dropdown.exists()).toBe(true)
+    dropdown.vm.$emit('command', 'settings')
+    await nextTick()
+
+    expect(router.push).toHaveBeenCalledWith('/account')
+    wrapper.unmount()
+  })
+
+  test('账户菜单的主题设置打开统一主题侧边栏', async() => {
+    const { wrapper } = mountLayout()
+
+    const dropdown = wrapper.findComponent({ name: 'ElDropdown' })
+    expect(dropdown.exists()).toBe(true)
+    dropdown.vm.$emit('command', 'theme')
+    await nextTick()
+
+    expect(wrapper.vm.themeDrawerOpen).toBe(true)
+    wrapper.unmount()
+  })
+
+  test('账户菜单的退出账号执行原有退出流程', async() => {
+    authApi.getConsoleAuthConfig.mockResolvedValue({ data: { loginEnabled: true } })
+    authApi.getConsoleMe.mockResolvedValue({ data: { username: 'admin' } })
+    const { wrapper, router } = mountLayout()
+    await wrapper.vm.refreshAuthBar()
+
+    const dropdown = wrapper.findComponent({ name: 'ElDropdown' })
+    expect(dropdown.exists()).toBe(true)
+    dropdown.vm.$emit('command', 'logout')
+    await flushPromises()
+
+    expect(authApi.consoleLogout).toHaveBeenCalledTimes(1)
+    expect(router.replace).toHaveBeenCalledWith({ path: '/login' })
+    wrapper.unmount()
+  })
+
+  test('本地用户也可从账户菜单执行退出流程', async() => {
+    const { wrapper, store, router } = mountLayout()
+    await wrapper.vm.refreshAuthBar()
+    store.commit('SET_CURRENT_PROJECT', { id: 1, projectName: '测试项目' })
+
+    const dropdown = wrapper.findComponent({ name: 'ElDropdown' })
+    expect(dropdown.exists()).toBe(true)
+    dropdown.vm.$emit('command', 'logout')
+    await flushPromises()
+
+    expect(authApi.consoleLogout).toHaveBeenCalledTimes(1)
+    expect(store.state.currentProject).toBeNull()
+    expect(router.replace).toHaveBeenCalledWith({ path: '/login' })
     wrapper.unmount()
   })
 
@@ -539,16 +647,26 @@ describe('Layout — 全局布局集成', () => {
     wrapper.unmount()
   })
 
-  test('抽屉预览立即应用且取消恢复已保存快照', () => {
+  test('抽屉预览立即应用主题和菜单位置且取消恢复已保存快照', async() => {
     const { wrapper } = mountLayout()
-    const preview = { ...DEFAULT_THEME_CONFIG, colorScheme: 'DARK' }
+    const preview = {
+      ...DEFAULT_THEME_CONFIG,
+      colorScheme: 'DARK',
+      navigationLayout: 'TOP'
+    }
 
     wrapper.vm.handleThemePreview(preview)
+    await nextTick()
     expect(document.documentElement.dataset.theme).toBe('dark')
+    expect(wrapper.vm.activeTheme.navigationLayout).toBe('TOP')
+    expect(wrapper.find('.layout-primary-topbar').exists()).toBe(true)
 
     wrapper.vm.cancelThemePreview({ ...DEFAULT_THEME_CONFIG })
+    await nextTick()
     expect(document.documentElement.dataset.theme).toBe('light')
     expect(wrapper.vm.confirmedTheme).toEqual(DEFAULT_THEME_CONFIG)
+    expect(wrapper.vm.activeTheme).toEqual(DEFAULT_THEME_CONFIG)
+    expect(wrapper.findComponent(LayoutSidebar).exists()).toBe(true)
     wrapper.unmount()
   })
 

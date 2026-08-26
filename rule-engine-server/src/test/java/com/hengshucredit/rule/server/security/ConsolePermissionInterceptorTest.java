@@ -86,6 +86,45 @@ public class ConsolePermissionInterceptorTest {
         Assert.assertEquals(403, response.getStatus());
     }
 
+    @Test
+    public void unknownManagementEndpointFailsClosed() throws Exception {
+        RuleEngineConsoleLoginProperties properties =
+                new RuleEngineConsoleLoginProperties();
+        ConsolePermissionInterceptor interceptor =
+                new ConsolePermissionInterceptor(
+                        properties, new FixedPermissionService(true));
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "POST", "/api/rule/unmapped/action");
+        request.getSession(true).setAttribute(
+                properties.getSessionUserIdAttribute(), 9L);
+        MockHttpServletResponse response =
+                new MockHttpServletResponse();
+
+        boolean allowed = interceptor.preHandle(
+                request, response, handler("viewPublic"));
+
+        Assert.assertFalse(allowed);
+        Assert.assertEquals(403, response.getStatus());
+        Assert.assertTrue(response.getContentAsString()
+                .contains("PERMISSION_MAPPING_MISSING"));
+    }
+
+    @Test
+    public void dashboardEndpointUsesSectionLevelPermissionCropping()
+            throws Exception {
+        ConsolePermissionInterceptor interceptor =
+                new ConsolePermissionInterceptor(
+                        new RuleEngineConsoleLoginProperties(),
+                        new FixedPermissionService(false));
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "GET", "/api/rule/dashboard/applications");
+
+        boolean allowed = interceptor.preHandle(request,
+                new MockHttpServletResponse(), handler("viewPublic"));
+
+        Assert.assertTrue(allowed);
+    }
+
     private static HandlerMethod handler(String methodName) throws Exception {
         Method method = SecuredController.class.getDeclaredMethod(methodName);
         return new HandlerMethod(new SecuredController(), method);

@@ -7,26 +7,79 @@ describe('Monaco 全局日夜主题同步', () => {
   beforeEach(() => {
     window.monaco = monaco
     document.documentElement.dataset.theme = 'light'
+    document.documentElement.style.setProperty('--tianshu-bg-soft', '#f8fafc')
+    document.documentElement.style.setProperty('--tianshu-bg-muted', '#f1f5f9')
+    document.documentElement.style.setProperty('--tianshu-text-primary', '#172033')
+    document.documentElement.style.setProperty('--tianshu-text-secondary', '#475569')
+    document.documentElement.style.setProperty('--tianshu-text-tertiary', '#5b6678')
+    document.documentElement.style.setProperty('--tianshu-border-subtle', '#e2e8f0')
+    document.documentElement.style.setProperty('--el-color-primary', '#2639e9')
+    document.documentElement.style.setProperty('--el-color-primary-dark-2', '#1e2eba')
+    document.documentElement.style.setProperty('--el-color-primary-light-3', '#6775f0')
+    document.documentElement.style.setProperty('--tianshu-color-secondary', '#f76e6c')
     monaco.editor.setTheme.mockClear()
+    monaco.editor.defineTheme.mockClear()
   })
 
   afterEach(() => {
     delete window.monaco
     document.documentElement.removeAttribute('data-theme')
+    document.documentElement.removeAttribute('style')
     vi.clearAllMocks()
   })
 
-  test('普通编辑器挂载时读取根主题并响应后续切换', async () => {
+  test('普通编辑器使用应用背景和主题色生成 Monaco 主题并响应切换', async () => {
     document.documentElement.dataset.theme = 'dark'
+    document.documentElement.style.setProperty('--tianshu-bg-soft', '#182238')
+    document.documentElement.style.setProperty('--tianshu-bg-muted', '#202b45')
+    document.documentElement.style.setProperty('--tianshu-text-primary', '#edf2ff')
+    document.documentElement.style.setProperty('--tianshu-text-secondary', '#c2cce0')
+    document.documentElement.style.setProperty('--tianshu-text-tertiary', '#93a2bd')
+    document.documentElement.style.setProperty('--tianshu-border-subtle', '#28344d')
     const wrapper = mount(MonacoEditor, { props: { value: 'result = true' } })
     await wrapper.vm.$nextTick()
 
-    expect(monaco.editor.setTheme).toHaveBeenCalledWith('vs-dark')
+    expect(monaco.editor.defineTheme).toHaveBeenCalledWith(
+      'tianshu-dark',
+      expect.objectContaining({
+        base: 'vs-dark',
+        colors: expect.objectContaining({
+          'editor.background': '#182238',
+          'editor.foreground': '#EDF2FF',
+          'editorCursor.foreground': '#6775F0',
+          'editor.selectionBackground': '#2639E940',
+        }),
+      })
+    )
+    expect(monaco.editor.create).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ theme: 'tianshu-dark' })
+    )
 
+    document.documentElement.dataset.theme = 'light'
+    document.documentElement.style.setProperty('--tianshu-bg-soft', '#f8fafc')
+    document.documentElement.style.setProperty('--tianshu-bg-muted', '#f1f5f9')
+    document.documentElement.style.setProperty('--tianshu-text-primary', '#172033')
+    document.documentElement.style.setProperty('--tianshu-text-secondary', '#475569')
+    document.documentElement.style.setProperty('--tianshu-text-tertiary', '#5b6678')
+    document.documentElement.style.setProperty('--tianshu-border-subtle', '#e2e8f0')
+    document.documentElement.style.setProperty('--el-color-primary', '#873ff2')
+    document.documentElement.style.setProperty('--el-color-primary-dark-2', '#6c32c2')
     window.dispatchEvent(new CustomEvent('tianshu-theme-change', {
-      detail: { colorScheme: 'LIGHT' },
+      detail: { colorScheme: 'LIGHT', accentPreset: 'LIQUID_PURPLE' },
     }))
-    expect(monaco.editor.setTheme).toHaveBeenLastCalledWith('vs')
+    expect(monaco.editor.defineTheme).toHaveBeenLastCalledWith(
+      'tianshu-light',
+      expect.objectContaining({
+        base: 'vs',
+        colors: expect.objectContaining({
+          'editor.background': '#F8FAFC',
+          'editorCursor.foreground': '#6C32C2',
+          'editor.selectionBackground': '#873FF240',
+        }),
+      })
+    )
+    expect(monaco.editor.setTheme).toHaveBeenLastCalledWith('tianshu-light')
     wrapper.unmount()
   })
 
@@ -40,7 +93,7 @@ describe('Monaco 全局日夜主题同步', () => {
       detail: { colorScheme: 'DARK' },
     }))
 
-    expect(monaco.editor.setTheme).toHaveBeenCalledWith('vs-dark')
+    expect(monaco.editor.setTheme).toHaveBeenCalledWith('tianshu-dark')
     wrapper.unmount()
   })
 

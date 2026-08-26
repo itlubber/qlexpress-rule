@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -121,9 +122,10 @@ public class DatabaseConsoleAccountService {
     }
 
     protected void persistBootstrapUser(ConsoleUser user) {
-        List<ConsolePermission> permissions = synchronizePermissionCatalog();
+        PermissionCatalogSync catalog = synchronizePermissionCatalog();
         ConsoleRole role = ensureSuperAdministratorRole(user.getUsername());
-        grantAllPermissions(role, permissions, user.getUsername());
+        grantAllPermissions(
+                role, catalog.activePermissions(), user.getUsername());
         userMapper.insert(user);
 
         ConsoleUserRole membership = new ConsoleUserRole();
@@ -168,7 +170,8 @@ public class DatabaseConsoleAccountService {
         }
     }
 
-    private List<ConsolePermission> synchronizePermissionCatalog() {
+    private PermissionCatalogSync synchronizePermissionCatalog() {
+        Set<String> createdCodes = new LinkedHashSet<>();
         for (ConsolePermissionCodes.PermissionDefinition definition
                 : ConsolePermissionCodes.catalog()) {
             ConsolePermission permission = permissionMapper.selectOne(
@@ -186,30 +189,44 @@ public class DatabaseConsoleAccountService {
                 permission.setSortOrder(definition.sortOrder());
                 permission.setStatus(1);
                 permissionMapper.insert(permission);
+                createdCodes.add(definition.code());
             }
         }
-        return permissionMapper.selectList(
+        List<ConsolePermission> activePermissions = permissionMapper.selectList(
                 new LambdaQueryWrapper<ConsolePermission>()
                         .eq(ConsolePermission::getStatus, 1));
+        List<ConsolePermission> createdPermissions = activePermissions.stream()
+                .filter(permission -> createdCodes.contains(
+                        permission.getPermissionCode()))
+                .toList();
+        return new PermissionCatalogSync(
+                activePermissions, createdPermissions);
     }
 
     /**
      * Existing installations may gain new menu/action permissions after the
      * first administrator was bootstrapped. Refresh the catalog on successful
-     * login and keep the system administrator role complete.
+     * login. Only permissions added by this catalog refresh are assigned to
+     * the system administrator role; deliberately revoked grants stay revoked.
      */
     protected void synchronizePermissionCatalogForExistingUsers(
             String operator) {
-        List<ConsolePermission> permissions =
+        PermissionCatalogSync catalog =
                 synchronizePermissionCatalog();
         ConsoleRole role = roleMapper.selectOne(
                 new LambdaQueryWrapper<ConsoleRole>()
                         .eq(ConsoleRole::getRoleCode,
                                 SUPER_ADMIN_ROLE_CODE)
                         .last("LIMIT 1"));
-        if (role != null) {
-            grantAllPermissions(role, permissions, operator);
+        if (role != null && !catalog.createdPermissions().isEmpty()) {
+            grantAllPermissions(
+                    role, catalog.createdPermissions(), operator);
         }
+    }
+
+    private record PermissionCatalogSync(
+            List<ConsolePermission> activePermissions,
+            List<ConsolePermission> createdPermissions) {
     }
 
     private ConsoleRole ensureSuperAdministratorRole(String operator) {

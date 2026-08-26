@@ -14,9 +14,9 @@
       </div>
     </div>
 
-    <el-tabs v-model="activeTab" type="border-card" class="page-tabs">
+    <el-tabs v-model="activeTab">
       <el-tab-pane label="名单管理" name="list">
-        <div class="uiue-search-container">
+        <div class="uiue-search-container uiue-filter-toolbar">
           <el-form :inline="true" size="small" @keyup.enter="handleQuery">
             <el-form-item label="项目编码">
               <project-filter-select
@@ -85,17 +85,17 @@
               <el-button @click="resetQuery">重置</el-button>
             </el-form-item>
           </el-form>
-        </div>
-
-        <div class="uiue-btn-bar">
-          <div class="btn-right">
-            <el-button
-              type="primary"
-              size="small"
-              :icon="ElIconPlus"
-              @click="handleCreate"
-              >新建名单库</el-button
-            >
+          <div class="uiue-btn-bar">
+            <div class="btn-right">
+              <el-button
+                v-permission="'field:edit'"
+                type="primary"
+                size="small"
+                :icon="ElIconPlus"
+                @click="handleCreate"
+                >新建名单库</el-button
+              >
+            </div>
           </div>
         </div>
 
@@ -157,6 +157,7 @@
           <el-table-column label="状态" width="80" align="center">
             <template v-slot="{ row }">
               <el-switch
+                v-permission="'field:edit'"
                 v-model="row.status"
                 :active-value="1"
                 :inactive-value="0"
@@ -168,20 +169,25 @@
             <template v-slot="{ row }">
               <el-button
               link
+              data-action="detail"
               size="small"
               type="primary"
               @click="$router.push('/list/' + row.id)"
                 >详情</el-button
               >
               <el-button
+                v-permission="'field:edit'"
                 link
+                data-action="edit"
                 size="small"
                 type="warning"
                 @click="handleEdit(row)"
                 >编辑</el-button
               >
               <el-button
+                v-permission="'field:edit'"
                 link
+                data-action="delete"
                 size="small"
                 type="danger"
                 class="btn-delete"
@@ -303,7 +309,9 @@
       <template v-slot:footer>
         <div>
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submit">生成审批草稿</el-button>
+          <el-button v-permission="'field:edit'" type="primary" @click="submit"
+            >生成审批草稿</el-button
+          >
         </div>
       </template>
     </el-dialog>
@@ -537,12 +545,12 @@ export default {
 .approval-guide {
   margin-bottom: 12px;
   padding: 12px 14px;
-  border: 1px solid #bfdbfe;
+  border: 1px solid var(--tianshu-info-border);
   border-radius: 6px;
-  background: #eff6ff;
+  background: var(--tianshu-info-bg);
 }
 .approval-guide-title {
-  color: #1e3a8a;
+  color: var(--tianshu-info-text);
   font-size: 13px;
   font-weight: 600;
 }

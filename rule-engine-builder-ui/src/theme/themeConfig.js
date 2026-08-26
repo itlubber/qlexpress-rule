@@ -9,36 +9,40 @@ export const DEFAULT_THEME_CONFIG = Object.freeze({
 })
 
 export const ACCENT_PRESETS = Object.freeze([
-  solid('THEME_BLUE', '主题蓝', '#2639E9', '#FFFFFF'),
-  solid('LIQUID_PURPLE', '凝液紫', '#873FF2', '#FFFFFF'),
-  solid('PEACH_PINK', '桃粉红', '#FF6B9D', '#19103B'),
-  solid('NEON_PINK', '霓虹粉', '#E14ECA', '#19103B'),
-  solid('MIDNIGHT_PURPLE', '深夜紫', '#19103B', '#FFFFFF'),
-  solid('INDIGO_PURPLE', '靛青紫', '#5B3DF5', '#FFFFFF'),
-  solid('NEBULA_BLUE', '星云蓝', '#536DFE', '#FFFFFF'),
-  solid('CRYSTAL_BLUE', '晶石蓝', '#2F80ED', '#FFFFFF'),
+  solid('THEME_BLUE', '主题蓝', '#2639E9', '#F76E6C', '#FFFFFF'),
+  solid('LIQUID_PURPLE', '凝液紫', '#873FF2', '#2CC7B8', '#FFFFFF'),
+  solid('PEACH_PINK', '桃粉红', '#FF6B9D', '#5B6CFF', '#19103B'),
+  solid('NEON_PINK', '霓虹粉', '#E14ECA', '#3A9BFF', '#19103B'),
+  solid('MIDNIGHT_PURPLE', '深夜紫', '#19103B', '#F2B35D', '#FFFFFF'),
+  solid('INDIGO_PURPLE', '靛青紫', '#5B3DF5', '#2BBEC4', '#FFFFFF'),
+  solid('NEBULA_BLUE', '星云蓝', '#536DFE', '#D96BB3', '#FFFFFF'),
+  solid('CRYSTAL_BLUE', '晶石蓝', '#2F80ED', '#22B8A7', '#FFFFFF'),
   gradient(
     'THEME_BLUE_GRADIENT',
     '主题蓝渐变',
     '#2639E9',
+    '#E66AB1',
     'linear-gradient(135deg, #2639E9 0%, #536DFE 100%)'
   ),
   gradient(
     'LIQUID_PURPLE_GRADIENT',
     '凝液紫渐变',
     '#873FF2',
+    '#2CC7B8',
     'linear-gradient(135deg, #19103B 0%, #873FF2 100%)'
   ),
   gradient(
     'PEACH_PINK_GRADIENT',
     '桃粉渐变',
     '#873FF2',
+    '#E14ECA',
     'linear-gradient(135deg, #873FF2 0%, #E14ECA 100%)'
   ),
   gradient(
     'NEBULA_GRADIENT',
     '星云渐变',
     '#536DFE',
+    '#E14ECA',
     'linear-gradient(135deg, #536DFE 0%, #E14ECA 100%)'
   ),
 ])
@@ -46,23 +50,25 @@ export const ACCENT_PRESETS = Object.freeze([
 const PRESET_BY_ID = new Map(ACCENT_PRESETS.map(item => [item.id, item]))
 const CONFIG_KEYS = Object.keys(DEFAULT_THEME_CONFIG)
 
-function solid(id, name, primary, foreground) {
+function solid(id, name, primary, secondary, foreground) {
   return Object.freeze({
     id,
     name,
     kind: 'solid',
     primary,
+    secondary,
     foreground,
     background: primary,
   })
 }
 
-function gradient(id, name, primary, background) {
+function gradient(id, name, primary, secondary, background) {
   return Object.freeze({
     id,
     name,
     kind: 'gradient',
     primary,
+    secondary,
     foreground: '#FFFFFF',
     background,
   })
@@ -112,6 +118,10 @@ export function createPrimaryScale(primary) {
   scale.dark1 = mixRgb(rgb, { r: 0, g: 0, b: 0 }, 0.1)
   scale.dark2 = mixRgb(rgb, { r: 0, g: 0, b: 0 }, 0.2)
   return scale
+}
+
+export function mixThemeColors(source, target, weight) {
+  return mixRgb(hexToRgb(source), hexToRgb(target), weight)
 }
 
 function hexToRgb(value) {

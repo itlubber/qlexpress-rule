@@ -41,10 +41,15 @@
           :loading="designerSourcesLoading"
           @change="switchDesignerSource"
         />
-        <el-button size="small" :icon="ElIconDocument" @click="handleSave"
+        <el-button
+          v-permission="'rule:edit'"
+          size="small"
+          :icon="ElIconDocument"
+          @click="handleSave"
           >临时保存脚本</el-button
         >
         <el-button
+          v-permission="'rule:edit'"
           size="small"
           type="warning"
           :icon="ElIconCpu"
@@ -52,6 +57,7 @@
           >保存并验证脚本</el-button
         >
         <el-button
+          v-permission="'rule:edit'"
           size="small"
           type="primary"
           :icon="ElIconVideoPlay"
@@ -290,7 +296,6 @@
             ref="monacoEditorComponent"
             v-model:value="script"
             language="ql"
-            theme="qlexpress-dark"
             height="100%"
             @editor-ready="onEditorReady"
             :options="editorOptions"

@@ -5,6 +5,7 @@ export const SIDEBAR_COMPACT_THRESHOLD = 168
 export const SIDEBAR_STORAGE_KEY = 'tianshu:layout:sidebar'
 
 export const SIDEBAR_MENUS = [
+  { index: '/dashboard', label: '数据看板', icon: 'DataAnalysis', permission: '' },
   { index: '/project', label: '项目管理', icon: 'FolderOpened', permission: 'project:view' },
   { index: '/rule', label: '规则管理', icon: 'Operation', permission: 'rule:view' },
   { index: '/variable', label: '变量管理', icon: 'Collection', permission: 'field:view' },
@@ -23,6 +24,7 @@ export const SIDEBAR_MENUS = [
 ]
 
 const MENU_PREFIXES = [
+  ['/dashboard/', '/dashboard'],
   ['/designer/', '/rule'],
   ['/project/', '/project'],
   ['/rule/', '/rule'],
@@ -111,7 +113,7 @@ export function getAvatarInitial(username) {
 
 export function routeToTab(route) {
   const meta = (route && route.meta) || {}
-  const path = (route && route.path) || '/project'
+  const path = (route && route.path) || '/dashboard'
   return {
     fullPath: (route && route.fullPath) || path,
     path,
@@ -173,7 +175,7 @@ function includesPath(tabs, path) {
 export function resolveCloseOperation(tabs, activePath, targetPath, operation) {
   const source = Array.isArray(tabs) ? tabs.slice() : []
   const targetIndex = source.findIndex(tab => tab.fullPath === targetPath)
-  if (targetIndex < 0) return { tabs: source, nextPath: activePath || '/project' }
+  if (targetIndex < 0) return { tabs: source, nextPath: activePath || '/dashboard' }
 
   let remaining
   if (operation === 'current') {
@@ -187,18 +189,18 @@ export function resolveCloseOperation(tabs, activePath, targetPath, operation) {
   } else if (operation === 'all') {
     remaining = []
   } else {
-    return { tabs: source, nextPath: activePath || '/project' }
+    return { tabs: source, nextPath: activePath || '/dashboard' }
   }
 
   if (operation === 'all' || remaining.length === 0) {
-    return { tabs: remaining, nextPath: '/project' }
+    return { tabs: remaining, nextPath: '/dashboard' }
   }
   if (includesPath(remaining, activePath)) {
     return { tabs: remaining, nextPath: activePath }
   }
   if (operation === 'current' && activePath === targetPath) {
     const neighbor = remaining[targetIndex] || remaining[targetIndex - 1]
-    return { tabs: remaining, nextPath: neighbor ? neighbor.fullPath : '/project' }
+    return { tabs: remaining, nextPath: neighbor ? neighbor.fullPath : '/dashboard' }
   }
   if (includesPath(remaining, targetPath)) {
     return { tabs: remaining, nextPath: targetPath }

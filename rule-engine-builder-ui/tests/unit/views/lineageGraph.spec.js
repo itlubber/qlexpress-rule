@@ -86,18 +86,91 @@ describe('LineageGraph', () => {
     wrapper.unmount()
   })
 
-  test('首次生成后将滚动区域对准当前节点', async () => {
+  test('首次生成后将血缘图适配到可视区域', async () => {
     const wrapper = mountPage()
     const graphWrap = wrapper.find('.graph-wrap').element
     Object.defineProperty(graphWrap, 'clientWidth', { value: 800 })
-    Object.defineProperty(graphWrap, 'scrollWidth', { value: 1352 })
+    Object.defineProperty(graphWrap, 'clientHeight', { value: 440 })
     wrapper.vm.query.nodeId = 1
     lineageApi.getLineageGraph.mockResolvedValueOnce({ data: graphResponse() })
 
     await wrapper.vm.loadGraph()
     await nextTick()
 
-    expect(graphWrap.scrollLeft).toBe(276)
+    expect(wrapper.vm.viewport.scale).toBeLessThanOrEqual(1)
+    expect(wrapper.vm.viewport.x).toBeGreaterThanOrEqual(0)
+    expect(wrapper.vm.viewport.y).toBeGreaterThanOrEqual(0)
+    wrapper.unmount()
+  })
+
+  test('支持以画布中心缩放并限制缩放范围', () => {
+    const wrapper = mountPage()
+    const graphWrap = wrapper.find('.graph-wrap').element
+    Object.defineProperty(graphWrap, 'clientWidth', { value: 1000 })
+    Object.defineProperty(graphWrap, 'clientHeight', { value: 500 })
+    graphWrap.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1000, height: 500 })
+
+    wrapper.vm.viewport = { x: 100, y: 50, scale: 1 }
+    wrapper.vm.setZoom(1.25)
+
+    expect(wrapper.vm.viewport.scale).toBe(1.25)
+    expect(wrapper.vm.viewport.x).toBe(0)
+    expect(wrapper.vm.viewport.y).toBe(0)
+
+    wrapper.vm.setZoom(99)
+    expect(wrapper.vm.viewport.scale).toBe(2)
+    wrapper.vm.setZoom(0)
+    expect(wrapper.vm.viewport.scale).toBe(0.4)
+    wrapper.unmount()
+  })
+
+  test('节点拖动只覆盖当前组件实例坐标并同步更新连线', async () => {
+    const wrapper = mountPage()
+    wrapper.vm.query.nodeId = 1
+    lineageApi.getLineageGraph.mockResolvedValueOnce({ data: graphResponse() })
+    await wrapper.vm.loadGraph()
+    const branch = wrapper.vm.downstreamRoots[0]
+    const instanceId = branch.instanceId
+    const originalPosition = wrapper.vm.nodePosition(instanceId)
+    const originalPath = wrapper.vm.edgeLines.find(edge => edge.toId === instanceId).path
+
+    wrapper.vm.beginNodeDrag({ clientX: 200, clientY: 160, currentTarget: { setPointerCapture: vi.fn() } }, instanceId)
+    wrapper.vm.onPointerMove({ clientX: 264, clientY: 200 })
+    wrapper.vm.endPointerInteraction()
+
+    expect(wrapper.vm.positionOverrides[instanceId]).toEqual({
+      left: originalPosition.left + 64 / wrapper.vm.viewport.scale,
+      top: originalPosition.top + 40 / wrapper.vm.viewport.scale
+    })
+    expect(wrapper.vm.edgeLines.find(edge => edge.toId === instanceId).path).not.toBe(originalPath)
+
+    const anotherWrapper = mountPage()
+    expect(anotherWrapper.vm.positionOverrides).toEqual({})
+    anotherWrapper.unmount()
+    wrapper.unmount()
+  })
+
+  test('可拖动画布且一键最佳分布会清除手工坐标并重新适配', async () => {
+    const wrapper = mountPage()
+    const graphWrap = wrapper.find('.graph-wrap').element
+    Object.defineProperty(graphWrap, 'clientWidth', { value: 1000 })
+    Object.defineProperty(graphWrap, 'clientHeight', { value: 500 })
+    wrapper.vm.query.nodeId = 1
+    lineageApi.getLineageGraph.mockResolvedValueOnce({ data: graphResponse() })
+    await wrapper.vm.loadGraph()
+
+    const originalViewport = { ...wrapper.vm.viewport }
+    wrapper.vm.beginCanvasPan({ clientX: 100, clientY: 100, currentTarget: { setPointerCapture: vi.fn() } })
+    wrapper.vm.onPointerMove({ clientX: 145, clientY: 125 })
+    wrapper.vm.endPointerInteraction()
+    expect(wrapper.vm.viewport.x).toBe(originalViewport.x + 45)
+    expect(wrapper.vm.viewport.y).toBe(originalViewport.y + 25)
+
+    wrapper.vm.positionOverrides = { CURRENT: { left: 16, top: 24 } }
+    wrapper.vm.resetToBestLayout()
+    expect(wrapper.vm.positionOverrides).toEqual({})
+    expect(wrapper.vm.viewport.scale).toBeLessThanOrEqual(1)
+    expect(wrapper.find('[aria-label="一键回到最佳分布"]').exists()).toBe(true)
     wrapper.unmount()
   })
 

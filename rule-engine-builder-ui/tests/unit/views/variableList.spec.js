@@ -530,6 +530,33 @@ describe('VariableList — 变量操作', () => {
     expect(objectDialog).toMatch(/<el-select\s+v-model="objectForm\.scope"\s+:disabled="!!objectForm\.id"/)
   })
 
+  test('所有字段、常量和数据对象写操作均由字段编辑权限控制', () => {
+    const source = fs.readFileSync(path.resolve(process.cwd(), 'src/views/variable/VariableList.vue'), 'utf8')
+    const guardedHandlers = [
+      'handleOptions(row)',
+      'handleToGlobal(row)',
+      'handleObjectToGlobal(node.object)',
+      'handleAddObjectField(node)',
+      'handleDeleteObject(node.object)',
+      'handleEditObjectField(row, node)',
+      'handleOptions(row, true)',
+      'handleDeleteObjectField(row)',
+      'editFieldValidation(row)',
+      'removeFieldValidation(row)',
+    ]
+
+    guardedHandlers.forEach(handler => {
+      const escaped = handler.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      expect(source).toMatch(new RegExp(
+        `<el-button(?:(?!</el-button).)*v-permission="'field:edit'"(?:(?!</el-button).)*@click(?:\\.stop)?="${escaped}"`,
+        's'
+      ))
+    })
+    expect(source).toMatch(/v-model="node\.object\.scriptName"[\s\S]*?:disabled="!canEditFields"/)
+    expect(source).toMatch(/v-model="node\.object\.objectType"[\s\S]*?:disabled="!canEditFields"/)
+    expect(source).toMatch(/v-model="row\.scriptName"[\s\S]*?:disabled="!canEditFields"/)
+  })
+
   test('handleImportCmd 打开对应导入弹窗', () => {
     // 实际属性名是 importJavaEntityVisible 等（以 import 开头）
     wrapper.vm.handleImportCmd('java-entity')
@@ -792,6 +819,21 @@ describe('VariableList — 变量操作', () => {
       { customerId: 'C001' }
     )
     expect(wrapper.vm.draftPreviewResult.resolvedValue).toBe(88)
+  })
+
+  test('保存前预览使用高对比度实心主按钮', async () => {
+    wrapper.vm.dialogVisible = true
+    wrapper.vm.form = {
+      ...wrapper.vm.initForm(), varSource: 'DB', dbDatasourceId: 21
+    }
+    await nextTick()
+
+    const previewButton = wrapper.findAll('el-button-stub')
+      .find(button => button.text().includes('预览取值'))
+
+    expect(previewButton).toBeDefined()
+    expect(previewButton.attributes('type')).toBe('primary')
+    expect(previewButton.attributes('plain')).toBeUndefined()
   })
 
   test('取值预览失败由统一请求提示承接且不会产生未处理事件异常', async () => {

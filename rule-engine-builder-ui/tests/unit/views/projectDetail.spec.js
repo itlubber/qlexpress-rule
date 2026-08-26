@@ -9,7 +9,7 @@ function flushPromises() {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
-async function mountPage() {
+async function mountPage(permissionValues) {
   projectApi.getProject.mockResolvedValue({
     data: { id: 9, projectCode: 'risk', projectName: '风控项目' },
   })
@@ -47,6 +47,11 @@ async function mountPage() {
         error: vi.fn(),
       },
     },
+    directives: permissionValues ? {
+      permission: {
+        mounted: (_element, binding) => permissionValues.push(binding.value),
+      },
+    } : undefined,
   })
   await flushPromises()
   request.mockClear()
@@ -66,6 +71,14 @@ describe('ProjectDetail 规则生命周期入口', () => {
     wrapper.vm.activeProjectTab = 'rules'
     await wrapper.vm.$nextTick()
     expect(wrapper.vm.activeProjectTab).toBe('rules')
+    wrapper.unmount()
+  })
+
+  test('项目内新增、绑定和移除规则受规则编辑权限控制', async () => {
+    const permissions = []
+    const { wrapper } = await mountPage(permissions)
+
+    expect(permissions).toContain('rule:edit')
     wrapper.unmount()
   })
 

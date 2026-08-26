@@ -74,7 +74,8 @@ describe('全局日夜主题样式契约', () => {
 
     expect(css).toContain('background-image: var(--tianshu-brand-gradient)')
     expect(css).toContain('max-width: 1440px')
-    expect(css).toContain('.theme-sidebar--static .layout-shell')
+    expect(css).not.toContain('.theme-sidebar--static')
+    expect(css).toContain('.layout-main .el-loading-mask')
     expect(css).toContain('[data-theme=dark]')
     expect(css).toContain('.el-dialog')
     expect(css).toContain('.el-table')

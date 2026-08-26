@@ -6,24 +6,10 @@
       格式文件导入，用于在规则设计时调用机器学习模型进行预测。
     </div>
 
-    <el-tabs v-model="activeTab" type="border-card" class="page-tabs">
+    <el-tabs v-model="activeTab">
       <el-tab-pane label="模型管理" name="list">
-        <!-- 操作按钮栏 -->
-        <div class="uiue-btn-bar">
-          <div class="btn-right">
-            <el-button
-              v-permission="'model:edit'"
-              size="small"
-              type="primary"
-              :icon="ElIconUpload2"
-              @click="handleUpload"
-              >上传模型</el-button
-            >
-          </div>
-        </div>
-
         <!-- 筛选条件 -->
-        <div class="uiue-search-container">
+        <div class="uiue-search-container uiue-filter-toolbar">
           <el-form :inline="true" size="small" @keyup.enter="handleQuery">
             <el-form-item label="作用范围">
               <el-select
@@ -112,6 +98,18 @@
               <el-button @click="resetQuery">重置</el-button>
             </el-form-item>
           </el-form>
+          <div class="uiue-btn-bar">
+            <div class="btn-right">
+              <el-button
+                v-permission="'model:edit'"
+                size="small"
+                type="primary"
+                :icon="ElIconUpload2"
+                @click="handleUpload"
+                >上传模型</el-button
+              >
+            </div>
+          </div>
         </div>
 
         <!-- 模型列表 -->
@@ -253,6 +251,7 @@
             <template v-slot="{ row }">
               <el-button
                 link
+                data-action="detail"
                 size="small"
                 type="primary"
                 @click="$router.push('/model/' + row.id)"
@@ -260,6 +259,7 @@
               >
               <el-button
                 link
+                data-action="edit"
                 size="small"
                 type="warning"
                 @click="handleEdit(row)"
@@ -267,6 +267,7 @@
               >
               <el-button
                 link
+                data-action="publish"
                 size="small"
                 type="success"
                 @click="handlePublish(row)"
@@ -276,6 +277,7 @@
               <el-button
                 v-if="row.publishedVersion"
                 link
+                data-action="disable"
                 size="small"
                 type="warning"
                 @click="openImpact(row, 'OFFLINE')"
@@ -284,6 +286,7 @@
               <el-button
                 v-if="row.scope === 'PROJECT'"
                 link
+                data-action="global"
                 size="small"
                 type="success"
                 @click="handleToGlobal(row)"
@@ -291,6 +294,7 @@
               >
               <el-button
                 link
+                data-action="delete"
                 size="small"
                 type="danger"
                 class="btn-delete"

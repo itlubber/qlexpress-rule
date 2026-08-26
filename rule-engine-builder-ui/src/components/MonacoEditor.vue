@@ -9,6 +9,7 @@
 <script>
 import { markRaw } from 'vue'
 import { $emit } from '../utils/gogocodeTransfer'
+import { syncMonacoTheme } from '@/theme/monacoTheme'
 export default {
   name: 'MonacoEditor',
   props: {
@@ -19,10 +20,6 @@ export default {
     language: {
       type: String,
       default: 'json',
-    },
-    theme: {
-      type: String,
-      default: 'vs',
     },
     readOnly: {
       type: Boolean,
@@ -63,11 +60,6 @@ export default {
         window.monaco.editor.setModelLanguage(this.editor.getModel(), val)
       }
     },
-    theme(val) {
-      if (window.monaco) {
-        window.monaco.editor.setTheme(val)
-      }
-    },
     readOnly(val) {
       if (this.editor) {
         this.editor.updateOptions({ readOnly: val })
@@ -88,12 +80,12 @@ export default {
     if (!window.monaco || !this.$refs.container) return
     this.registerQlExpressLanguage(window.monaco)
     this.registerSqlLanguage(window.monaco)
-    this.syncGlobalTheme()
+    const editorTheme = this.syncGlobalTheme()
 
     const options = {
       value: this.value,
       language: this.language,
-      theme: this.theme,
+      theme: editorTheme,
       readOnly: this.readOnly,
       automaticLayout: true,
       fontSize: 13,
@@ -164,12 +156,7 @@ export default {
       this.syncGlobalTheme(scheme)
     },
     syncGlobalTheme(colorScheme) {
-      if (!window.monaco || !window.monaco.editor) return
-      const rootScheme = document.documentElement.dataset.theme
-      const dark = colorScheme
-        ? colorScheme === 'DARK'
-        : rootScheme === 'dark'
-      window.monaco.editor.setTheme(dark ? 'vs-dark' : 'vs')
+      return syncMonacoTheme(window.monaco, { colorScheme })
     },
     registerQlExpressLanguage(monaco) {
       if (!monaco || this.language !== 'ql') return
@@ -349,36 +336,6 @@ export default {
         monaco.__qlexpressLanguageRegistered = true
       }
 
-      if (!monaco.__qlexpressThemeRegistered) {
-        monaco.editor.defineTheme('qlexpress-dark', {
-          base: 'vs-dark',
-          inherit: true,
-          rules: [
-            { token: 'keyword', foreground: 'C586C0', fontStyle: 'bold' },
-            { token: 'function', foreground: 'DCDCAA' },
-            { token: 'predefined', foreground: '4EC9B0' },
-            { token: 'identifier', foreground: 'D4D4D4' },
-            { token: 'number', foreground: 'B5CEA8' },
-            { token: 'string', foreground: 'CE9178' },
-            { token: 'string.escape', foreground: 'D7BA7D' },
-            { token: 'comment', foreground: '6A9955', fontStyle: 'italic' },
-            { token: 'operator', foreground: 'D4D4D4' },
-            { token: 'delimiter', foreground: '858585' },
-          ],
-          colors: {
-            'editor.background': '#1E1E1E',
-            'editor.foreground': '#D4D4D4',
-            'editorLineNumber.foreground': '#6E7681',
-            'editorLineNumber.activeForeground': '#C9D1D9',
-            'editorCursor.foreground': '#FFFFFF',
-            'editor.selectionBackground': '#264F78',
-            'editor.lineHighlightBackground': '#2A2D2E',
-            'editorIndentGuide.background': '#404040',
-            'editorIndentGuide.activeBackground': '#707070',
-          },
-        })
-        monaco.__qlexpressThemeRegistered = true
-      }
     },
     registerSqlLanguage(monaco) {
       if (!monaco || this.language !== 'sql') return
@@ -526,28 +483,6 @@ export default {
         monaco.__ruleEngineSqlLanguageRegistered = true
       }
 
-      if (!monaco.__ruleEngineSqlThemeRegistered) {
-        monaco.editor.defineTheme('rule-sql-light', {
-          base: 'vs',
-          inherit: true,
-          rules: [
-            { token: 'keyword', foreground: '0F766E', fontStyle: 'bold' },
-            { token: 'identifier', foreground: '1F2937' },
-            { token: 'number', foreground: 'B45309' },
-            { token: 'string', foreground: 'B91C1C' },
-            { token: 'comment', foreground: '64748B', fontStyle: 'italic' },
-            { token: 'operator', foreground: '7C3AED' },
-            { token: 'delimiter', foreground: '475569' },
-          ],
-          colors: {
-            'editor.background': '#FBFDFF',
-            'editorLineNumber.foreground': '#94A3B8',
-            'editorLineNumber.activeForeground': '#334155',
-            'editor.selectionBackground': '#BFDBFE',
-          },
-        })
-        monaco.__ruleEngineSqlThemeRegistered = true
-      }
     },
     format() {
       if (this.editor) {

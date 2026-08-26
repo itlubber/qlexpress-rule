@@ -5,7 +5,7 @@ import ProjectAuthDialog from '@/views/project/ProjectAuthDialog.vue'
 
 
 
-async function mountDialog() {
+async function mountDialog(permissionValues) {
   projectApi.listProjectAuths.mockResolvedValue({
     code: 200,
     data: [{
@@ -40,7 +40,12 @@ async function mountDialog() {
       'el-switch': true, 'el-input-number': true, 'el-pagination': true,
       'el-alert': true, 'el-empty': true, 'el-date-picker': true,
       'el-row': true, 'el-col': true
-    }
+    },
+    directives: permissionValues ? {
+      permission: {
+        mounted: (_element, binding) => permissionValues.push(binding.value)
+      }
+    } : undefined
   })
   await nextTick()
   await new Promise(resolve => setTimeout(resolve, 20))
@@ -57,6 +62,14 @@ describe('ProjectAuthDialog', () => {
     expect(wrapper.vm.authList).toHaveLength(1)
     expect(wrapper.vm.authList[0].secret).toBeUndefined()
     expect(wrapper.vm.authList[0].secretMasked).toBe('secr****cret')
+    wrapper.unmount()
+  })
+
+  test('鉴权配置变更入口受项目编辑权限控制', async () => {
+    const permissions = []
+    const wrapper = await mountDialog(permissions)
+
+    expect(permissions).toContain('project:edit')
     wrapper.unmount()
   })
 

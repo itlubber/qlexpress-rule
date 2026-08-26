@@ -1,4 +1,9 @@
 var currentUser = null
+var permissionEnforcementEnabled = false
+
+export function setPermissionEnforcement(enabled) {
+  permissionEnforcementEnabled = Boolean(enabled)
+}
 
 export function setCurrentUser(user) {
   if (!user) {
@@ -28,13 +33,13 @@ export function getCurrentUser() {
 }
 
 export function hasPermission(permissionCode) {
-  if (!permissionCode || !currentUser) return true
+  if (!permissionCode) return true
+  if (!currentUser) return !permissionEnforcementEnabled
   return currentUser.permissions.includes(permissionCode)
 }
 
 export function filterMenus(menus) {
   const source = Array.isArray(menus) ? menus : []
-  if (!currentUser) return source.slice()
   return source.filter(menu =>
     !menu.permission || hasPermission(menu.permission)
   )

@@ -184,7 +184,7 @@ export default {
   padding: 12px 16px;
   border: 1px solid var(--tianshu-border);
   border-radius: 4px;
-  background: #f8f9fb;
+  background: var(--tianshu-bg-soft);
   color: var(--tianshu-text-secondary);
   font-size: 12px;
 }
@@ -201,8 +201,8 @@ export default {
 .rule-version-side-label {
   padding: 2px 6px;
   border-radius: 4px;
-  background: #eef0ff;
-  color: var(--el-color-primary);
+  background: var(--tianshu-info-bg);
+  color: var(--tianshu-info-text);
   font-weight: 600;
 }
 .rule-version-diff-summary {
@@ -228,7 +228,7 @@ export default {
   font-size: 14px;
 }
 .rule-version-same {
-  color: #529b2e;
+  color: var(--tianshu-success-text);
 }
 .rule-version-diff-counts {
   display: flex;
@@ -241,32 +241,32 @@ export default {
   font-weight: 600;
 }
 .rule-version-diff-counts .is-modified {
-  background: #fdf6ec;
-  color: #b88230;
+  background: var(--tianshu-warning-bg);
+  color: var(--tianshu-warning-text);
 }
 .rule-version-diff-counts .is-added {
-  background: #f0f9eb;
-  color: #529b2e;
+  background: var(--tianshu-success-bg);
+  color: var(--tianshu-success-text);
 }
 .rule-version-diff-counts .is-removed {
-  background: #fef0f0;
-  color: #c45656;
+  background: var(--tianshu-danger-bg);
+  color: var(--tianshu-danger-text);
 }
 .rule-version-error-grid {
   margin-bottom: 12px;
 }
 .rule-version-error {
   padding: 8px 12px;
-  border: 1px solid #fbc4c4;
+  border: 1px solid var(--tianshu-danger-border);
   border-radius: 4px;
-  background: #fef0f0;
-  color: #c45656;
+  background: var(--tianshu-danger-bg);
+  color: var(--tianshu-danger-text);
   font-size: 13px;
 }
 .rule-version-error.is-empty {
-  border-color: #c2e7b0;
-  background: #f0f9eb;
-  color: #529b2e;
+  border-color: var(--tianshu-success-border);
+  background: var(--tianshu-success-bg);
+  color: var(--tianshu-success-text);
 }
 .rule-script-diff-head,
 .rule-script-ref-head {

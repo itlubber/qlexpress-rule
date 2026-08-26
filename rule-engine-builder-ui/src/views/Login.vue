@@ -108,11 +108,7 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-$login-text: var(--tianshu-text-primary);
 $login-muted: var(--tianshu-text-tertiary);
-$login-border: var(--tianshu-border);
-$login-primary: var(--el-color-primary);
-$login-primary-soft: var(--tianshu-focus-ring);
 
 .login-page {
   position: relative;
@@ -297,35 +293,34 @@ $login-primary-soft: var(--tianshu-focus-ring);
   font-size: 13px;
   color: var(--tianshu-text-secondary);
 }
+:deep(.login-form .el-input) {
+  --el-input-text-color: var(--tianshu-text-primary);
+  --el-input-bg-color: var(--tianshu-bg-elevated);
+  --el-input-border-color: var(--tianshu-border);
+  --el-input-hover-border-color: var(--el-color-primary-light-3);
+  --el-input-focus-border-color: var(--el-color-primary);
+  --el-input-placeholder-color: var(--tianshu-text-tertiary);
+  --el-input-icon-color: var(--tianshu-text-tertiary);
+}
 :deep(.login-form .el-input__wrapper) {
   min-height: 44px;
+  padding-inline: 12px;
   border-radius: 12px;
-  background: var(--tianshu-bg-elevated);
-  box-shadow: 0 0 0 1px $login-border inset;
-  transition: box-shadow 0.2s ease;
-}
-:deep(.login-form .el-input__wrapper:hover) {
-  box-shadow: 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.5) inset;
-}
-:deep(.login-form .el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 1px $login-primary inset,
-    0 0 0 3px $login-primary-soft;
+  background: var(--el-input-bg-color);
 }
 :deep(.login-form .el-input__inner) {
   line-height: 1.4;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
   font-size: 15px;
-  color: $login-text;
-  background: transparent;
-  caret-color: $login-primary;
+  color: var(--el-input-text-color);
+  caret-color: var(--el-input-focus-border-color);
 }
-:deep(.login-form .el-input__inner::placeholder) {
-  color: var(--tianshu-text-tertiary);
-}
-:deep(.login-form .el-input__suffix) {
-  color: var(--tianshu-text-tertiary);
+:deep(.login-form .el-input__inner:-webkit-autofill),
+:deep(.login-form .el-input__inner:-webkit-autofill:hover),
+:deep(.login-form .el-input__inner:-webkit-autofill:focus) {
+  -webkit-text-fill-color: var(--el-input-text-color);
+  caret-color: var(--el-input-focus-border-color);
+  -webkit-box-shadow: 0 0 0 1000px var(--el-input-bg-color) inset;
+  transition: background-color 9999s ease-out 0s;
 }
 .login-btn {
   width: 100%;
@@ -342,6 +337,14 @@ $login-primary-soft: var(--tianshu-focus-ring);
   cursor: pointer;
   transition: filter 0.2s ease, box-shadow 0.2s ease,
     transform 0.2s ease;
+}
+.login-btn.el-button--primary.is-loading:disabled {
+  opacity: 0.88;
+  background: var(--tianshu-brand-background) !important;
+  border-color: var(--el-color-primary) !important;
+}
+.login-btn.is-loading::before {
+  background-color: transparent;
 }
 .login-btn:not(.is-loading):hover {
   background: var(--tianshu-brand-background) !important;

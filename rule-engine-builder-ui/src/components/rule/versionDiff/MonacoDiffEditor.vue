@@ -25,6 +25,7 @@
 import { markRaw } from 'vue'
 import { Loading as ElIconLoading } from '@element-plus/icons-vue'
 import { $emit } from '../../../utils/gogocodeTransfer'
+import { syncMonacoTheme } from '@/theme/monacoTheme'
 export default {
   components: {
     ElIconLoading,
@@ -145,12 +146,7 @@ export default {
       this.syncGlobalTheme(scheme)
     },
     syncGlobalTheme(colorScheme) {
-      if (!window.monaco || !window.monaco.editor) return
-      const rootScheme = document.documentElement.dataset.theme
-      const dark = colorScheme
-        ? colorScheme === 'DARK'
-        : rootScheme === 'dark'
-      window.monaco.editor.setTheme(dark ? 'vs-dark' : 'vs')
+      return syncMonacoTheme(window.monaco, { colorScheme })
     },
     updateModel(model, value) {
       if (!model) return
