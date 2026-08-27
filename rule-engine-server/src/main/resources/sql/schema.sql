@@ -1512,7 +1512,7 @@ CREATE TABLE IF NOT EXISTS `rule_trace_registry` (
   PRIMARY KEY (`trace_id`),
   KEY `idx_trace_parent` (`parent_trace_id`),
   KEY `idx_trace_resource` (`resource_type`, `resource_id`, `create_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='全局Trace编号注册表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='全局Trace编号注册表';
 
 -- ============================================================
 -- 19.4 rule_experiment_version - 分流实验版本历史表

@@ -7,6 +7,7 @@ import org.junit.Test;
 
 import java.lang.reflect.Proxy;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
@@ -20,9 +21,16 @@ public class ConsoleThemePreferenceServiceTest {
     public void missingPreferenceUsesTheCompleteSystemDefault() {
         ConsoleThemePreference theme = service(new HashMap<>()).load(7L);
 
-        assertEquals(Integer.valueOf(1), theme.getSchemaVersion());
+        assertEquals(Integer.valueOf(2), theme.getSchemaVersion());
         assertEquals("LIGHT", theme.getColorScheme());
+        assertEquals("PRESET", theme.getAccentMode());
         assertEquals("THEME_BLUE", theme.getAccentPreset());
+        assertEquals("#2639E9", theme.getCustomSolidColor());
+        assertEquals(List.of("#2639E9", "#873FF2"),
+                theme.getCustomGradientColors());
+        assertEquals("LINEAR", theme.getCustomGradientType());
+        assertEquals(Integer.valueOf(135), theme.getCustomGradientAngle());
+        assertEquals("LEFT", theme.getNavigationLayout());
         assertEquals("DARK", theme.getSidebarTheme());
         assertEquals("FLUID", theme.getContentWidth());
         assertTrue(theme.getFixedSidebar());
@@ -43,6 +51,46 @@ public class ConsoleThemePreferenceServiceTest {
         assertEquals("DARK", saved.getColorScheme());
         assertEquals("PEACH_PINK_GRADIENT", loaded.getAccentPreset());
         assertTrue(rows.get("7:UI_THEME").contains("PEACH_PINK_GRADIENT"));
+    }
+
+    @Test
+    public void customThreeColorRadialThemeAndTopNavigationRoundTrip() {
+        Map<String, String> rows = new HashMap<>();
+        ConsoleThemePreferenceService service = service(rows);
+        Map<String, Object> request = validTheme();
+        request.put("accentMode", "CUSTOM_GRADIENT");
+        request.put("customGradientColors",
+                List.of("#125DFF", "#6C3BFF", "#E94FC7"));
+        request.put("customGradientType", "RADIAL");
+        request.put("navigationLayout", "TOP");
+
+        ConsoleThemePreference saved = service.save(7L, "alice", request);
+        ConsoleThemePreference loaded = service.load(7L);
+
+        assertEquals("CUSTOM_GRADIENT", saved.getAccentMode());
+        assertEquals(List.of("#125DFF", "#6C3BFF", "#E94FC7"),
+                loaded.getCustomGradientColors());
+        assertEquals("RADIAL", loaded.getCustomGradientType());
+        assertEquals("TOP", loaded.getNavigationLayout());
+    }
+
+    @Test
+    public void legacyV1ThemeMigratesWithoutLosingExistingChoices() {
+        Map<String, String> rows = new HashMap<>();
+        rows.put("7:UI_THEME", "{\"schemaVersion\":1,"
+                + "\"colorScheme\":\"DARK\","
+                + "\"accentPreset\":\"NEBULA_GRADIENT\","
+                + "\"sidebarTheme\":\"LIGHT\","
+                + "\"contentWidth\":\"FIXED\","
+                + "\"fixedSidebar\":false,\"colorWeak\":true}");
+
+        ConsoleThemePreference loaded = service(rows).load(7L);
+
+        assertEquals(Integer.valueOf(2), loaded.getSchemaVersion());
+        assertEquals("DARK", loaded.getColorScheme());
+        assertEquals("NEBULA_GRADIENT", loaded.getAccentPreset());
+        assertEquals("LIGHT", loaded.getSidebarTheme());
+        assertEquals("LEFT", loaded.getNavigationLayout());
     }
 
     @Test
@@ -67,7 +115,7 @@ public class ConsoleThemePreferenceServiceTest {
         Map<String, Object> wrongType = validTheme();
         wrongType.put("fixedSidebar", "true");
         Map<String, Object> futureVersion = validTheme();
-        futureVersion.put("schemaVersion", 2);
+        futureVersion.put("schemaVersion", 3);
 
         assertThrows(IllegalArgumentException.class,
                 () -> service.save(7L, "alice", missingField));
@@ -75,6 +123,32 @@ public class ConsoleThemePreferenceServiceTest {
                 () -> service.save(7L, "alice", wrongType));
         assertThrows(IllegalArgumentException.class,
                 () -> service.save(7L, "alice", futureVersion));
+    }
+
+    @Test
+    public void invalidCustomColorsGradientShapeAndNavigationAreRejected() {
+        ConsoleThemePreferenceService service = service(new HashMap<>());
+        Map<String, Object> invalidColor = validTheme();
+        invalidColor.put("customSolidColor", "url(evil)");
+        Map<String, Object> invalidColorCount = validTheme();
+        invalidColorCount.put("customGradientColors", List.of("#125DFF"));
+        Map<String, Object> invalidGradient = validTheme();
+        invalidGradient.put("customGradientType", "CONIC");
+        Map<String, Object> invalidAngle = validTheme();
+        invalidAngle.put("customGradientAngle", 361);
+        Map<String, Object> invalidNavigation = validTheme();
+        invalidNavigation.put("navigationLayout", "FLOATING");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.save(7L, "alice", invalidColor));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.save(7L, "alice", invalidColorCount));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.save(7L, "alice", invalidGradient));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.save(7L, "alice", invalidAngle));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.save(7L, "alice", invalidNavigation));
     }
 
     @Test
@@ -90,9 +164,15 @@ public class ConsoleThemePreferenceServiceTest {
 
     private static Map<String, Object> validTheme() {
         Map<String, Object> value = new HashMap<>();
-        value.put("schemaVersion", 1);
+        value.put("schemaVersion", 2);
         value.put("colorScheme", "LIGHT");
+        value.put("accentMode", "PRESET");
         value.put("accentPreset", "THEME_BLUE");
+        value.put("customSolidColor", "#2639E9");
+        value.put("customGradientColors", List.of("#2639E9", "#873FF2"));
+        value.put("customGradientType", "LINEAR");
+        value.put("customGradientAngle", 135);
+        value.put("navigationLayout", "LEFT");
         value.put("sidebarTheme", "DARK");
         value.put("contentWidth", "FLUID");
         value.put("fixedSidebar", true);

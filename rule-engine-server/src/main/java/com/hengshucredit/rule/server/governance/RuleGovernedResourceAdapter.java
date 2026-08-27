@@ -2,8 +2,10 @@ package com.hengshucredit.rule.server.governance;
 
 import com.alibaba.fastjson.JSON;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.hengshucredit.rule.model.dto.RuleDraftSourceRequest;
 import com.hengshucredit.rule.model.dto.RuleLifecycleActionRequest;
 import com.hengshucredit.rule.model.dto.RuleDraftSaveRequest;
+import com.hengshucredit.rule.model.dto.RulePreflightReport;
 import com.hengshucredit.rule.model.entity.RuleDefinition;
 import com.hengshucredit.rule.model.entity.RuleDefinitionContent;
 import com.hengshucredit.rule.model.entity.RuleDefinitionInputField;
@@ -11,6 +13,8 @@ import com.hengshucredit.rule.model.entity.RuleDefinitionOutputField;
 import com.hengshucredit.rule.model.entity.RuleDataObjectField;
 import com.hengshucredit.rule.model.entity.RuleRevision;
 import com.hengshucredit.rule.model.enums.RuleRevisionState;
+import com.hengshucredit.rule.model.enums.RuleDraftSourceType;
+import com.hengshucredit.rule.server.artifact.CanonicalJson;
 import com.hengshucredit.rule.server.mapper.RuleDefinitionContentMapper;
 import com.hengshucredit.rule.server.mapper.RuleDefinitionInputFieldMapper;
 import com.hengshucredit.rule.server.mapper.RuleDefinitionOutputFieldMapper;
@@ -21,6 +25,7 @@ import com.hengshucredit.rule.server.service.RuleDraftService;
 import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
+import java.util.Objects;
 import java.util.Set;
 
 public class RuleGovernedResourceAdapter
@@ -84,6 +89,57 @@ public class RuleGovernedResourceAdapter
             resolved.add(resolveGovernedRoot(dependency));
         }
         return resolved;
+    }
+
+    @Override
+    public List<GovernanceIssue> validate(ResourceSnapshot draft,
+                                          String action) {
+        List<GovernanceIssue> issues =
+                new ArrayList<>(super.validate(draft));
+        if ("DELETE".equals(action) || "DISABLE".equals(action)) {
+            return issues;
+        }
+        Map<String, Object> snapshot = CanonicalJson.readMap(
+                draft.snapshotJson());
+        Long definitionId = longValue(snapshot.get("id"));
+        if (definitionId == null) {
+            return issues;
+        }
+        RuleRevision review = lifecycleService.listRevisions(definitionId)
+                .stream()
+                .filter(revision -> RuleRevisionState.REVIEW.name()
+                        .equals(revision.getState()))
+                .findFirst()
+                .orElse(null);
+        if (review == null) {
+            return issues;
+        }
+        RulePreflightReport report = lifecycleService.preflightReport(
+                definitionId, review.getId());
+        if (report == null || !report.isValid()
+                || !Objects.equals(review.getContentDigest(),
+                report.getContentDigest())) {
+            issues.add(GovernanceIssue.error(
+                    "RULE_REVIEW_PREFLIGHT_CHANGED",
+                    "REVIEW 内容或依赖已变化，审批将转为冲突并生成新的 DRAFT",
+                    GovernanceResourceTypes.RULE, definitionId,
+                    "$.revision"));
+        }
+        return issues;
+    }
+
+    private Long longValue(Object value) {
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Long.valueOf(String.valueOf(value));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private ResourceDependencyRef resolveGovernedRoot(
@@ -242,7 +298,12 @@ public class RuleGovernedResourceAdapter
             action.setComment(comment == null || comment.isBlank()
                     ? "统一审批已终止：" + terminalStatus
                     : comment);
-            lifecycleService.returnToDraft(review.getId(), action);
+            RuleRevision rejected = lifecycleService.returnToDraft(
+                    review.getId(), action);
+            RuleDraftSourceRequest source = new RuleDraftSourceRequest();
+            source.setSourceType(RuleDraftSourceType.REVISION);
+            source.setSourceId(rejected.getId());
+            lifecycleService.createDraftFromSource(resourceId, source);
             return;
         }
         restoreProjection(resourceId, effectiveSnapshot);

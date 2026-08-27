@@ -56,13 +56,13 @@ export default {
   width: 176px;
   padding: 6px;
   background: var(--tianshu-bg-surface);
-  border: 1px solid #d9e0f2;
+  border: 1px solid var(--tianshu-border);
   border-radius: 6px;
-  box-shadow: 0 8px 24px rgba(38, 57, 233, 0.16);
+  box-shadow: var(--tianshu-shadow-medium);
 }
 .flow-node-add-menu__title {
   padding: 5px 8px 7px;
-  color: #8c8c8c;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 .flow-node-add-menu__item {
@@ -71,7 +71,7 @@ export default {
   width: 100%;
   height: 34px;
   padding: 0 9px;
-  color: #262626;
+  color: var(--tianshu-text-primary);
   font-size: 13px;
   text-align: left;
   background: transparent;
@@ -81,7 +81,7 @@ export default {
   &:hover,
   &:focus {
     color: var(--el-color-primary);
-    background: #f0f3ff;
+    background: var(--tianshu-designer-accent-bg);
     outline: 0;
   }
 

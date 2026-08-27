@@ -125,7 +125,7 @@ export default {
   color: var(--tianshu-text-tertiary);
   &:hover {
     color: var(--tianshu-text-primary);
-    background: #f5f5f5;
+    background: var(--tianshu-bg-hover);
   }
 }
 .panel-header {
@@ -167,11 +167,11 @@ export default {
   border-radius: 4px;
   transition: background 0.15s;
   &:hover {
-    background: #f0f7ff;
+    background: var(--tianshu-designer-accent-bg);
   }
   &:active {
     cursor: grabbing;
-    background: #e6f0ff;
+    background: var(--tianshu-bg-active);
   }
 }
 .node-dot {

@@ -45,56 +45,203 @@
 
       <section class="theme-section" aria-labelledby="theme-accent-title">
         <h3 id="theme-accent-title">主题色</h3>
-        <p class="section-hint">选择纯色或固定渐变色卡</p>
-        <div class="swatch-group">
-          <span class="swatch-group__label">纯色</span>
-          <div class="swatch-grid">
-            <button
-              v-for="preset in solidPresets"
-              :key="preset.id"
-              type="button"
-              class="theme-swatch"
-              :class="{ 'is-active': draft.accentPreset === preset.id }"
-              :data-accent="preset.id"
-              :data-accent-kind="preset.kind"
-              :aria-label="preset.name"
-              :aria-pressed="draft.accentPreset === preset.id"
-              :style="swatchStyle(preset)"
-              @click="patchDraft({ accentPreset: preset.id })"
-            >
-              <el-icon v-if="draft.accentPreset === preset.id">
-                <el-icon-check />
-              </el-icon>
-            </button>
+        <p class="section-hint">选择预设，或配置自己的纯色与渐变</p>
+        <div class="accent-mode-control" aria-label="主题色来源">
+          <button
+            v-for="option in accentModeOptions"
+            :key="option.value"
+            type="button"
+            :class="{ 'is-active': draft.accentMode === option.value }"
+            :data-accent-mode="option.value"
+            :aria-pressed="draft.accentMode === option.value"
+            @click="patchDraft({ accentMode: option.value })"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+
+        <div v-if="draft.accentMode === 'PRESET'" class="accent-editor">
+          <div class="swatch-group">
+            <span class="swatch-group__label">纯色预设</span>
+            <div class="swatch-grid">
+              <button
+                v-for="preset in solidPresets"
+                :key="preset.id"
+                type="button"
+                class="theme-swatch"
+                :class="{ 'is-active': draft.accentPreset === preset.id }"
+                :data-accent="preset.id"
+                :data-accent-kind="preset.kind"
+                :aria-label="preset.name"
+                :aria-pressed="draft.accentPreset === preset.id"
+                :style="swatchStyle(preset)"
+                @click="patchDraft({ accentMode: 'PRESET', accentPreset: preset.id })"
+              >
+                <el-icon v-if="draft.accentPreset === preset.id">
+                  <el-icon-check />
+                </el-icon>
+              </button>
+            </div>
+          </div>
+          <div class="swatch-group">
+            <span class="swatch-group__label">渐变预设</span>
+            <div class="gradient-grid">
+              <button
+                v-for="preset in gradientPresets"
+                :key="preset.id"
+                type="button"
+                class="gradient-swatch"
+                :class="{ 'is-active': draft.accentPreset === preset.id }"
+                :data-accent="preset.id"
+                :data-accent-kind="preset.kind"
+                :aria-label="preset.name"
+                :aria-pressed="draft.accentPreset === preset.id"
+                :style="swatchStyle(preset)"
+                @click="patchDraft({ accentMode: 'PRESET', accentPreset: preset.id })"
+              >
+                <span>{{ preset.name }}</span>
+                <el-icon v-if="draft.accentPreset === preset.id">
+                  <el-icon-check />
+                </el-icon>
+              </button>
+            </div>
           </div>
         </div>
-        <div class="swatch-group">
-          <span class="swatch-group__label">渐变</span>
-          <div class="gradient-grid">
-            <button
-              v-for="preset in gradientPresets"
-              :key="preset.id"
-              type="button"
-              class="gradient-swatch"
-              :class="{ 'is-active': draft.accentPreset === preset.id }"
-              :data-accent="preset.id"
-              :data-accent-kind="preset.kind"
-              :aria-label="preset.name"
-              :aria-pressed="draft.accentPreset === preset.id"
-              :style="swatchStyle(preset)"
-              @click="patchDraft({ accentPreset: preset.id })"
+
+        <div
+          v-else-if="draft.accentMode === 'CUSTOM_SOLID'"
+          class="accent-editor custom-accent-panel"
+        >
+          <div class="custom-color-row">
+            <span>自定义主题色</span>
+            <div class="custom-color-control">
+              <el-color-picker
+                :model-value="draft.customSolidColor"
+                :show-alpha="false"
+                aria-label="自定义主题色"
+                @update:model-value="updateCustomSolidColor"
+              />
+              <code>{{ draft.customSolidColor }}</code>
+            </div>
+          </div>
+          <div
+            class="custom-accent-preview"
+            :style="{ background: customAccent.background }"
+          >
+            <span :style="{ color: customAccent.foreground }">实时主题预览</span>
+          </div>
+          <p class="custom-accent-note">辅助色会自动从主题色生成，并同步适配提示与操作状态。</p>
+        </div>
+
+        <div v-else class="accent-editor custom-accent-panel">
+          <div class="custom-color-row">
+            <span>渐变色数量</span>
+            <div class="segmented-control" aria-label="渐变色数量">
+              <button
+                v-for="count in [2, 3]"
+                :key="count"
+                type="button"
+                :class="{ 'is-active': draft.customGradientColors.length === count }"
+                :data-gradient-count="count"
+                :aria-pressed="draft.customGradientColors.length === count"
+                @click="setGradientColorCount(count)"
+              >
+                {{ count }} 色
+              </button>
+            </div>
+          </div>
+          <div class="gradient-color-list">
+            <div
+              v-for="(color, index) in draft.customGradientColors"
+              :key="index"
+              class="gradient-color-item"
+              :data-custom-gradient-color="index"
             >
-              <span>{{ preset.name }}</span>
-              <el-icon v-if="draft.accentPreset === preset.id">
-                <el-icon-check />
-              </el-icon>
-            </button>
+              <span>颜色 {{ index + 1 }}</span>
+              <div class="custom-color-control">
+                <el-color-picker
+                  :model-value="color"
+                  :show-alpha="false"
+                  :aria-label="'渐变颜色 ' + (index + 1)"
+                  @update:model-value="updateGradientColor(index, $event)"
+                />
+                <code>{{ color }}</code>
+              </div>
+            </div>
+          </div>
+          <div class="custom-color-row">
+            <span>渐变方式</span>
+            <div class="segmented-control" aria-label="渐变方式">
+              <button
+                v-for="option in gradientTypeOptions"
+                :key="option.value"
+                type="button"
+                :class="{ 'is-active': draft.customGradientType === option.value }"
+                :data-gradient-type="option.value"
+                :aria-pressed="draft.customGradientType === option.value"
+                @click="patchDraft({ customGradientType: option.value })"
+              >
+                {{ option.label }}
+              </button>
+            </div>
+          </div>
+          <div
+            v-if="draft.customGradientType === 'LINEAR'"
+            class="custom-color-row"
+          >
+            <span>渐变角度</span>
+            <el-input-number
+              :model-value="draft.customGradientAngle"
+              :min="0"
+              :max="360"
+              :step="15"
+              controls-position="right"
+              aria-label="渐变角度"
+              @change="updateGradientAngle"
+            />
+          </div>
+          <div
+            class="custom-accent-preview"
+            :style="{ background: customAccent.background }"
+          >
+            <span :style="{ color: customAccent.foreground }">实时渐变预览</span>
           </div>
         </div>
       </section>
 
+      <section class="theme-section" aria-labelledby="navigation-layout-title">
+        <h3 id="navigation-layout-title">菜单位置</h3>
+        <p class="section-hint">一级菜单始终平铺，顶部空间不足时可横向滚动</p>
+        <div class="option-grid option-grid--two">
+          <button
+            v-for="option in navigationOptions"
+            :key="option.value"
+            type="button"
+            class="preview-card preview-card--compact"
+            :class="{ 'is-active': draft.navigationLayout === option.value }"
+            :data-navigation-layout="option.value"
+            :aria-label="option.label"
+            :aria-pressed="draft.navigationLayout === option.value"
+            @click="patchDraft({ navigationLayout: option.value })"
+          >
+            <span class="navigation-preview" :class="option.previewClass">
+              <i />
+              <span />
+            </span>
+            <span>{{ option.label }}</span>
+            <span
+              v-if="draft.navigationLayout === option.value"
+              class="selection-check"
+              aria-hidden="true"
+            >
+              <el-icon><el-icon-check /></el-icon>
+            </span>
+          </button>
+        </div>
+      </section>
+
       <section class="theme-section" aria-labelledby="sidebar-style-title">
-        <h3 id="sidebar-style-title">侧栏风格</h3>
+        <h3 id="sidebar-style-title">导航栏风格</h3>
         <div class="option-grid option-grid--two">
           <button
             v-for="option in sidebarOptions"
@@ -203,6 +350,7 @@ import {
   ACCENT_PRESETS,
   DEFAULT_THEME_CONFIG,
   normalizeThemeConfig,
+  resolveThemeAccent,
 } from '@/theme/themeConfig'
 
 function cloneTheme(value) {
@@ -224,13 +372,26 @@ export default {
       draft: initial,
       openedSnapshot: cloneTheme(initial),
       accentPresets: ACCENT_PRESETS,
+      accentModeOptions: [
+        { value: 'PRESET', label: '预设' },
+        { value: 'CUSTOM_SOLID', label: '自定义纯色' },
+        { value: 'CUSTOM_GRADIENT', label: '自定义渐变' },
+      ],
+      gradientTypeOptions: [
+        { value: 'LINEAR', label: '线性' },
+        { value: 'RADIAL', label: '径向' },
+      ],
       schemeOptions: [
         { value: 'LIGHT', label: '白天模式', previewClass: 'is-light' },
         { value: 'DARK', label: '夜间模式', previewClass: 'is-dark' },
       ],
       sidebarOptions: [
-        { value: 'DARK', label: '深色侧栏', previewClass: 'is-dark' },
-        { value: 'LIGHT', label: '浅色侧栏', previewClass: 'is-light' },
+        { value: 'DARK', label: '深色导航', previewClass: 'is-dark' },
+        { value: 'LIGHT', label: '浅色导航', previewClass: 'is-light' },
+      ],
+      navigationOptions: [
+        { value: 'LEFT', label: '左侧菜单', previewClass: 'is-left' },
+        { value: 'TOP', label: '顶部菜单', previewClass: 'is-top' },
       ],
       contentWidthOptions: [
         { value: 'FLUID', label: '流式' },
@@ -240,13 +401,16 @@ export default {
   },
   computed: {
     drawerSize() {
-      return 'min(336px, 100vw)'
+      return 'min(424px, 100vw)'
     },
     solidPresets() {
       return this.accentPresets.filter(item => item.kind === 'solid')
     },
     gradientPresets() {
       return this.accentPresets.filter(item => item.kind === 'gradient')
+    },
+    customAccent() {
+      return resolveThemeAccent(this.draft)
     },
   },
   watch: {
@@ -274,6 +438,29 @@ export default {
       if (this.saving) return
       this.draft = cloneTheme({ ...this.draft, ...patch })
       this.emitPreview()
+    },
+    updateCustomSolidColor(color) {
+      if (!color) return
+      this.patchDraft({ customSolidColor: color })
+    },
+    updateGradientColor(index, color) {
+      if (!color) return
+      const colors = [...this.draft.customGradientColors]
+      colors[index] = color
+      this.patchDraft({ customGradientColors: colors })
+    },
+    setGradientColorCount(count) {
+      const colors = [...this.draft.customGradientColors]
+      if (count === 3 && colors.length === 2) {
+        colors.splice(1, 0, '#6C3BFF')
+      } else if (count === 2 && colors.length === 3) {
+        colors.splice(1, 1)
+      }
+      this.patchDraft({ customGradientColors: colors })
+    },
+    updateGradientAngle(angle) {
+      if (!Number.isInteger(angle)) return
+      this.patchDraft({ customGradientAngle: angle })
     },
     emitPreview() {
       if (this.saving) return
@@ -331,6 +518,144 @@ export default {
   color: var(--tianshu-text-tertiary, #64748b);
   font-size: 12px;
   line-height: 18px;
+}
+
+.accent-mode-control {
+  display: grid;
+  padding: 3px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3px;
+  background: var(--tianshu-bg-muted, #f1f5f9);
+  border: 1px solid var(--tianshu-border-subtle, #e2e8f0);
+  border-radius: 8px;
+
+  button {
+    min-width: 0;
+    padding: 6px 4px;
+    overflow: hidden;
+    color: var(--tianshu-text-tertiary, #64748b);
+    font: inherit;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: transparent;
+    border: 0;
+    border-radius: 5px;
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+      color: var(--el-color-primary, #2639e9);
+      outline: none;
+    }
+
+    &.is-active {
+      color: var(--tianshu-text-primary, #1e293b);
+      font-weight: 600;
+      background: var(--tianshu-bg-elevated, #ffffff);
+      box-shadow: 0 2px 7px var(--tianshu-shadow-color, rgba(15, 23, 42, 0.1));
+    }
+  }
+}
+
+.accent-editor {
+  margin-top: 14px;
+}
+
+.custom-accent-panel {
+  padding: 12px;
+  background: var(--tianshu-bg-soft, #f8fafc);
+  border: 1px solid var(--tianshu-border-subtle, #e2e8f0);
+  border-radius: 10px;
+}
+
+.custom-color-row,
+.gradient-color-item {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--tianshu-text-secondary, #475569);
+  font-size: 12px;
+}
+
+.custom-color-row + .custom-color-row,
+.gradient-color-list + .custom-color-row {
+  margin-top: 10px;
+}
+
+.gradient-color-list {
+  display: grid;
+  margin-top: 10px;
+  gap: 8px;
+}
+
+.custom-color-control {
+  display: flex;
+  min-width: 130px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+
+  code {
+    min-width: 68px;
+    color: var(--tianshu-text-secondary, #475569);
+    font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
+    font-size: 11px;
+  }
+}
+
+.custom-accent-preview {
+  position: relative;
+  display: flex;
+  height: 48px;
+  margin-top: 12px;
+  overflow: hidden;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  box-shadow: 0 8px 20px var(--tianshu-primary-shadow, rgba(38, 57, 233, 0.16));
+
+  &::after {
+    position: absolute;
+    inset: 0;
+    content: '';
+    background-image: linear-gradient(
+      90deg,
+      transparent 0,
+      rgba(255, 255, 255, 0.16) 50%,
+      transparent 100%
+    );
+    transform: translateX(-100%);
+    animation: accent-preview-scan 3.4s ease-in-out infinite;
+  }
+
+  span {
+    position: relative;
+    z-index: 1;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+  }
+}
+
+.custom-accent-note {
+  margin: 9px 0 0;
+  color: var(--tianshu-text-tertiary, #64748b);
+  font-size: 11px;
+  line-height: 17px;
+}
+
+@keyframes accent-preview-scan {
+  0%,
+  55% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 .option-grid {
@@ -446,6 +771,37 @@ export default {
   &.is-light {
     color: #64748b;
     background: #ffffff;
+  }
+}
+
+.navigation-preview {
+  position: relative;
+  display: grid;
+  width: 72px;
+  height: 50px;
+  overflow: hidden;
+  grid-template-columns: 16px 1fr;
+  background: var(--tianshu-bg-muted, #f1f5f9);
+  border: 1px solid var(--tianshu-border-subtle, #e2e8f0);
+  border-radius: 5px;
+
+  i {
+    background: var(--tianshu-brand-background, #2639e9);
+  }
+
+  span {
+    position: relative;
+    margin: 9px;
+    background: repeating-linear-gradient(
+      180deg,
+      var(--tianshu-border, #cbd5e1) 0 4px,
+      transparent 4px 10px
+    );
+  }
+
+  &.is-top {
+    grid-template-rows: 13px 1fr;
+    grid-template-columns: 1fr;
   }
 }
 
@@ -616,5 +972,11 @@ export default {
   color: var(--tianshu-brand-foreground, #ffffff);
   background: var(--tianshu-brand-background, #2639e9);
   border: 1px solid var(--el-color-primary, #2639e9);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .custom-accent-preview::after {
+    animation: none;
+  }
 }
 </style>

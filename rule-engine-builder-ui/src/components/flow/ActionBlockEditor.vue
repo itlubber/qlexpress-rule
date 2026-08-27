@@ -1088,7 +1088,7 @@ export default {
   padding: 0;
 }
 .block-item {
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
   margin-bottom: 8px;
   background: var(--tianshu-bg-muted);
@@ -1107,8 +1107,8 @@ export default {
 .block-header {
   justify-content: space-between;
   padding: 4px 8px;
-  background: #f0f0f0;
-  border-bottom: 1px solid #e0e0e0;
+  background: var(--tianshu-bg-soft);
+  border-bottom: 1px solid var(--tianshu-border-subtle);
 }
 .block-type-tag {
   font-size: 11px;
@@ -1153,7 +1153,7 @@ export default {
   padding: 6px 8px;
 }
 .default-card {
-  background: #fcfcfc;
+  background: var(--tianshu-bg-soft);
 }
 .assignment-with-delete {
   display: flex;
@@ -1190,13 +1190,13 @@ export default {
   margin-top: 6px;
 }
 .danger {
-  color: #f56c6c !important;
+  color: var(--tianshu-danger-text) !important;
 }
 .danger-text {
-  color: #f56c6c;
+  color: var(--tianshu-danger-text);
 }
 .success {
-  color: #67c23a;
+  color: var(--el-color-primary);
 }
 .rounding-row {
   margin-top: 6px;
@@ -1223,7 +1223,7 @@ export default {
   padding: 7px 9px;
   border-radius: 4px;
   color: var(--tianshu-text-secondary);
-  background: #f0f7ff;
+  background: var(--tianshu-designer-accent-bg);
   font-size: 12px;
   line-height: 1.5;
 }

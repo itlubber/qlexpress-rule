@@ -43,6 +43,8 @@ public class ConsoleThemePreferenceControllerTest {
                 loaded.getJSONObject("data").getString("accentPreset"));
         assertEquals("DARK",
                 loaded.getJSONObject("data").getString("colorScheme"));
+        assertEquals("TOP",
+                loaded.getJSONObject("data").getString("navigationLayout"));
     }
 
     @Test
@@ -114,9 +116,14 @@ public class ConsoleThemePreferenceControllerTest {
 
     private static String validThemeJson(String colorScheme,
                                          String accentPreset) {
-        return "{\"schemaVersion\":1,\"colorScheme\":\"" + colorScheme
-                + "\",\"accentPreset\":\"" + accentPreset
-                + "\",\"sidebarTheme\":\"DARK\","
+        return "{\"schemaVersion\":2,\"colorScheme\":\"" + colorScheme
+                + "\",\"accentMode\":\"PRESET\","
+                + "\"accentPreset\":\"" + accentPreset
+                + "\",\"customSolidColor\":\"#2639E9\","
+                + "\"customGradientColors\":[\"#2639E9\",\"#873FF2\"],"
+                + "\"customGradientType\":\"LINEAR\","
+                + "\"customGradientAngle\":135,\"navigationLayout\":\"TOP\""
+                + ",\"sidebarTheme\":\"DARK\","
                 + "\"contentWidth\":\"FLUID\",\"fixedSidebar\":true,"
                 + "\"colorWeak\":false}";
     }

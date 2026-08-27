@@ -505,7 +505,7 @@ export default {
   justify-content: space-between;
   gap: 16px;
   padding: 10px 14px;
-  border: 1px solid #e1e7ef;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 8px;
   background: var(--tianshu-bg-surface);
 }
@@ -516,11 +516,11 @@ export default {
   gap: 3px;
 }
 .expression-editor-page__toolbar strong {
-  color: #26364d;
+  color: var(--tianshu-text-primary);
   font-size: 16px;
 }
 .expression-editor-page__toolbar span {
-  color: #8a98aa;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 .expression-editor-page__actions {
@@ -538,7 +538,7 @@ export default {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 12px;
-  color: #53637a;
+  color: var(--tianshu-text-secondary);
 }
 .expression-test-warning,
 .expression-test-diagnostic {
@@ -550,7 +550,7 @@ export default {
   align-items: center;
   gap: 7px;
   margin-bottom: 12px;
-  color: #7b8798;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 .expression-test-form {
@@ -560,7 +560,7 @@ export default {
 }
 .expression-test-form code {
   margin-left: 8px;
-  color: #789;
+  color: var(--tianshu-text-tertiary);
   font-size: 11px;
 }
 .expression-test-number {
@@ -569,28 +569,28 @@ export default {
 .expression-test-result {
   margin-top: 14px;
   padding: 12px;
-  border: 1px solid #b7e2ce;
+  border: 1px solid var(--tianshu-success-border);
   border-radius: 6px;
-  background: #f1fbf6;
+  background: var(--tianshu-success-bg);
 }
 .expression-test-result.is-error {
-  border-color: #f1c4c8;
-  background: #fff5f5;
+  border-color: var(--tianshu-danger-border);
+  background: var(--tianshu-danger-bg);
 }
 .expression-test-result > div {
   display: flex;
   justify-content: space-between;
-  color: #39785d;
+  color: var(--tianshu-success-text);
 }
 .expression-test-result.is-error > div {
-  color: #b24a55;
+  color: var(--tianshu-danger-text);
 }
 .expression-test-result pre,
 .expression-test-result p {
   max-height: 160px;
   margin: 9px 0 0;
   overflow: auto;
-  color: #33445b;
+  color: var(--tianshu-text-primary);
   font-family: Consolas, monospace;
   white-space: pre-wrap;
 }

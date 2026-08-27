@@ -649,6 +649,7 @@ describe('Layout — 全局布局集成', () => {
 
   test('抽屉预览立即应用主题和菜单位置且取消恢复已保存快照', async() => {
     const { wrapper } = mountLayout()
+    await flushPromises()
     const preview = {
       ...DEFAULT_THEME_CONFIG,
       colorScheme: 'DARK',

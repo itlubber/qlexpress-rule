@@ -973,12 +973,12 @@ export default {
 }
 .rs-title-icon {
   font-size: 18px;
-  color: #1677ff;
+  color: var(--el-color-primary);
 }
 .rs-title {
   font-size: 16px;
   font-weight: 700;
-  color: #202733;
+  color: var(--tianshu-text-primary);
 }
 .toolbar-label {
   font-size: 13px;
@@ -994,26 +994,26 @@ export default {
 .rs-var-status {
   margin: 8px 0;
   font-size: 12px;
-  color: #087a5d;
+  color: var(--el-color-primary);
 }
 .rs-output-config {
   margin: 10px 0;
   padding: 10px;
-  border: 1px solid #dbeafe;
+  border: 1px solid var(--tianshu-designer-accent-border);
   border-radius: 6px;
-  background: #f8fbff;
+  background: var(--tianshu-designer-accent-bg);
 }
 .output-config-title {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
-  color: #1f2937;
+  color: var(--tianshu-text-primary);
   font-size: 13px;
   font-weight: 700;
 }
 .output-config-title i {
-  color: #1677ff;
+  color: var(--el-color-primary);
 }
 .output-config-body {
   display: flex;
@@ -1048,7 +1048,7 @@ export default {
   white-space: nowrap;
 }
 .summary-value {
-  color: #1f2937;
+  color: var(--tianshu-text-primary);
   font-size: 13px;
   overflow-wrap: anywhere;
 }
@@ -1058,7 +1058,7 @@ export default {
   gap: 12px;
 }
 .rs-rule-card {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 6px;
   background: var(--tianshu-bg-surface);
   padding: 10px;
@@ -1096,7 +1096,7 @@ export default {
   gap: 4px;
 }
 .btn-delete {
-  color: #f56c6c;
+  color: var(--tianshu-danger-text);
 }
 .rs-rule-body {
   display: grid;
@@ -1109,12 +1109,12 @@ export default {
   border: 1px solid var(--tianshu-border-subtle);
   border-radius: 6px;
   padding: 8px;
-  background: #fbfdff;
+  background: var(--tianshu-bg-soft);
 }
 .panel-title {
   font-size: 13px;
   font-weight: 700;
-  color: #334155;
+  color: var(--tianshu-text-primary);
   margin-bottom: 8px;
 }
 .rs-loading,
@@ -1132,9 +1132,9 @@ export default {
 .script-override-banner {
   margin-top: 10px;
   padding: 8px 10px;
-  border: 1px solid #ffd591;
-  background: #fff7e6;
-  color: #ad6800;
+  border: 1px solid var(--tianshu-warning-border);
+  background: var(--tianshu-warning-bg);
+  color: var(--tianshu-warning-text);
   border-radius: 4px;
   display: flex;
   align-items: center;
@@ -1157,7 +1157,7 @@ export default {
   word-break: break-word;
 }
 .text-danger {
-  color: #f56c6c;
+  color: var(--tianshu-danger-text);
 }
 .version-compare {
   margin-top: 12px;

@@ -989,7 +989,12 @@ export default {
             bottomPosition: 16,
           },
         },
-        grid: { size: 20, visible: true },
+        grid: {
+          size: 20,
+          visible: true,
+          type: 'dot',
+          config: { color: 'var(--tianshu-border-strong)', thickness: 1 },
+        },
         snapGrid: true,
         keyboard: {
           enabled: true,
@@ -1028,7 +1033,11 @@ export default {
             strokeWidth: 1.5,
           },
           arrow: { stroke: FLOW_THEME_COLOR, fill: FLOW_THEME_COLOR },
-          anchor: { stroke: FLOW_THEME_COLOR, fill: '#fff', r: 4 },
+          anchor: {
+            stroke: FLOW_THEME_COLOR,
+            fill: 'var(--tianshu-bg-surface)',
+            r: 4,
+          },
           anchorHover: {
             stroke: FLOW_THEME_COLOR,
             fill: FLOW_THEME_COLOR,
@@ -2226,8 +2235,8 @@ export default {
   }
   &.is-tool-active {
     background: var(--tianshu-bg-surface);
-    border-color: #ffffff;
-    color: #1d39c4;
+    border-color: var(--tianshu-brand-foreground);
+    color: var(--el-color-primary);
   }
   &.el-button--primary {
     background: var(--tianshu-brand-background);
@@ -2273,13 +2282,10 @@ export default {
   min-width: 88px;
 }
 .toolbar-center .btn-script-task {
-  /*// background: #EAF2FF;*/ /*// border-color: #ADC6FF;*/
   color: #ffffff;
   font-weight: 600;
   &:hover {
-    // background: #D6E4FF;
-    border-color: #85a5ff;
-    // color: #1D39C4;
+    border-color: var(--el-color-primary-light-3);
   }
   .node-dot {
     background: var(--tianshu-brand-background);
@@ -2307,7 +2313,7 @@ export default {
   display: flex;
   min-height: 0;
   position: relative;
-  background: #f7f8fa;
+  background: var(--tianshu-bg-workspace);
 }
 .tree-canvas {
   flex: 1;
@@ -2402,7 +2408,7 @@ export default {
 .section-title :deep(.el-radio-button__inner) {
   min-width: 72px;
   padding: 6px 12px;
-  color: #334155;
+  color: var(--tianshu-text-secondary);
   border-color: var(--tianshu-border);
   background: var(--tianshu-bg-surface);
   box-shadow: none;
@@ -2428,7 +2434,7 @@ export default {
 }
 .cond-label {
   font-size: 12px;
-  color: #888;
+  color: var(--tianshu-text-tertiary);
   width: 42px;
   flex-shrink: 0;
   text-align: right;
@@ -2436,8 +2442,8 @@ export default {
 .generated-expr {
   margin-top: 8px;
   padding: 6px 8px;
-  background: #f0f7ff;
-  border: 1px solid #d6e4ff;
+  background: var(--tianshu-designer-accent-bg);
+  border: 1px solid var(--tianshu-designer-accent-border);
   border-radius: 4px;
   code {
     font-family: 'Consolas', monospace;
@@ -2457,7 +2463,7 @@ export default {
   overflow: hidden;
   &.branch-else {
     border-color: var(--tianshu-border);
-    background: #f5f5f5;
+    background: var(--tianshu-bg-soft);
   }
 }
 .branch-header {
@@ -2465,7 +2471,7 @@ export default {
   align-items: center;
   justify-content: space-between;
   padding: 4px 8px;
-  background: #f0f0f0;
+  background: var(--tianshu-bg-soft);
   border-bottom: 1px solid var(--tianshu-border-subtle);
 }
 .branch-tag {
@@ -2531,7 +2537,7 @@ export default {
   cursor: pointer;
   transition: all 0.15s;
   &:hover {
-    background: #f0f7ff;
+    background: var(--tianshu-designer-accent-bg);
     border-color: var(--el-color-primary);
   }
 }
@@ -2653,7 +2659,7 @@ export default {
   color: var(--tianshu-text-primary);
 }
 .lf-menu-item:hover {
-  background: #f0f7ff;
+  background: var(--tianshu-designer-accent-bg);
   color: var(--el-color-primary);
 }
 </style>

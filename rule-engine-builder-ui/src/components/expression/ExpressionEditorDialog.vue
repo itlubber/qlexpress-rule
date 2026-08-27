@@ -500,7 +500,7 @@ export default {
   display: grid;
   grid-template-rows: 68px minmax(0, 1fr) 64px;
   background: var(--tianshu-bg-surface);
-  color: #26364d;
+  color: var(--tianshu-text-primary);
 }
 .expression-editor--embedded {
   position: relative;
@@ -511,7 +511,7 @@ export default {
   min-height: 0;
   grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
-  border: 1px solid #e1e7ef;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 8px;
   container-type: inline-size;
 }
@@ -522,7 +522,7 @@ export default {
   justify-content: space-between;
   gap: 20px;
   padding: 0 22px;
-  border-bottom: 1px solid #e7ecf2;
+  border-bottom: 1px solid var(--tianshu-border-subtle);
   background: var(--tianshu-bg-surface);
 }
 .expression-editor__header h2 {
@@ -531,7 +531,7 @@ export default {
 }
 .expression-editor__header p {
   margin: 4px 0 0;
-  color: #8290a3;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 .header-actions {
@@ -545,8 +545,8 @@ export default {
   margin-left: 5px;
   border: 0;
   border-radius: 6px;
-  background: #f3f6f9;
-  color: #526278;
+  background: var(--tianshu-bg-muted);
+  color: var(--tianshu-text-secondary);
   cursor: pointer;
 }
 .expression-editor__body {
@@ -562,7 +562,7 @@ export default {
   flex: 1;
   flex-direction: column;
   padding: 18px;
-  background: #f4f7fb;
+  background: var(--tianshu-bg-workspace);
 }
 .workspace-tools {
   display: flex;
@@ -570,7 +570,7 @@ export default {
   justify-content: space-between;
   gap: 12px;
   margin: -4px 0 10px;
-  color: #7d8a9d;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 .workspace-tools > div {
@@ -599,11 +599,11 @@ export default {
   }
 }
 .expression-editor__footer {
-  border-top: 1px solid #e7ecf2;
+  border-top: 1px solid var(--tianshu-border-subtle);
   border-bottom: 0;
 }
 .expression-editor__footer > span {
-  color: #7d8a9d;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 .expression-fade-enter-active,

@@ -2,7 +2,7 @@ import { getEndNodeAppearance, normalizeEndScope } from '@/utils/endNodeScope'
 import { hasUsableConditionLeaf } from '@/utils/decisionConditionTree'
 import { graphContainsDirectedCycle } from '@/utils/flowGraphCycle'
 
-export const FLOW_THEME_COLOR = '#2639E9'
+export const FLOW_THEME_COLOR = 'var(--el-color-primary)'
 export const ANCHOR_CLICK_TOLERANCE = 10
 
 const COMMON_MENU_OPTIONS = [
@@ -156,10 +156,11 @@ function overlapsPlacedNode(candidate, node, placed, gap) {
 function collisionOffset(attempt, direction, options) {
   if (attempt === 0) return { x: 0, y: 0 }
   if (direction.x || direction.y) {
-    return {
-      x: direction.x * attempt * options.horizontalGap,
-      y: direction.y * attempt * options.verticalGap
-    }
+    const step = Math.ceil(attempt / 2)
+    const sign = attempt % 2 === 1 ? 1 : -1
+    return direction.x
+      ? { x: 0, y: sign * step * options.verticalGap }
+      : { x: sign * step * options.horizontalGap, y: 0 }
   }
   const step = Math.ceil(attempt / 2)
   const sign = attempt % 2 === 1 ? 1 : -1

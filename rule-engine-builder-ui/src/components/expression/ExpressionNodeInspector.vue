@@ -340,8 +340,8 @@ export default {
 .expression-inspector {
   padding: 18px;
   overflow: auto;
-  border-left: 1px solid #e8edf3;
-  background: #fbfcfe;
+  border-left: 1px solid var(--tianshu-border-subtle);
+  background: var(--tianshu-bg-soft);
 }
 .inspector-heading {
   display: flex;
@@ -353,20 +353,20 @@ export default {
 .inspector-heading h3,
 .empty-inspector h3 {
   margin: 0;
-  color: #26364d;
+  color: var(--tianshu-text-primary);
   font-size: 16px;
 }
 .inspector-heading p,
 .empty-inspector p {
   margin: 5px 0 0;
-  color: #8290a3;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
   line-height: 1.6;
 }
 label {
   display: block;
   margin: 16px 0 7px;
-  color: #45556c;
+  color: var(--tianshu-text-secondary);
   font-size: 12px;
   font-weight: 600;
 }
@@ -390,10 +390,10 @@ label {
   justify-content: space-between;
   margin-top: 6px;
   padding: 0 9px;
-  border: 1px solid #e4e9f0;
+  border: 1px solid var(--tianshu-border-subtle);
   border-radius: 5px;
   background: var(--tianshu-bg-surface);
-  color: #617087;
+  color: var(--tianshu-text-secondary);
   font-size: 12px;
 }
 .operation-term-row {
@@ -404,21 +404,21 @@ label {
 }
 .operation-start {
   min-width: 72px;
-  color: #45556c;
+  color: var(--tianshu-text-secondary);
   font-weight: 600;
 }
 .field-tip {
   margin: 9px 0 0;
-  color: #8794a7;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
   line-height: 1.65;
 }
 .danger-button {
-  color: #e35d6a;
+  color: var(--tianshu-danger-text);
 }
 .empty-inspector {
   padding: 80px 12px;
-  color: #8794a7;
+  color: var(--tianshu-text-tertiary);
   text-align: center;
 }
 .empty-inspector i {

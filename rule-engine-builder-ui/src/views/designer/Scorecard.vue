@@ -939,7 +939,7 @@ export default {
 <style lang="scss" scoped>
 .sc-designer {
   position: relative;
-  background: #f3f3f3;
+  background: var(--tianshu-bg-page);
   padding: 16px;
   min-height: 100%;
 }
@@ -961,13 +961,13 @@ export default {
 }
 .sc-title-icon {
   font-size: 18px;
-  color: #eb2f96;
+  color: var(--el-color-primary);
   margin-right: 8px;
 }
 .sc-title {
   font-size: 16px;
   font-weight: bold;
-  color: #282828;
+  color: var(--tianshu-text-primary);
 }
 .sc-toolbar {
   display: flex;
@@ -1009,7 +1009,7 @@ export default {
 }
 .base-config-label {
   font-size: 13px;
-  color: #666;
+  color: var(--tianshu-text-secondary);
   white-space: nowrap;
 }
 .result-var-picker {
@@ -1036,7 +1036,7 @@ export default {
 }
 .weight-label {
   font-size: 13px;
-  color: #666;
+  color: var(--tianshu-text-secondary);
   font-weight: normal;
 }
 .weight-value {
@@ -1063,7 +1063,7 @@ export default {
   transition: box-shadow 0.2s;
   &:hover {
     box-shadow: 0 2px 8px rgba(24, 144, 255, 0.15);
-    border-color: #91caff;
+    border-color: var(--tianshu-designer-accent-border);
   }
 }
 .score-item-header {
@@ -1125,7 +1125,7 @@ export default {
 .item-field-label {
   display: block;
   font-size: 12px;
-  color: #888;
+  color: var(--tianshu-text-tertiary);
   margin-bottom: 5px;
 }
 .score-col {
@@ -1151,8 +1151,8 @@ export default {
   display: block;
 }
 .sc-formula {
-  background: #fffbe6;
-  border: 1px solid #ffe58f;
+  background: var(--tianshu-warning-bg);
+  border: 1px solid var(--tianshu-warning-border);
 }
 .formula-content {
   overflow-x: auto;
@@ -1169,7 +1169,7 @@ export default {
     background: rgba(0, 0, 0, 0.05);
     padding: 1px 5px;
     border-radius: 3px;
-    color: #c41d7f;
+    color: var(--tianshu-warning-text);
   }
 }
 .op {
@@ -1181,13 +1181,13 @@ export default {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  background: #fff7e6;
-  border: 1px solid #ffd591;
+  background: var(--tianshu-designer-alt-bg);
+  border: 1px solid var(--tianshu-designer-alt-border);
   border-radius: 4px;
   padding: 2px 8px;
 }
 .formula-cond {
-  color: #d46b08;
+  color: var(--tianshu-warning-text);
   font-size: 12px;
 }
 .formula-empty {
@@ -1223,7 +1223,7 @@ export default {
 }
 .thresh-sep {
   font-size: 12px;
-  color: #888;
+  color: var(--tianshu-text-tertiary);
   white-space: nowrap;
 }
 .thresh-result {
@@ -1289,14 +1289,14 @@ export default {
   align-items: center;
   gap: 8px;
   padding: 8px 14px;
-  background: #fff1f0;
-  border: 1px solid #ffccc7;
+  background: var(--tianshu-warning-bg);
+  border: 1px solid var(--tianshu-warning-border);
   border-radius: 4px;
   margin-top: 8px;
   font-size: 12px;
-  color: #cf1322;
+  color: var(--tianshu-warning-text);
   i {
-    color: #f5222d;
+    color: var(--tianshu-warning-text);
     font-size: 14px;
   }
 }

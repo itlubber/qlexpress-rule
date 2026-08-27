@@ -489,7 +489,7 @@ export default {
   margin-bottom: 6px;
   cursor: pointer;
   &:hover {
-    background: #f5f5f5;
+    background: var(--tianshu-bg-hover);
   }
 }
 .edge-arrow {

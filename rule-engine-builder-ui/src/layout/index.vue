@@ -1,6 +1,10 @@
 <template>
-  <div class="layout-shell">
+  <div
+    class="layout-shell"
+    :class="{ 'is-top-navigation': isTopNavigation }"
+  >
     <layout-sidebar
+      v-if="!isTopNavigation"
       :width="sidebarWidth"
       :compact="isSidebarCompact"
       :active-menu="activeMenuIndex"
@@ -11,6 +15,31 @@
       @resize-end="handleSidebarResizeEnd"
     />
     <section class="layout-workspace">
+      <header v-if="isTopNavigation" class="layout-primary-topbar">
+        <div class="top-navigation__brand">
+          <img
+            :src="brandLogoUrl"
+            alt="天枢决策引擎"
+            class="top-navigation__logo"
+          />
+          <strong>天枢决策引擎</strong>
+        </div>
+        <nav class="top-navigation__menu" aria-label="主导航">
+          <button
+            v-for="menu in sidebarMenus"
+            :key="menu.index"
+            type="button"
+            class="top-navigation__item"
+            :class="{ 'is-active': activeMenuIndex === menu.index }"
+            :data-menu-path="menu.index"
+            :aria-label="menu.label"
+            @click="navigateTo(menu.index)"
+          >
+            <app-icon :name="menu.icon" />
+            <span>{{ menu.label }}</span>
+          </button>
+        </nav>
+      </header>
       <header class="layout-topbar">
         <workspace-tabs
           :tabs="workspaceTabs"
@@ -18,7 +47,8 @@
           @activate="activateTab"
           @operate="handleTabOperation"
         />
-        <div class="layout-account">
+      </header>
+      <div class="layout-account">
           <el-dropdown
             trigger="click"
             placement="bottom-end"
@@ -70,7 +100,6 @@
             </template>
           </el-dropdown>
         </div>
-      </header>
       <project-context-bar />
       <main class="layout-main">
         <router-view v-slot="{ Component }">
@@ -182,11 +211,16 @@ export default {
       loginEnabled: false,
       username: '',
       confirmedTheme: initialTheme,
+      activeTheme: initialTheme,
+      brandLogoUrl: `${import.meta.env.BASE_URL || './'}images/hengshucredit_animated.svg`,
       themeDrawerOpen: false,
       themeSaving: false,
     }
   },
   computed: {
+    isTopNavigation() {
+      return this.activeTheme.navigationLayout === 'TOP'
+    },
     isSidebarCompact() {
       return this.sidebarWidth < SIDEBAR_COMPACT_THRESHOLD
     },
@@ -384,16 +418,18 @@ export default {
       if (command === 'logout') return this.doLogout()
     },
     handleThemePreview(theme) {
-      applyTheme(theme)
+      this.activeTheme = applyTheme(theme)
     },
     cancelThemePreview(snapshot) {
       const restored = normalizeThemeConfig(snapshot || this.confirmedTheme)
       this.confirmedTheme = restored
+      this.activeTheme = restored
       applyTheme(restored)
     },
     confirmTheme(theme) {
       const confirmed = normalizeThemeConfig(theme)
       this.confirmedTheme = confirmed
+      this.activeTheme = confirmed
       applyTheme(confirmed)
       writeLocalTheme(browserLocalStorage(), confirmed)
       return confirmed
@@ -479,12 +515,135 @@ export default {
   background: var(--tianshu-bg-page);
 }
 .layout-workspace {
+  position: relative;
   display: flex;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
   flex: 1;
   flex-direction: column;
+}
+.layout-primary-topbar {
+  position: relative;
+  z-index: 11;
+  display: flex;
+  height: 60px;
+  min-width: 0;
+  padding-right: 198px;
+  overflow: hidden;
+  flex: none;
+  align-items: stretch;
+  color: var(--tianshu-sidebar-text);
+  background: var(--tianshu-sidebar-bg);
+  border-bottom: 1px solid var(--tianshu-sidebar-border);
+  box-sizing: border-box;
+  box-shadow: var(--tianshu-shadow-small, 0 2px 8px rgba(15, 23, 42, 0.08));
+}
+.top-navigation__brand {
+  display: flex;
+  width: 220px;
+  padding: 0 18px;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  border-right: 1px solid var(--tianshu-sidebar-border);
+  box-sizing: border-box;
+
+  strong {
+    overflow: hidden;
+    color: var(--tianshu-sidebar-text-active);
+    font-size: 16px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+.top-navigation__logo {
+  width: 34px;
+  height: 34px;
+  flex: none;
+}
+.top-navigation__menu {
+  display: flex;
+  min-width: 0;
+  padding: 7px 10px 5px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex: 1;
+  align-items: center;
+  gap: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--tianshu-scrollbar-thumb-solid)
+    var(--tianshu-scrollbar-track);
+
+  &::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    margin: 0 10px;
+    background: var(--tianshu-scrollbar-track);
+    border-radius: 999px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--tianshu-scrollbar-thumb);
+    border: 1px solid transparent;
+    border-radius: 999px;
+    box-shadow: 0 0 8px var(--tianshu-scrollbar-glow);
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    box-shadow: 0 0 12px var(--tianshu-scrollbar-glow);
+  }
+}
+.top-navigation__item {
+  position: relative;
+  display: inline-flex;
+  height: 40px;
+  padding: 0 12px;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  color: var(--tianshu-sidebar-text);
+  font: inherit;
+  font-size: 13px;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: color 160ms ease, background-color 160ms ease,
+    box-shadow 160ms ease;
+
+  &::after {
+    position: absolute;
+    right: 12px;
+    bottom: 2px;
+    left: 12px;
+    height: 2px;
+    content: '';
+    background: transparent;
+    border-radius: 999px;
+  }
+
+  &:hover,
+  &:focus-visible {
+    color: var(--tianshu-sidebar-text-active);
+    background: var(--tianshu-sidebar-bg-hover);
+    outline: none;
+  }
+
+  &.is-active {
+    color: var(--tianshu-sidebar-text-active);
+    font-weight: 600;
+    background: var(--tianshu-sidebar-bg-active);
+    box-shadow: inset 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.22);
+
+    &::after {
+      background: var(--tianshu-scrollbar-thumb);
+      box-shadow: 0 0 8px var(--tianshu-scrollbar-glow);
+    }
+  }
 }
 .layout-topbar {
   position: relative;
@@ -493,17 +652,52 @@ export default {
   flex: none;
   height: 52px;
   min-width: 0;
+  padding-right: 198px;
   align-items: stretch;
   background: var(--tianshu-bg-elevated, var(--tianshu-bg-surface));
   border-bottom: 1px solid var(--tianshu-border-subtle, #dde3ee);
   box-shadow: var(--tianshu-shadow-small, 0 2px 8px rgba(15, 23, 42, 0.05));
 }
 .layout-account {
+  position: absolute;
+  z-index: 13;
+  top: 0;
+  right: 0;
   display: flex;
+  width: 198px;
+  height: 52px;
   flex: none;
   padding: 0 12px;
   align-items: center;
+  justify-content: flex-end;
+  background: var(--tianshu-bg-elevated, var(--tianshu-bg-surface));
   border-left: 1px solid var(--tianshu-border-subtle);
+  box-sizing: border-box;
+}
+.layout-shell.is-top-navigation {
+  .layout-topbar {
+    padding-right: 0;
+  }
+
+  .layout-account {
+    height: 60px;
+    color: var(--tianshu-sidebar-text-active);
+    background: var(--tianshu-sidebar-bg);
+    border-left-color: var(--tianshu-sidebar-border);
+  }
+
+  .layout-account-trigger {
+    color: var(--tianshu-sidebar-text-active);
+
+    &:hover {
+      color: var(--tianshu-sidebar-text-active);
+      background: var(--tianshu-sidebar-bg-hover);
+    }
+  }
+
+  .layout-account-arrow {
+    color: var(--tianshu-sidebar-text);
+  }
 }
 .layout-account-trigger {
   appearance: none;
@@ -580,5 +774,23 @@ export default {
   flex: 1;
   box-sizing: border-box;
   background: var(--tianshu-bg-page);
+}
+
+@media (max-width: 1120px) {
+  .top-navigation__brand {
+    width: 184px;
+  }
+
+  .layout-primary-topbar {
+    padding-right: 150px;
+  }
+
+  .layout-account {
+    width: 150px;
+  }
+
+  .layout-account-name {
+    max-width: 72px;
+  }
 }
 </style>

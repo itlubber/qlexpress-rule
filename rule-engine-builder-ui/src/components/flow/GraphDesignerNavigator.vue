@@ -135,9 +135,9 @@ export default {
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.22);
 }
 .toolbar-action:active {
-  border-color: #d6deff;
-  background: #eef2ff;
-  color: #1428a0;
+  border-color: var(--tianshu-designer-accent-border);
+  background: var(--tianshu-designer-accent-bg);
+  color: var(--el-color-primary);
   box-shadow: none;
 }
 .graph-tools small {
@@ -159,7 +159,7 @@ export default {
   width: 100%;
   padding: 8px;
   border: 0;
-  border-bottom: 1px solid #f2f3f5;
+  border-bottom: 1px solid var(--tianshu-border-subtle);
   background: transparent;
   color: var(--tianshu-text-secondary);
   text-align: left;
@@ -167,6 +167,6 @@ export default {
 }
 .issue-list button:hover {
   color: var(--el-color-primary);
-  background: #f5f7ff;
+  background: var(--tianshu-designer-accent-bg);
 }
 </style>

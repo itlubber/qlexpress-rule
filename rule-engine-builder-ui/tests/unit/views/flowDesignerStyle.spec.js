@@ -8,12 +8,12 @@ function readSource(relativePath) {
 }
 
 describe('flow designer style regressions', () => {
-  test('执行动作节点使用浅色主题背景和深色文字', () => {
+  test('执行动作节点的背景、边框和文字跟随当前主题', () => {
     const source = readSource('src/components/flow/nodes.js')
 
-    expect(source).toContain("fill: '#EAF2FF'")
-    expect(source).toContain("stroke: '#2F54EB'")
-    expect(source).toContain("fill: '#1D39C4'")
+    expect(source).toContain("fill: 'var(--tianshu-flow-node-bg)'")
+    expect(source).toContain("stroke: 'var(--tianshu-flow-node-border)'")
+    expect(source).toContain("fill: 'var(--tianshu-flow-node-text)'")
   })
 
   test('决策树和决策流工具栏主按钮在深色栏内保持可读', () => {

@@ -116,7 +116,7 @@ export default {
 <style scoped>
 .expression-formula-preview {
   margin-bottom: 12px;
-  border: 1px solid #dce5ef;
+  border: 1px solid var(--tianshu-border);
   border-radius: 7px;
   background: var(--tianshu-bg-surface);
 }
@@ -133,20 +133,20 @@ export default {
   gap: 10px;
 }
 .expression-formula-preview span {
-  color: #7d8a9d;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
 }
 .expression-formula-preview code {
-  color: #174ea6;
+  color: var(--el-color-primary);
   font-family: Consolas, monospace;
   overflow-wrap: anywhere;
   white-space: normal;
 }
 .expression-formula-preview__script code {
-  color: #526278;
+  color: var(--tianshu-text-secondary);
 }
 .expression-formula-preview small {
-  color: #9aa7b7;
+  color: var(--tianshu-text-tertiary);
   font-size: 11px;
 }
 .expression-formula-preview__editor {
@@ -160,7 +160,7 @@ export default {
 }
 .expression-formula-preview__error {
   margin: 7px 0 0;
-  color: #e35d6a;
+  color: var(--tianshu-danger-text);
   font-size: 12px;
 }
 </style>

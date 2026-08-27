@@ -86,7 +86,7 @@
       <span v-if="loadingVars" style="font-size: 12px; color: var(--tianshu-text-tertiary)"
         ><el-icon><el-icon-loading /></el-icon> 加载变量库...</span
       >
-      <span v-else style="font-size: 12px; color: #087a5d">
+      <span v-else style="font-size: 12px; color: var(--el-color-primary)">
         <el-icon><el-icon-s-custom /></el-icon> 已加载
         {{ varPickerOptions.length }} 个变量/常量/对象字段
       </span>
@@ -809,7 +809,7 @@ export default {
 .dt-title {
   font-size: 16px;
   font-weight: bold;
-  color: #282828;
+  color: var(--tianshu-text-primary);
 }
 .dt-toolbar {
   display: flex;
@@ -819,7 +819,7 @@ export default {
 }
 .toolbar-label {
   font-size: 13px;
-  color: #666;
+  color: var(--tianshu-text-secondary);
 }
 .tip-icon {
   color: var(--tianshu-text-tertiary);
@@ -857,7 +857,7 @@ export default {
 }
 .dt-rule-no {
   font-weight: 600;
-  color: #666;
+  color: var(--tianshu-text-secondary);
   margin-right: 8px;
 }
 .dt-rule-grid {
@@ -910,8 +910,8 @@ export default {
   width: 100%;
 }
 .dt-act-field {
-  background: #fafffe;
-  border: 1px solid #d9f7f0;
+  background: var(--tianshu-designer-accent-bg);
+  border: 1px solid var(--tianshu-designer-accent-border);
   border-radius: 6px;
   padding: 8px;
   width: 100%;
@@ -953,7 +953,7 @@ export default {
 .dt-act-eq {
   justify-self: center;
   height: 16px;
-  color: #a0aec0;
+  color: var(--tianshu-text-tertiary);
   font-size: 12px;
   font-weight: 500;
   line-height: 16px;
@@ -994,8 +994,8 @@ export default {
   flex-shrink: 0;
 }
 .act-tag {
-  background: #e6fffb;
-  color: #13c2c2;
+  background: var(--tianshu-designer-accent-bg);
+  color: var(--el-color-primary);
 }
 .th-actions {
   display: inline-flex;
@@ -1064,14 +1064,14 @@ export default {
   align-items: center;
   gap: 8px;
   padding: 8px 14px;
-  background: #fff1f0;
-  border: 1px solid #ffccc7;
+  background: var(--tianshu-warning-bg);
+  border: 1px solid var(--tianshu-warning-border);
   border-radius: 4px;
   margin-top: 12px;
   font-size: 12px;
-  color: #cf1322;
+  color: var(--tianshu-warning-text);
   i {
-    color: #f5222d;
+    color: var(--tianshu-warning-text);
     font-size: 14px;
   }
 }

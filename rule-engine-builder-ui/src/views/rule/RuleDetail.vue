@@ -263,26 +263,12 @@
               inputFieldOffset + $index + 1
             }}</template>
           </el-table-column>
-          <el-table-column label="变量编码" min-width="120">
+          <el-table-column label="字段层级" min-width="320">
             <template v-slot="{ row }">
-              <span v-if="getFieldVarMap(row)" class="script-name-text">{{
-                getFieldVarMap(row).varCode
-              }}</span>
-              <span v-else style="color: var(--tianshu-text-tertiary)">—</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="变量名称" min-width="130">
-            <template v-slot="{ row }">
-              <span style="font-weight: 500">{{ fieldDisplayLabel(row) }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="脚本名称" min-width="130">
-            <template v-slot="{ row }">
-              <span v-if="getFieldVarMap(row)">{{
-                getFieldVarMap(row).varCodeText
-              }}</span>
-              <span v-else-if="row.scriptName">{{ row.scriptName }}</span>
-              <span v-else style="color: var(--tianshu-text-tertiary)">—</span>
+              <rule-field-hierarchy-display
+                :field="fieldHierarchyDisplay(row)"
+                :data-testid="'input-field-hierarchy-' + row.id"
+              />
             </template>
           </el-table-column>
           <el-table-column
@@ -470,26 +456,12 @@
               outputFieldOffset + $index + 1
             }}</template>
           </el-table-column>
-          <el-table-column label="变量编码" min-width="120">
+          <el-table-column label="字段层级" min-width="320">
             <template v-slot="{ row }">
-              <span v-if="getFieldVarMap(row)" class="script-name-text">{{
-                getFieldVarMap(row).varCode
-              }}</span>
-              <span v-else style="color: var(--tianshu-text-tertiary)">—</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="变量名称" min-width="130">
-            <template v-slot="{ row }">
-              <span style="font-weight: 500">{{ fieldDisplayLabel(row) }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="脚本名称" min-width="130">
-            <template v-slot="{ row }">
-              <span v-if="getFieldVarMap(row)">{{
-                getFieldVarMap(row).varCodeText
-              }}</span>
-              <span v-else-if="row.scriptName">{{ row.scriptName }}</span>
-              <span v-else style="color: var(--tianshu-text-tertiary)">—</span>
+              <rule-field-hierarchy-display
+                :field="fieldHierarchyDisplay(row)"
+                :data-testid="'output-field-hierarchy-' + row.id"
+              />
             </template>
           </el-table-column>
           <el-table-column
@@ -641,6 +613,15 @@
                 >添加映射</el-button
               >
             </div>
+            <el-alert
+              v-if="openInputOptions.length === 0"
+              data-testid="open-api-input-empty"
+              class="open-api-field-empty"
+              title="暂无可映射的规则入参。请先进入规则设计器引用并保存变量，再返回本页配置请求映射。"
+              type="warning"
+              :closable="false"
+              show-icon
+            />
             <el-table
               :data="openApiForm.requestMappings"
               border
@@ -653,6 +634,7 @@
                     v-model="row.targetKey"
                     filterable
                     placeholder="选择稳定引用"
+                    no-data-text="当前规则暂无可映射的入参"
                     style="width: 100%"
                   >
                     <template #label="{ value, label }">
@@ -747,6 +729,15 @@
                 >
               </div>
             </div>
+            <el-alert
+              v-if="openOutputOptions.length === 0"
+              data-testid="open-api-output-empty"
+              class="open-api-field-empty"
+              title="暂无可映射的规则输出。请先进入规则设计器配置并保存输出字段，再返回本页配置响应映射。"
+              type="warning"
+              :closable="false"
+              show-icon
+            />
             <el-table
               :data="openApiForm.responseMappings"
               border
@@ -759,6 +750,7 @@
                     v-model="row.sourceKey"
                     filterable
                     placeholder="选择稳定引用"
+                    no-data-text="当前规则暂无可映射的输出"
                     style="width: 100%"
                     @change="onOpenResponseSourceChange(row)"
                   >
@@ -1367,6 +1359,7 @@ import RuleVersionDiff from '@/components/rule/versionDiff/RuleVersionDiff.vue'
 import RuleLifecyclePanel from '@/components/rule/RuleLifecyclePanel.vue'
 import RuleValidationReport from '@/components/rule/RuleValidationReport.vue'
 import RuleLifecycleTimeline from '@/components/rule/RuleLifecycleTimeline.vue'
+import RuleFieldHierarchyDisplay from '@/components/rule/RuleFieldHierarchyDisplay.vue'
 import FieldReferenceDisplay from '@/components/common/FieldReferenceDisplay.vue'
 import ArtifactDeploymentDialog from '@/components/artifact/ArtifactDeploymentDialog.vue'
 import * as artifactApi from '@/api/artifact'
@@ -1628,6 +1621,7 @@ export default {
     RuleLifecyclePanel,
     RuleValidationReport,
     RuleLifecycleTimeline,
+    RuleFieldHierarchyDisplay,
     FieldReferenceDisplay,
     ArtifactDeploymentDialog,
     ElIconArrowDown,
@@ -2194,6 +2188,12 @@ export default {
       }
     },
     addOpenRequestMapping() {
+      if (!this.openInputOptions.length) {
+        this.$message.warning(
+          '当前规则没有可映射的入参，请先进入规则设计器引用并保存变量'
+        )
+        return
+      }
       this.openApiForm.requestMappings.push({
         targetKey: '',
         sourceType: 'BODY',
@@ -2238,6 +2238,12 @@ export default {
       this.openApiForm['responseMappings'] = this.defaultOpenResponseMappings()
     },
     addOpenResponseMapping() {
+      if (!this.openOutputOptions.length) {
+        this.$message.warning(
+          '当前规则没有可映射的输出，请先进入规则设计器配置并保存输出字段'
+        )
+        return
+      }
       const used = new Set(
         (this.openApiForm.responseMappings || []).map((item) => item.sourceKey)
       )
@@ -2686,6 +2692,32 @@ export default {
       return (
         (item && (item.varLabelText || item.varLabel)) || row.fieldLabel || '—'
       )
+    },
+    fieldHierarchyDisplay(row) {
+      const item = this.getFieldVarMap(row)
+      const refType = row.refType || row._refType || ''
+      const isDataObject = refType === 'DATA_OBJECT'
+      const objectLabel = isDataObject
+        ? (item && (item.objectLabel || item.sourceLabel)) || '未解析数据对象'
+        : ''
+      const mappedLabel = (item && (item.varLabelText || item.varLabel)) || ''
+      const objectLabelPrefix = objectLabel ? objectLabel + '/' : ''
+      const fieldLabel =
+        isDataObject && mappedLabel.indexOf(objectLabelPrefix) === 0
+          ? mappedLabel.substring(objectLabelPrefix.length)
+          : mappedLabel || row.fieldLabel || '—'
+      return {
+        isDataObject,
+        objectLabel,
+        objectCode: isDataObject
+          ? (item && (item.objectCode || item.sourceCode)) || '—'
+          : '',
+        fieldLabel,
+        fieldPath:
+          (item && (item.varCodeText || item.scriptName)) ||
+          row.scriptName ||
+          '—',
+      }
     },
     buildVarOptions(vars, doTree, models = []) {
       const state = buildDetailReferenceState(
@@ -3447,11 +3479,6 @@ export default {
 </script>
 
 <style scoped>
-.script-name-text {
-  font-family: 'Courier New', monospace;
-  font-size: 13px;
-  color: var(--el-color-primary);
-}
 .script-unbound {
   color: var(--tianshu-text-tertiary);
   font-style: italic;
@@ -3481,6 +3508,9 @@ export default {
   border: 1px solid var(--tianshu-border-subtle);
   border-radius: 4px;
   background: var(--tianshu-bg-surface);
+}
+.open-api-field-empty {
+  margin-top: 12px;
 }
 .open-api-title {
   color: var(--tianshu-text-primary);

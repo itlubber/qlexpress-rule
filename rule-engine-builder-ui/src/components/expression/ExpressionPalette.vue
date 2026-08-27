@@ -748,14 +748,14 @@ export default {
   min-width: 0;
   min-height: 0;
   flex: none;
-  border-right: 1px solid #e8edf3;
+  border-right: 1px solid var(--tianshu-border-subtle);
   background: var(--tianshu-bg-surface);
 }
 .palette-categories {
   overflow-y: auto;
   padding: 12px 8px;
-  border-right: 1px solid #e8edf3;
-  background: #f7f9fc;
+  border-right: 1px solid var(--tianshu-border-subtle);
+  background: var(--tianshu-bg-soft);
 }
 .palette-category {
   display: flex;
@@ -768,7 +768,7 @@ export default {
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: #526278;
+  color: var(--tianshu-text-secondary);
   cursor: pointer;
   text-align: left;
   white-space: nowrap;
@@ -780,19 +780,19 @@ export default {
   white-space: nowrap;
 }
 .palette-category:hover {
-  background: #edf3fb;
-  color: #26364d;
+  background: var(--tianshu-bg-hover);
+  color: var(--tianshu-text-primary);
 }
 .palette-category--active {
-  background: #e7f0ff;
-  color: #1f67d2;
+  background: var(--tianshu-bg-active);
+  color: var(--el-color-primary);
   font-weight: 600;
 }
 .palette-category__count {
   flex: none;
   min-width: 24px;
   margin-left: auto;
-  color: #8a98aa;
+  color: var(--tianshu-text-tertiary);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   text-align: right;
@@ -802,7 +802,7 @@ export default {
   z-index: 3;
   width: 6px;
   cursor: col-resize;
-  background: #f3f6fa;
+  background: var(--tianshu-bg-muted);
 }
 .palette-resize-handle::after {
   position: absolute;
@@ -817,7 +817,7 @@ export default {
   background: var(--el-color-primary);
 }
 .palette-resize-handle--outer {
-  border-right: 1px solid #e8edf3;
+  border-right: 1px solid var(--tianshu-border-subtle);
 }
 .palette-content {
   display: flex;
@@ -825,7 +825,7 @@ export default {
   min-height: 0;
   flex-direction: column;
   padding: 12px;
-  background: #fbfcfe;
+  background: var(--tianshu-bg-soft);
 }
 .palette-search {
   flex: none;
@@ -850,15 +850,15 @@ export default {
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
-  color: #26364d;
+  color: var(--tianshu-text-primary);
   cursor: pointer;
   text-align: left;
 }
 .palette-result:hover,
 .palette-action:hover,
 .palette-manual-kind:hover {
-  border-color: #b9d3ff;
-  background: #edf5ff;
+  border-color: var(--tianshu-designer-accent-border);
+  background: var(--tianshu-designer-accent-bg);
 }
 .palette-result span {
   min-width: 0;
@@ -869,7 +869,7 @@ export default {
 .palette-result code {
   flex: 0 1 42%;
   overflow: hidden;
-  color: #7a8799;
+  color: var(--tianshu-text-tertiary);
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -885,8 +885,8 @@ export default {
   z-index: 1;
   top: 0;
   padding: 8px;
-  border-bottom: 1px solid #dce4ee;
-  background: #f7f9fc;
+  border-bottom: 1px solid var(--tianshu-border);
+  background: var(--tianshu-bg-muted);
   text-align: left;
 }
 .palette-reference-table th:first-child {
@@ -898,7 +898,7 @@ export default {
 }
 .palette-reference-table td {
   padding: 8px;
-  border-bottom: 1px solid #edf1f5;
+  border-bottom: 1px solid var(--tianshu-border-subtle);
   overflow-wrap: anywhere;
   vertical-align: top;
 }
@@ -909,7 +909,7 @@ export default {
   cursor: pointer;
 }
 .palette-reference-table tbody tr:hover {
-  background: #edf5ff;
+  background: var(--tianshu-designer-accent-bg);
 }
 .palette-reference-group {
   cursor: pointer;
@@ -918,7 +918,7 @@ export default {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  color: #607089;
+  color: var(--tianshu-text-secondary);
   font-size: 11px;
 }
 .palette-reference-children-row td {
@@ -933,27 +933,27 @@ export default {
   gap: 8px;
   padding: 7px 9px;
   border: 0;
-  border-bottom: 1px solid #edf1f5;
+  border-bottom: 1px solid var(--tianshu-border-subtle);
   background: transparent;
-  color: #26364d;
+  color: var(--tianshu-text-primary);
   cursor: pointer;
   text-align: left;
 }
 .palette-reference-child:hover {
-  background: #e9f3ff;
+  background: var(--tianshu-bg-active);
 }
 .palette-reference-child code {
   overflow: hidden;
-  color: #6f7f92;
+  color: var(--tianshu-text-secondary);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .palette-reference-code {
-  color: #6f7f92;
+  color: var(--tianshu-text-secondary);
   font-family: Consolas, monospace;
 }
 .palette-reference-name {
-  color: #26364d;
+  color: var(--tianshu-text-primary);
   font-weight: 500;
 }
 .palette-type-badge {
@@ -1002,7 +1002,7 @@ export default {
 .palette-manual-kind {
   justify-content: flex-start;
   min-height: 54px;
-  border-color: #dce4ee;
+  border-color: var(--tianshu-border);
   background: var(--tianshu-bg-surface);
 }
 .palette-manual-kind i {
@@ -1022,17 +1022,17 @@ export default {
 }
 .palette-manual-kind small,
 .palette-action small {
-  color: #8290a3;
+  color: var(--tianshu-text-tertiary);
   line-height: 1.4;
 }
 .palette-manual-kind--active {
   border-color: var(--el-color-primary);
-  background: #edf5ff;
+  background: var(--tianshu-designer-accent-bg);
 }
 .palette-manual-editor {
   margin-top: 12px;
   padding: 12px;
-  border: 1px solid #dce4ee;
+  border: 1px solid var(--tianshu-border);
   border-radius: 7px;
   background: var(--tianshu-bg-surface);
 }
@@ -1047,7 +1047,7 @@ export default {
 }
 .palette-path-candidates p {
   margin: 0 0 6px;
-  color: #c45656;
+  color: var(--tianshu-danger-text);
   font-size: 12px;
 }
 .palette-grid {
@@ -1057,10 +1057,10 @@ export default {
 }
 .palette-grid button {
   height: 34px;
-  border: 1px solid #dce3ec;
+  border: 1px solid var(--tianshu-border);
   border-radius: 5px;
   background: var(--tianshu-bg-surface);
-  color: #26364d;
+  color: var(--tianshu-text-primary);
   cursor: pointer;
 }
 .palette-grid button:hover {
@@ -1069,7 +1069,7 @@ export default {
 }
 .palette-action {
   justify-content: flex-start;
-  border-color: #dce4ee;
+  border-color: var(--tianshu-border);
   background: var(--tianshu-bg-surface);
 }
 .palette-empty {
@@ -1077,7 +1077,7 @@ export default {
   min-height: 160px;
   place-content: center;
   gap: 8px;
-  color: #9aa7b7;
+  color: var(--tianshu-text-tertiary);
   text-align: center;
 }
 .palette-empty i {
@@ -1091,7 +1091,7 @@ export default {
 .palette-tip {
   flex: none;
   margin: 10px 0 0;
-  color: #8794a7;
+  color: var(--tianshu-text-tertiary);
   font-size: 11px;
   line-height: 1.55;
 }

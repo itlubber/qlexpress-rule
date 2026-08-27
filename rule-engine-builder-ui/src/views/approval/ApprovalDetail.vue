@@ -19,6 +19,12 @@
         </div>
         <div class="header-actions">
           <el-button
+            v-if="request.resourceType === 'RULE'"
+            @click="openRuleDesign"
+          >
+            打开规则设计
+          </el-button>
+          <el-button
             v-if="request.status === 'EDITING' && canManageDraft"
             v-permission="'approval:submit'"
             @click="runPreflight"
@@ -323,7 +329,9 @@ import {
   restoreGovernanceVersion,
   submitGovernanceRequest
 } from '@/api/governance'
+import { listRuleRevisions } from '@/api/definition'
 import { getCurrentUser } from '@/security/permissionState'
+import { resolveDesignerRouteName } from '@/utils/ruleDesignerNavigation'
 import JsonVersionDiff from '@/components/common/JsonVersionDiff.vue'
 import LineageGraph from '@/views/lineage/LineageGraph.vue'
 
@@ -479,6 +487,33 @@ export default {
     goBack() {
       this.navigation.back()
     },
+    async openRuleDesign() {
+      const response = await listRuleRevisions(this.request.resourceId)
+      const revisions = response.data || []
+      const terminal = ['CONFLICT', 'REJECTED', 'CANCELLED']
+        .includes(this.request.status)
+      const bound = revisions.find(revision =>
+        revision.governanceRequestId === this.request.id
+      )
+      const revision = terminal
+        ? revisions.find(item => item.state === 'DRAFT') || bound
+        : bound || revisions.find(item => item.state === 'REVIEW')
+      const routeName = resolveDesignerRouteName(
+        this.requestSnapshot().modelType
+      )
+      if (!revision || !routeName) {
+        ElMessage.error('未找到可打开的规则修订')
+        return
+      }
+      await this.navigation.push({
+        name: routeName,
+        params: { id: String(this.request.resourceId) },
+        query: {
+          sourceType: 'REVISION',
+          sourceId: String(revision.id)
+        }
+      })
+    },
     async loadDetail() {
       this.loading = true
       try {
@@ -521,9 +556,15 @@ export default {
       }
       this.actionLoading = true
       try {
-        await actions[this.activeAction](this.request.id, this.actionComment.trim())
+        const response = await actions[this.activeAction](
+          this.request.id, this.actionComment.trim()
+        )
         this.actionDialogVisible = false
-        if (this.activeAction === 'reject') {
+        if (response.data && response.data.status === 'CONFLICT') {
+          ElMessage.warning(
+            '审批内容或依赖已变化，已生成可编辑草稿，请重新提交审批'
+          )
+        } else if (this.activeAction === 'reject') {
           ElMessage.success('已驳回，资源继续使用当前生效版本')
         } else {
           ElMessage.success('操作成功')

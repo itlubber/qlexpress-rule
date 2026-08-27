@@ -393,6 +393,32 @@ public class RuleLifecycleServiceTest {
     }
 
     @Test
+    public void createsDraftFromRejectedRevisionUsingOriginalBase() {
+        FixtureService service = new FixtureService();
+        RuleRevision source = revision(6L, 30L, "REJECTED", 2);
+        source.setBaseRevisionId(5L);
+        source.setBaseArtifactId(105L);
+        source.setArtifactId(106L);
+        source.setModelJson("{\"source\":\"rejected\"}");
+        source.setOpenApiConfigJson("{\"version\":\"rejected\"}");
+        service.revisions.put(source.getId(), source);
+
+        RuleDraftSaveResponse response = service.createDraftFromSource(
+                30L, sourceRequest(RuleDraftSourceType.REVISION, 6L));
+
+        Assert.assertSame(service.savedResponse, response);
+        Assert.assertEquals("DRAFT", response.getRevision().getState());
+        Assert.assertEquals(Long.valueOf(5L),
+                response.getRevision().getBaseRevisionId());
+        Assert.assertEquals(Long.valueOf(105L),
+                response.getRevision().getBaseArtifactId());
+        Assert.assertEquals("{\"source\":\"rejected\"}",
+                service.savedRequest.getModelJson());
+        Assert.assertEquals("{\"version\":\"rejected\"}",
+                service.savedRequest.getOpenApiConfigJson());
+    }
+
+    @Test
     public void createsDraftFromStableVersionSnapshotAndSavesSnapshotOpenApi() {
         FixtureService service = new FixtureService();
         RuleDefinitionVersion source = new RuleDefinitionVersion();

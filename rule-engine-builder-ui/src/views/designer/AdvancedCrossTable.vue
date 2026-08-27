@@ -1190,7 +1190,7 @@ export default {
 <style lang="scss" scoped>
 .act-designer {
   position: relative;
-  background: #f3f3f3;
+  background: var(--tianshu-bg-page);
   padding: 20px;
   min-height: 100%;
 }
@@ -1212,13 +1212,13 @@ export default {
 }
 .act-title-icon {
   font-size: 18px;
-  color: #722ed1;
+  color: var(--el-color-primary);
   margin-right: 8px;
 }
 .act-title {
   font-size: 16px;
   font-weight: bold;
-  color: #282828;
+  color: var(--tianshu-text-primary);
 }
 .act-toolbar {
   display: flex;
@@ -1269,7 +1269,7 @@ export default {
   justify-content: space-between;
   font-size: 13px;
   font-weight: 600;
-  color: #555;
+  color: var(--tianshu-text-secondary);
   margin-bottom: 10px;
   gap: 8px;
 }
@@ -1341,7 +1341,7 @@ export default {
   align-items: center;
   gap: 6px;
   i {
-    color: #722ed1;
+    color: var(--el-color-primary);
   }
 }
 .act-matrix-wrap {
@@ -1361,7 +1361,7 @@ export default {
   }
 }
 .corner-cell {
-  background: #f5f5f5;
+  background: var(--tianshu-bg-muted);
   min-width: 100px;
   position: relative;
   padding: 0;
@@ -1377,14 +1377,14 @@ export default {
   bottom: 6px;
   left: 8px;
   font-size: 11px;
-  color: #888;
+  color: var(--tianshu-text-tertiary);
 }
 .corner-col-label {
   position: absolute;
   top: 6px;
   right: 8px;
   font-size: 11px;
-  color: #888;
+  color: var(--tianshu-text-tertiary);
 }
 .corner-divider {
   position: absolute;
@@ -1395,13 +1395,13 @@ export default {
   background: linear-gradient(
     to bottom right,
     transparent calc(50% - 0.5px),
-    #d0d0d0,
+    var(--tianshu-border),
     transparent calc(50% + 0.5px)
   );
   pointer-events: none;
 }
 .col-header-cell {
-  background: #e8f3ff;
+  background: var(--tianshu-designer-accent-bg);
   min-width: 90px;
   font-size: 12px;
   font-weight: 600;
@@ -1409,10 +1409,10 @@ export default {
   white-space: nowrap;
 }
 .col-header-top {
-  background: #daeeff;
+  background: var(--tianshu-bg-active);
 }
 .row-header-cell {
-  background: #f0fff4;
+  background: var(--tianshu-designer-alt-bg);
   min-width: 80px;
   font-size: 12px;
   font-weight: 500;
@@ -1420,7 +1420,7 @@ export default {
   white-space: nowrap;
 }
 .row-header-first {
-  background: #e0f5e9;
+  background: rgba(var(--tianshu-color-secondary-rgb), 0.2);
   font-weight: 600;
 }
 .data-cell {

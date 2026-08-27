@@ -367,27 +367,27 @@ export default {
   align-items: center;
   gap: 9px;
   padding: 9px 12px;
-  border: 1px solid #ccd6e4;
+  border: 1px solid var(--tianshu-border);
   border-radius: 8px;
   background: var(--tianshu-bg-surface);
-  color: #25344b;
+  color: var(--tianshu-text-primary);
   cursor: pointer;
   text-align: left;
-  box-shadow: 0 2px 5px rgba(38, 57, 77, 0.05);
+  box-shadow: var(--tianshu-shadow-small);
 }
 .canvas-node--selected {
   border-color: var(--el-color-primary);
-  box-shadow: 0 0 0 3px rgba(40, 120, 255, 0.12);
+  box-shadow: 0 0 0 3px rgba(var(--el-color-primary-rgb), 0.18);
 }
 .canvas-node--empty {
   border-style: dashed;
-  color: #8794a7;
+  color: var(--tianshu-text-tertiary);
 }
 .canvas-kind {
   flex: none;
   padding: 2px 5px;
   border-radius: 4px;
-  background: #edf4ff;
+  background: var(--tianshu-designer-accent-bg);
   color: var(--el-color-primary);
   font-size: 11px;
 }
@@ -423,10 +423,10 @@ export default {
 }
 .canvas-node-actions button {
   padding: 0;
-  border: 1px solid #d8e1ec;
+  border: 1px solid var(--tianshu-border);
   border-radius: 4px;
   background: var(--tianshu-bg-surface);
-  color: #607089;
+  color: var(--tianshu-text-secondary);
   cursor: pointer;
 }
 .canvas-node-actions button:hover {
@@ -443,11 +443,11 @@ export default {
   padding: 0;
   border: 0;
   background: transparent;
-  color: #607089;
+  color: var(--tianshu-text-secondary);
   cursor: pointer;
 }
 .canvas-collapse:hover {
-  background: #edf5ff;
+  background: var(--tianshu-designer-accent-bg);
   color: var(--el-color-primary);
 }
 .canvas-collapse__count {
@@ -465,7 +465,7 @@ export default {
 .canvas-children {
   margin: 8px 0 0 26px;
   padding-left: 18px;
-  border-left: 2px solid #dfe7f1;
+  border-left: 2px solid var(--tianshu-border-subtle);
 }
 .canvas-child {
   position: relative;
@@ -474,7 +474,7 @@ export default {
 .canvas-edge-label {
   display: block;
   margin-bottom: 4px;
-  color: #7b8798;
+  color: var(--tianshu-text-tertiary);
   font-size: 11px;
 }
 .canvas-edge-operator {
@@ -484,7 +484,7 @@ export default {
   margin: 0 0 5px 30px;
   padding: 2px 7px;
   border-radius: 4px;
-  background: #eef4ff;
+  background: var(--tianshu-designer-accent-bg);
   color: var(--el-color-primary);
   font-family: Consolas, monospace;
   font-size: 12px;
@@ -497,10 +497,10 @@ export default {
   right: 0;
   left: 0;
   padding: 6px;
-  border: 1px solid #d7e3f2;
+  border: 1px solid var(--tianshu-border);
   border-radius: 6px;
   background: var(--tianshu-bg-surface);
-  box-shadow: 0 8px 20px rgba(35, 55, 80, 0.14);
+  box-shadow: var(--tianshu-shadow-medium);
 }
 .canvas-path-candidates button {
   display: flex;
@@ -510,15 +510,15 @@ export default {
   padding: 7px 8px;
   border: 0;
   background: transparent;
-  color: #26364d;
+  color: var(--tianshu-text-primary);
   cursor: pointer;
   text-align: left;
 }
 .canvas-path-candidates button:hover {
-  background: #edf5ff;
+  background: var(--tianshu-designer-accent-bg);
 }
 .canvas-path-candidates code {
-  color: #718096;
+  color: var(--tianshu-text-secondary);
   overflow-wrap: anywhere;
 }
 </style>

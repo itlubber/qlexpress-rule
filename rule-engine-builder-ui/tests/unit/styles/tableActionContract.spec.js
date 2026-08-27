@@ -42,6 +42,23 @@ const expectedActionByLabel = {
   鉴权: 'configure',
   验证执行: 'execute',
 }
+const supportedActions = new Set([
+  'edit',
+  'detail',
+  'execute',
+  'inspect',
+  'configure',
+  'version',
+  'compare',
+  'rollback',
+  'global',
+  'publish',
+  'reset',
+  'disable',
+  'add',
+  'docs',
+  'delete',
+])
 
 describe('管理列表操作按钮语义契约', () => {
   test.each(targetViews)('%s 的每个操作列按钮都声明统一操作语义', relativePath => {
@@ -53,6 +70,10 @@ describe('管理列表操作按钮语义契约', () => {
       for (const button of buttons) {
         expect(button.action, `${relativePath}: ${button.label || '动态按钮'}`)
           .toBeTruthy()
+        for (const action of referencedActions(button.action)) {
+          expect(supportedActions.has(action), `${relativePath}: ${action}`)
+            .toBe(true)
+        }
         const expectedAction = expectedActionByLabel[button.label]
         if (expectedAction) {
           expect(button.action, `${relativePath}: ${button.label}`)
@@ -127,4 +148,10 @@ function textContent(node) {
     .map(child => child.content)
     .join('')
     .replace(/\s+/g, '')
+}
+
+function referencedActions(value) {
+  const dynamicActions = [...value.matchAll(/['"]([a-z]+)['"]/g)]
+    .map(match => match[1])
+  return dynamicActions.length > 0 ? dynamicActions : [value]
 }

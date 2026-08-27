@@ -101,7 +101,7 @@ describe('themeRuntime — 全局主题应用和本地降级', () => {
     expect(palette.dangerBorder).toBe('rgba(31, 166, 150, 0.6)')
   })
 
-  test('管理列表操作色随主题切换且编辑始终使用当前主题色', () => {
+  test('管理列表操作色随主题切换且编辑使用当前主题色', () => {
     applyTheme(DEFAULT_THEME_CONFIG)
     const blueActions = readAppliedActions()
 
@@ -111,14 +111,71 @@ describe('themeRuntime — 全局主题应用和本地降级', () => {
     })
     const purpleActions = readAppliedActions()
 
-    expect(blueActions.edit).toBe('#2639E9')
-    expect(purpleActions.edit).toBe('#873FF2')
-    expect(new Set(Object.values(blueActions)).size).toBe(actionRoles.length)
-    expect(new Set(Object.values(purpleActions)).size).toBe(actionRoles.length)
+    expect(blueActions.edit).not.toBe(purpleActions.edit)
     expect(purpleActions).not.toEqual(blueActions)
     expect(isRedTone(blueActions.delete)).toBe(true)
     expect(isRedTone(purpleActions.delete)).toBe(true)
   })
+
+  test.each(ACCENT_PRESETS.flatMap(preset => [
+    ['LIGHT', preset.id, preset.primary],
+    ['DARK', preset.id, preset.primary],
+  ]))('%s / %s 的编辑色保持当前配置主题的色相', (colorScheme, accentPreset, primary) => {
+    applyTheme({
+      ...DEFAULT_THEME_CONFIG,
+      colorScheme,
+      accentPreset,
+    })
+
+    const editHue = hsl(readAppliedActions().edit).hue
+    const primaryHue = hsl(primary).hue
+    const hueDistance = Math.min(
+      Math.abs(editHue - primaryHue),
+      360 - Math.abs(editHue - primaryHue)
+    )
+    expect(hueDistance).toBeLessThanOrEqual(4)
+  })
+
+  test.each(customActionThemeCases)(
+    '%s / %s / %s 的自定义主题操作色仍保持可读和明显色差',
+    (colorScheme, accentMode, primary) => {
+      applyTheme({
+        ...DEFAULT_THEME_CONFIG,
+        colorScheme,
+        accentMode,
+        customSolidColor: primary,
+        customGradientColors: [primary, '#873FF2'],
+      })
+
+      const actions = readAppliedActions()
+      expect(isRedTone(actions.delete)).toBe(true)
+      const editHue = hsl(actions.edit).hue
+      const primaryHue = hsl(primary).hue
+      expect(Math.min(
+        Math.abs(editHue - primaryHue),
+        360 - Math.abs(editHue - primaryHue)
+      )).toBeLessThanOrEqual(4)
+
+      for (const roles of coexistingActionGroups) {
+        for (let first = 0; first < roles.length; first += 1) {
+          for (let second = first + 1; second < roles.length; second += 1) {
+            expect(
+              colorDistance(actions[roles[first]], actions[roles[second]]),
+              `${roles[first]} / ${roles[second]}`
+            ).toBeGreaterThanOrEqual(18)
+          }
+        }
+      }
+
+      for (const interactionSurface of actionInteractionSurfaces(
+        actions.edit,
+        colorScheme
+      )) {
+        expect(contrastRatio(actions.edit, interactionSurface))
+          .toBeGreaterThanOrEqual(4.5)
+      }
+    }
+  )
 
   test.each(ACCENT_PRESETS.flatMap(preset => [
     ['LIGHT', preset.id],
@@ -148,7 +205,7 @@ describe('themeRuntime — 全局主题应用和本地降级', () => {
     })
 
     const actions = readAppliedActions()
-    for (const roles of coexistingSecondaryActionGroups) {
+    for (const roles of coexistingActionGroups) {
       for (let first = 0; first < roles.length; first += 1) {
         for (let second = first + 1; second < roles.length; second += 1) {
           const firstRole = roles[first]
@@ -163,9 +220,14 @@ describe('themeRuntime — 全局主题应用和本地降级', () => {
   })
 
   test.each(ACCENT_PRESETS.flatMap(preset => [
-    ['LIGHT', preset.id, '#FFFFFF'],
-    ['DARK', preset.id, '#151D31'],
-  ]))('%s / %s 的操作色互不重复且在表格背景上保持可读', (colorScheme, accentPreset, surface) => {
+    ['LIGHT', preset.id, '#FFFFFF', '#EEF2F7'],
+    ['DARK', preset.id, '#151D31', '#26324D'],
+  ]))('%s / %s 的操作色在表格各交互背景上保持可读', (
+    colorScheme,
+    accentPreset,
+    surface,
+    rowHoverSurface
+  ) => {
     applyTheme({
       ...DEFAULT_THEME_CONFIG,
       colorScheme,
@@ -173,9 +235,19 @@ describe('themeRuntime — 全局主题应用和本地降级', () => {
     })
 
     const actions = readAppliedActions()
-    expect(new Set(Object.values(actions)).size).toBe(actionRoles.length)
     for (const [role, color] of Object.entries(actions)) {
-      expect(contrastRatio(color, surface), role).toBeGreaterThanOrEqual(4.5)
+      const surfaces = [
+        surface,
+        rowHoverSurface,
+        compositeColor(rowHoverSurface, color, 0.08),
+        compositeColor(rowHoverSurface, color, 0.12),
+      ]
+      for (const interactionSurface of surfaces) {
+        expect(
+          contrastRatio(color, interactionSurface),
+          `${role} / ${interactionSurface}`
+        ).toBeGreaterThanOrEqual(4.5)
+      }
     }
   })
 
@@ -258,18 +330,49 @@ const actionRoles = [
   'delete',
 ]
 
-const coexistingSecondaryActionGroups = [
-  ['configure', 'reset', 'publish'],
-  ['configure', 'reset', 'disable'],
-  ['detail', 'execute'],
-  ['execute', 'version'],
+const customActionThemeCases = [
+  '#FF0000',
+  '#FF0018',
+  '#FF0024',
+  '#FF002F',
+  '#FF0040',
+  '#FF0055',
+  '#FF006E',
+  '#FF6500',
+  '#FFD400',
+  '#00A896',
+  '#00B8D9',
+  '#2639E9',
+  '#873FF2',
+  '#E14ECA',
+].flatMap(primary => [
+  ['LIGHT', 'CUSTOM_SOLID', primary],
+  ['DARK', 'CUSTOM_SOLID', primary],
+]).concat([
+  ['LIGHT', 'CUSTOM_GRADIENT', '#FF0040'],
+  ['DARK', 'CUSTOM_GRADIENT', '#FF0040'],
+])
+
+const coexistingActionGroups = [
+  ['edit', 'configure', 'reset', 'publish'],
+  ['edit', 'configure', 'reset', 'disable'],
+  ['configure', 'publish'],
+  ['configure', 'disable'],
+  ['edit', 'delete'],
+  ['execute', 'detail', 'delete'],
+  ['execute', 'edit', 'version', 'delete'],
   ['inspect', 'compare', 'rollback'],
-  ['detail', 'publish', 'global'],
-  ['detail', 'disable', 'global'],
-  ['execute', 'inspect'],
-  ['execute', 'add'],
-  ['detail', 'execute', 'configure', 'global'],
-  ['detail', 'configure', 'docs'],
+  ['detail', 'edit', 'publish', 'global', 'delete'],
+  ['detail', 'edit', 'disable', 'global', 'delete'],
+  ['edit', 'execute', 'inspect', 'delete'],
+  ['edit', 'execute', 'add', 'delete'],
+  ['edit', 'execute', 'delete'],
+  ['detail', 'edit', 'delete'],
+  ['edit', 'detail', 'execute', 'configure', 'global', 'delete'],
+  ['edit', 'configure', 'delete'],
+  ['edit', 'global', 'delete'],
+  ['detail', 'inspect', 'delete'],
+  ['edit', 'detail', 'configure', 'docs', 'delete'],
 ]
 
 function readAppliedActions() {
@@ -311,6 +414,26 @@ function rgb(color) {
     g: Number.parseInt(normalized.slice(2, 4), 16),
     b: Number.parseInt(normalized.slice(4, 6), 16),
   }
+}
+
+function compositeColor(background, foreground, alpha) {
+  const backgroundRgb = rgb(background)
+  const foregroundRgb = rgb(foreground)
+  return `#${['r', 'g', 'b'].map(channel => Math.round(
+    backgroundRgb[channel] * (1 - alpha) + foregroundRgb[channel] * alpha
+  ).toString(16).padStart(2, '0')).join('')}`.toUpperCase()
+}
+
+function actionInteractionSurfaces(color, colorScheme) {
+  const dark = colorScheme === 'DARK'
+  const surface = dark ? '#151D31' : '#FFFFFF'
+  const rowHoverSurface = dark ? '#26324D' : '#EEF2F7'
+  return [
+    surface,
+    rowHoverSurface,
+    compositeColor(rowHoverSurface, color, 0.08),
+    compositeColor(rowHoverSurface, color, 0.12),
+  ]
 }
 
 function isAllowedBrightActionTone(color) {

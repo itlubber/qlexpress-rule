@@ -200,7 +200,7 @@ describe('flowDesignerGraph', () => {
   })
 
   test('快捷菜单不提供开始节点且决策树不提供聚合节点', () => {
-    expect(FLOW_THEME_COLOR).toBe('#2639E9')
+    expect(FLOW_THEME_COLOR).toBe('var(--el-color-primary)')
     expect(FLOW_MENU_OPTIONS.flow.map(item => item.type)).toEqual([
       'exclusive-gateway', 'script-task', 'join-gateway', 'end-event'
     ])
@@ -330,7 +330,7 @@ describe('flowDesignerGraph', () => {
     expect(target.x).toBeGreaterThan(near.x)
   })
 
-  test('同一水平方向的多个分支沿前进方向错开且保持平齐', () => {
+  test('同一水平方向的多个分支在同一层级纵向展开，避免连线穿过相邻节点', () => {
     const graph = {
       nodes: [
         { id: 'root', type: 'start-event', x: 100, y: 100, properties: {} },
@@ -348,12 +348,12 @@ describe('flowDesignerGraph', () => {
     const branchB = result.nodes.find(node => node.id === 'branch-b')
 
     expect(branchA.x).toBeGreaterThan(result.nodes[0].x)
+    expect(branchB.x).toBe(branchA.x)
     expect(branchA.y).toBe(result.nodes[0].y)
-    expect(branchB.y).toBe(result.nodes[0].y)
-    expect(branchB.x).toBeGreaterThan(branchA.x)
+    expect(branchB.y).not.toBe(branchA.y)
   })
 
-  test('同一垂直方向的多个分支沿前进方向错开且保持平齐', () => {
+  test('同一垂直方向的多个分支在同一层级横向展开，避免连线穿过相邻节点', () => {
     const graph = {
       nodes: [
         { id: 'root', type: 'start-event', x: 100, y: 100, properties: {} },
@@ -370,9 +370,10 @@ describe('flowDesignerGraph', () => {
     const branchA = result.nodes.find(node => node.id === 'branch-a')
     const branchB = result.nodes.find(node => node.id === 'branch-b')
 
+    expect(branchA.y).toBeGreaterThan(result.nodes[0].y)
+    expect(branchB.y).toBe(branchA.y)
     expect(branchA.x).toBe(result.nodes[0].x)
-    expect(branchB.x).toBe(result.nodes[0].x)
-    expect(branchB.y).toBeGreaterThan(branchA.y)
+    expect(branchB.x).not.toBe(branchA.x)
   })
 
   test('布局后动态分组覆盖成员并保留 children 和折叠状态', () => {

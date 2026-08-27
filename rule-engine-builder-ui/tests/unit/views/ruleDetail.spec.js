@@ -493,9 +493,10 @@ async function mountAndWait(
       lockVersion: 0,
     },
   ],
-  routeQuery = {}
+  routeQuery = {},
+  ruleDetail = mockRuleDetail(1)
 ) {
-  definitionApi.getDefinitionDetail.mockResolvedValueOnce({ data: mockRuleDetail(1) })
+  definitionApi.getDefinitionDetail.mockResolvedValueOnce({ data: ruleDetail })
   definitionApi.getContent.mockResolvedValueOnce({ data: content })
   definitionApi.listRuleRevisions.mockResolvedValueOnce({ data: revisions })
   definitionApi.getRuleLifecycleTimeline.mockResolvedValueOnce({ data: [] })
@@ -659,9 +660,62 @@ describe('RuleDetail — 辅助方法', () => {
     expect(wrapper.vm.fieldDisplayLabel(row)).toBe('银行卡号')
     expect(wrapper.vm.getFieldVarMap(row)).toBeNull()
   })
+
+  test('数据对象字段生成对象父层和字段子层展示数据', () => {
+    wrapper.vm.buildVarOptions([], [{
+      object: {
+        objectCode: 'score_f1_fields',
+        objectLabel: '评分字段',
+        scriptName: 'score_f1_fields',
+      },
+      variables: [{
+        id: 88,
+        varLabel: 'HYBASE_X115',
+        varCode: 'HYBASE_X115',
+        scriptName: 'HYBASE_X115',
+        varType: 'DOUBLE',
+      }],
+    }])
+    const row = {
+      varId: 88,
+      refType: 'DATA_OBJECT',
+      fieldLabel: '旧字段名称',
+      scriptName: 'score_f1_fields.HYBASE_X115',
+    }
+
+    const display = wrapper.vm.fieldHierarchyDisplay
+      ? wrapper.vm.fieldHierarchyDisplay(row)
+      : null
+
+    expect(display).toEqual({
+      isDataObject: true,
+      objectLabel: '评分字段',
+      objectCode: 'score_f1_fields',
+      fieldLabel: 'HYBASE_X115',
+      fieldPath: 'score_f1_fields.HYBASE_X115',
+    })
+  })
 })
 
 describe('RuleDetail — 开放接口契约', () => {
+  test('没有规则入参时提示先在设计器引用字段且不添加无效映射', async () => {
+    const ruleDetail = { ...mockRuleDetail(1), inputFieldsJson: [] }
+    const wrapper = await mountAndWait(undefined, undefined, {}, ruleDetail)
+
+    expect(wrapper.vm.openInputOptions).toEqual([])
+    expect(
+      wrapper.find('[data-testid="open-api-input-empty"]').exists()
+    ).toBe(true)
+
+    wrapper.vm.addOpenRequestMapping()
+
+    expect(wrapper.vm.openApiForm.requestMappings).toEqual([])
+    expect(wrapper.vm.$message.warning).toHaveBeenCalledWith(
+      '当前规则没有可映射的入参，请先进入规则设计器引用并保存变量'
+    )
+    wrapper.unmount()
+  })
+
   test('开放接口字段选项展示业务名称、编码和类型但不暴露内部 ID', async () => {
     const wrapper = await mountAndWait()
     const inputOption = wrapper.vm.openInputOptions[0]

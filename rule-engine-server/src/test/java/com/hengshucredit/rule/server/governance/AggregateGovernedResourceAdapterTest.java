@@ -14,7 +14,9 @@ import com.hengshucredit.rule.model.entity.RuleVariableOption;
 import com.hengshucredit.rule.model.entity.RuleRevision;
 import com.hengshucredit.rule.model.dto.RuleDraftSaveRequest;
 import com.hengshucredit.rule.model.dto.RuleDraftSaveResponse;
+import com.hengshucredit.rule.model.dto.RuleDraftSourceRequest;
 import com.hengshucredit.rule.model.dto.RuleLifecycleActionRequest;
+import com.hengshucredit.rule.model.dto.RulePreflightReport;
 import com.hengshucredit.rule.server.artifact.CanonicalJson;
 import com.hengshucredit.rule.server.auth.CredentialCipher;
 import com.hengshucredit.rule.server.auth.ProjectAuthProperties;
@@ -383,6 +385,7 @@ public class AggregateGovernedResourceAdapterTest {
         review.setDefinitionId(9L);
         review.setState("REVIEW");
         boolean[] rejected = {false};
+        RuleDraftSourceRequest[] reopened = {null};
         RuleLifecycleService lifecycle =
                 new RuleLifecycleService() {
                     @Override
@@ -399,6 +402,14 @@ public class AggregateGovernedResourceAdapterTest {
                         review.setState("REJECTED");
                         return review;
                     }
+
+                    @Override
+                    public RuleDraftSaveResponse createDraftFromSource(
+                            Long definitionId,
+                            RuleDraftSourceRequest request) {
+                        reopened[0] = request;
+                        return new RuleDraftSaveResponse();
+                    }
                 };
         RuleGovernedResourceAdapter adapter =
                 new RuleGovernedResourceAdapter(
@@ -411,9 +422,63 @@ public class AggregateGovernedResourceAdapterTest {
                 9L, effective, "alice", "需要修改", "REJECTED");
 
         Assert.assertTrue(rejected[0]);
+        Assert.assertNotNull(reopened[0]);
+        Assert.assertEquals(Long.valueOf(8L), reopened[0].getSourceId());
         Assert.assertEquals(2, ((Number) CanonicalJson.readMap(
                 adapter.loadEffective(9L).snapshotJson())
                 .get("status")).intValue());
+    }
+
+    @Test
+    public void ruleReviewDigestDriftIsReportedBeforeApprovalApply() {
+        RuleDefinition definition = new RuleDefinition();
+        definition.setId(9L);
+        definition.setRuleCode("R001");
+        definition.setRuleName("准入规则");
+        definition.setModelType("RULE_SET");
+        definition.setStatus(0);
+        RuleDefinitionContent content = new RuleDefinitionContent();
+        content.setDefinitionId(9L);
+        content.setModelJson("{\"groups\":[]}");
+        RuleRevision review = new RuleRevision();
+        review.setId(8L);
+        review.setDefinitionId(9L);
+        review.setState("REVIEW");
+        review.setContentDigest("submitted-digest");
+        RuleLifecycleService lifecycle = new RuleLifecycleService() {
+            @Override
+            public List<RuleRevision> listRevisions(Long definitionId) {
+                return List.of(review);
+            }
+
+            @Override
+            public RulePreflightReport preflightReport(
+                    Long definitionId, Long revisionId) {
+                RulePreflightReport report = new RulePreflightReport();
+                report.setValid(true);
+                report.setContentDigest("current-digest");
+                return report;
+            }
+        };
+        RuleGovernedResourceAdapter adapter =
+                new RuleGovernedResourceAdapter(
+                        store(definition, RuleDefinition::setId), codec(),
+                        lifecycle, null,
+                        mapper(RuleDefinitionContentMapper.class,
+                                Map.of("selectOne", content),
+                                new ArrayList<>()),
+                        mapper(RuleDefinitionInputFieldMapper.class,
+                                Map.of("selectList", List.of()),
+                                new ArrayList<>()),
+                        mapper(RuleDefinitionOutputFieldMapper.class,
+                                Map.of("selectList", List.of()),
+                                new ArrayList<>()));
+
+        List<GovernanceIssue> issues = adapter.validate(
+                adapter.loadEffective(9L), "UPDATE");
+
+        Assert.assertTrue(issues.stream().anyMatch(issue ->
+                "RULE_REVIEW_PREFLIGHT_CHANGED".equals(issue.code())));
     }
 
     @Test

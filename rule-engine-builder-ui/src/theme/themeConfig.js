@@ -1,7 +1,15 @@
+const DEFAULT_GRADIENT_COLORS = Object.freeze(['#2639E9', '#873FF2'])
+
 export const DEFAULT_THEME_CONFIG = Object.freeze({
-  schemaVersion: 1,
+  schemaVersion: 2,
   colorScheme: 'LIGHT',
+  accentMode: 'PRESET',
   accentPreset: 'THEME_BLUE',
+  customSolidColor: '#2639E9',
+  customGradientColors: DEFAULT_GRADIENT_COLORS,
+  customGradientType: 'LINEAR',
+  customGradientAngle: 135,
+  navigationLayout: 'LEFT',
   sidebarTheme: 'DARK',
   contentWidth: 'FLUID',
   fixedSidebar: true,
@@ -49,6 +57,16 @@ export const ACCENT_PRESETS = Object.freeze([
 
 const PRESET_BY_ID = new Map(ACCENT_PRESETS.map(item => [item.id, item]))
 const CONFIG_KEYS = Object.keys(DEFAULT_THEME_CONFIG)
+const LEGACY_CONFIG_KEYS = [
+  'schemaVersion',
+  'colorScheme',
+  'accentPreset',
+  'sidebarTheme',
+  'contentWidth',
+  'fixedSidebar',
+  'colorWeak',
+]
+const HEX_COLOR_PATTERN = /^#[0-9A-F]{6}$/
 
 function solid(id, name, primary, secondary, foreground) {
   return Object.freeze({
@@ -75,35 +93,88 @@ function gradient(id, name, primary, secondary, background) {
 }
 
 function defaultConfig() {
-  return { ...DEFAULT_THEME_CONFIG }
+  return {
+    ...DEFAULT_THEME_CONFIG,
+    customGradientColors: [...DEFAULT_THEME_CONFIG.customGradientColors],
+  }
 }
 
 export function normalizeThemeConfig(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!isObject(value)) return defaultConfig()
+  if (value.schemaVersion === 1) return migrateLegacyConfig(value)
+  if (value.schemaVersion !== 2 || !hasExactKeys(value, CONFIG_KEYS)) {
     return defaultConfig()
   }
-  const keys = Object.keys(value)
+
+  const customSolidColor = normalizeColor(value.customSolidColor)
+  const customGradientColors = normalizeGradientColors(
+    value.customGradientColors
+  )
+  const angle = normalizeGradientAngle(value.customGradientAngle)
   if (
-    keys.length !== CONFIG_KEYS.length ||
-    keys.some(key => !CONFIG_KEYS.includes(key)) ||
-    value.schemaVersion !== 1 ||
-    !['LIGHT', 'DARK'].includes(value.colorScheme) ||
-    !PRESET_BY_ID.has(value.accentPreset) ||
-    !['LIGHT', 'DARK'].includes(value.sidebarTheme) ||
-    !['FLUID', 'FIXED'].includes(value.contentWidth) ||
-    typeof value.fixedSidebar !== 'boolean' ||
-    typeof value.colorWeak !== 'boolean'
+    !isCommonConfigValid(value) ||
+    !['PRESET', 'CUSTOM_SOLID', 'CUSTOM_GRADIENT'].includes(value.accentMode) ||
+    !customSolidColor ||
+    !customGradientColors ||
+    !['LINEAR', 'RADIAL'].includes(value.customGradientType) ||
+    angle === null ||
+    !['LEFT', 'TOP'].includes(value.navigationLayout)
   ) {
     return defaultConfig()
   }
-  return CONFIG_KEYS.reduce((normalized, key) => {
-    normalized[key] = value[key]
-    return normalized
-  }, {})
+
+  return {
+    schemaVersion: 2,
+    colorScheme: value.colorScheme,
+    accentMode: value.accentMode,
+    accentPreset: value.accentPreset,
+    customSolidColor,
+    customGradientColors,
+    customGradientType: value.customGradientType,
+    customGradientAngle: angle,
+    navigationLayout: value.navigationLayout,
+    sidebarTheme: value.sidebarTheme,
+    contentWidth: value.contentWidth,
+    fixedSidebar: value.fixedSidebar,
+    colorWeak: value.colorWeak,
+  }
 }
 
 export function resolveAccentPreset(id) {
   return PRESET_BY_ID.get(id) || ACCENT_PRESETS[0]
+}
+
+export function resolveThemeAccent(config) {
+  const normalized = normalizeThemeConfig(config)
+  if (normalized.accentMode === 'CUSTOM_SOLID') {
+    const primary = normalized.customSolidColor
+    return {
+      id: 'CUSTOM_SOLID',
+      name: '自定义纯色',
+      kind: 'solid',
+      primary,
+      secondary: deriveSecondaryColor(primary),
+      foreground: readableForeground([primary]),
+      background: primary,
+    }
+  }
+  if (normalized.accentMode === 'CUSTOM_GRADIENT') {
+    const colors = normalized.customGradientColors
+    return {
+      id: 'CUSTOM_GRADIENT',
+      name: '自定义渐变',
+      kind: 'gradient',
+      primary: colors[0],
+      secondary: colors[colors.length - 1],
+      foreground: readableForeground(colors),
+      background: buildGradientBackground(
+        colors,
+        normalized.customGradientType,
+        normalized.customGradientAngle
+      ),
+    }
+  }
+  return resolveAccentPreset(normalized.accentPreset)
 }
 
 export function createPrimaryScale(primary) {
@@ -113,7 +184,11 @@ export function createPrimaryScale(primary) {
     primary: rgbToHex(rgb),
   }
   for (let index = 1; index <= 9; index += 1) {
-    scale[`light${index}`] = mixRgb(rgb, { r: 255, g: 255, b: 255 }, index / 10)
+    scale[`light${index}`] = mixRgb(
+      rgb,
+      { r: 255, g: 255, b: 255 },
+      index / 10
+    )
   }
   scale.dark1 = mixRgb(rgb, { r: 0, g: 0, b: 0 }, 0.1)
   scale.dark2 = mixRgb(rgb, { r: 0, g: 0, b: 0 }, 0.2)
@@ -124,15 +199,160 @@ export function mixThemeColors(source, target, weight) {
   return mixRgb(hexToRgb(source), hexToRgb(target), weight)
 }
 
+function migrateLegacyConfig(value) {
+  if (!hasExactKeys(value, LEGACY_CONFIG_KEYS) || !isCommonConfigValid(value)) {
+    return defaultConfig()
+  }
+  return {
+    ...defaultConfig(),
+    colorScheme: value.colorScheme,
+    accentPreset: value.accentPreset,
+    sidebarTheme: value.sidebarTheme,
+    contentWidth: value.contentWidth,
+    fixedSidebar: value.fixedSidebar,
+    colorWeak: value.colorWeak,
+  }
+}
+
+function isCommonConfigValid(value) {
+  return (
+    ['LIGHT', 'DARK'].includes(value.colorScheme) &&
+    PRESET_BY_ID.has(value.accentPreset) &&
+    ['LIGHT', 'DARK'].includes(value.sidebarTheme) &&
+    ['FLUID', 'FIXED'].includes(value.contentWidth) &&
+    typeof value.fixedSidebar === 'boolean' &&
+    typeof value.colorWeak === 'boolean'
+  )
+}
+
+function isObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function hasExactKeys(value, expected) {
+  const keys = Object.keys(value)
+  return keys.length === expected.length && keys.every(key => expected.includes(key))
+}
+
+function normalizeColor(value) {
+  const normalized = String(value || '').toUpperCase()
+  return HEX_COLOR_PATTERN.test(normalized) ? normalized : null
+}
+
+function normalizeGradientColors(value) {
+  if (!Array.isArray(value) || ![2, 3].includes(value.length)) return null
+  const colors = value.map(normalizeColor)
+  return colors.every(Boolean) ? colors : null
+}
+
+function normalizeGradientAngle(value) {
+  if (!Number.isInteger(value) || value < 0 || value > 360) return null
+  return value
+}
+
+function buildGradientBackground(colors, type, angle) {
+  const lastIndex = colors.length - 1
+  const stops = colors
+    .map((color, index) => `${color} ${Math.round((index / lastIndex) * 100)}%`)
+    .join(', ')
+  return type === 'RADIAL'
+    ? `radial-gradient(circle at center, ${stops})`
+    : `linear-gradient(${angle}deg, ${stops})`
+}
+
+function deriveSecondaryColor(primary) {
+  const hsl = rgbToHsl(hexToRgb(primary))
+  return rgbToHex(hslToRgb({
+    h: (hsl.h + 137) % 360,
+    s: Math.max(0.58, Math.min(0.82, hsl.s)),
+    l: Math.max(0.44, Math.min(0.6, hsl.l)),
+  }))
+}
+
+function readableForeground(colors) {
+  const candidates = ['#FFFFFF', '#19103B']
+  return candidates
+    .map(color => ({
+      color,
+      score: Math.min(...colors.map(background => contrastRatio(color, background))),
+    }))
+    .sort((first, second) => second.score - first.score)[0].color
+}
+
+function contrastRatio(first, second) {
+  const firstLuminance = relativeLuminance(first)
+  const secondLuminance = relativeLuminance(second)
+  const lighter = Math.max(firstLuminance, secondLuminance)
+  const darker = Math.min(firstLuminance, secondLuminance)
+  return (lighter + 0.05) / (darker + 0.05)
+}
+
+function relativeLuminance(color) {
+  const { r, g, b } = hexToRgb(color)
+  return [r, g, b]
+    .map(value => value / 255)
+    .map(channel => channel <= 0.03928
+      ? channel / 12.92
+      : ((channel + 0.055) / 1.055) ** 2.4)
+    .reduce(
+      (sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index],
+      0
+    )
+}
+
 function hexToRgb(value) {
   const normalized = String(value || '').replace('#', '')
   if (!/^[0-9a-f]{6}$/i.test(normalized)) {
-    throw new Error('主题预设包含无效色值')
+    throw new Error('主题配置包含无效色值')
   }
   return {
     r: Number.parseInt(normalized.slice(0, 2), 16),
     g: Number.parseInt(normalized.slice(2, 4), 16),
     b: Number.parseInt(normalized.slice(4, 6), 16),
+  }
+}
+
+function rgbToHsl({ r, g, b }) {
+  const channels = [r, g, b].map(value => value / 255)
+  const maximum = Math.max(...channels)
+  const minimum = Math.min(...channels)
+  const delta = maximum - minimum
+  const lightness = (maximum + minimum) / 2
+  let hue = 0
+
+  if (delta > 0) {
+    if (maximum === channels[0]) {
+      hue = 60 * (((channels[1] - channels[2]) / delta) % 6)
+    } else if (maximum === channels[1]) {
+      hue = 60 * ((channels[2] - channels[0]) / delta + 2)
+    } else {
+      hue = 60 * ((channels[0] - channels[1]) / delta + 4)
+    }
+  }
+  return {
+    h: hue < 0 ? hue + 360 : hue,
+    s: delta === 0 ? 0 : delta / (1 - Math.abs(2 * lightness - 1)),
+    l: lightness,
+  }
+}
+
+function hslToRgb({ h, s, l }) {
+  const chroma = (1 - Math.abs(2 * l - 1)) * s
+  const segment = h / 60
+  const intermediate = chroma * (1 - Math.abs((segment % 2) - 1))
+  const [red, green, blue] = [
+    [chroma, intermediate, 0],
+    [intermediate, chroma, 0],
+    [0, chroma, intermediate],
+    [0, intermediate, chroma],
+    [intermediate, 0, chroma],
+    [chroma, 0, intermediate],
+  ][Math.floor(segment) % 6]
+  const match = l - chroma / 2
+  return {
+    r: Math.round((red + match) * 255),
+    g: Math.round((green + match) * 255),
+    b: Math.round((blue + match) * 255),
   }
 }
 

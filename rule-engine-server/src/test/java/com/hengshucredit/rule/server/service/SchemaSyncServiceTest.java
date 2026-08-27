@@ -322,6 +322,8 @@ public class SchemaSyncServiceTest {
 
         assertTrue(containsSql(jdbcTemplate.sqlList, "CREATE TABLE `rule_trace_registry`"));
         assertTrue(containsSql(jdbcTemplate.sqlList,
+                "DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"));
+        assertTrue(containsSql(jdbcTemplate.sqlList,
                 "ALTER TABLE `rule_project` ADD COLUMN `trace_scope_code`"));
         assertTrue(containsSql(jdbcTemplate.sqlList,
                 "ALTER TABLE `rule_execution_log` ADD COLUMN `trace_id`"));
@@ -331,6 +333,20 @@ public class SchemaSyncServiceTest {
                 "ALTER TABLE `rule_experiment_execution_log` ADD COLUMN `experiment_trace_id`"));
         assertTrue(containsSql(jdbcTemplate.sqlList,
                 "ALTER TABLE `rule_experiment_execution_log` ADD COLUMN `child_trace_id`"));
+    }
+
+    @Test
+    public void traceSchemaNormalizesExistingRegistryCollation() throws Exception {
+        SchemaSyncService service = new SchemaSyncService();
+        FakeJdbcTemplate jdbcTemplate = new FakeJdbcTemplate();
+        setField(service, "jdbcTemplate", jdbcTemplate);
+
+        Method method = SchemaSyncService.class.getDeclaredMethod("ensureTraceSchema");
+        method.setAccessible(true);
+        method.invoke(service);
+
+        assertTrue(containsSql(jdbcTemplate.sqlList,
+                "ALTER TABLE `rule_trace_registry` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"));
     }
 
     @Test

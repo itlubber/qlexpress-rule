@@ -243,11 +243,11 @@ body,
 .el-table .el-button[data-action]:is(.is-link, .is-text):hover,
 .el-table .el-button[data-action]:is(.is-link, .is-text):focus-visible {
   color: var(--tianshu-action-color) !important;
-  background: rgba(var(--tianshu-action-rgb), 0.12) !important;
+  background: rgba(var(--tianshu-action-rgb), 0.08) !important;
 }
 
 .el-table .el-button[data-action]:is(.is-link, .is-text):active {
-  background: rgba(var(--tianshu-action-rgb), 0.2) !important;
+  background: rgba(var(--tianshu-action-rgb), 0.12) !important;
 }
 
 @each $role in edit, detail, execute, inspect, configure, version, compare,

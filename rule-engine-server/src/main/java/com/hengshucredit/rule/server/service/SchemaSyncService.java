@@ -497,8 +497,9 @@ public class SchemaSyncService {
                     + "PRIMARY KEY (`trace_id`),"
                     + "KEY `idx_trace_parent` (`parent_trace_id`),"
                     + "KEY `idx_trace_resource` (`resource_type`, `resource_id`, `create_time`)"
-                    + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='全局Trace编号注册表'");
+                    + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='全局Trace编号注册表'");
         }
+        ensureUtf8mb4Table("rule_trace_registry");
         if (tableExists("rule_project")) {
             addColumnIfMissing("rule_project", "trace_scope_code",
                     "`trace_scope_code` CHAR(4) DEFAULT NULL COMMENT 'Trace项目作用域码' AFTER `project_code`");

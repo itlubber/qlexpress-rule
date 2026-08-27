@@ -69,6 +69,23 @@ describe('全局日夜主题样式契约', () => {
     ]) expect(dark, token).toContain(token)
   })
 
+  test('设计器强调表面和流程节点提供随主题切换的语义令牌', () => {
+    const css = compiled('theme-tokens.scss')
+    const root = declarationBlock(css, ':root')
+    const dark = declarationBlock(css, '[data-theme=dark]')
+
+    for (const token of [
+      '--tianshu-designer-accent-bg',
+      '--tianshu-designer-accent-border',
+      '--tianshu-designer-alt-bg',
+      '--tianshu-flow-node-bg',
+      '--tianshu-flow-node-text',
+    ]) {
+      expect(root, token).toContain(token)
+      expect(dark, token).toContain(token)
+    }
+  })
+
   test('全局组件层支持渐变主按钮、定宽内容和文档滚动侧栏', () => {
     const css = compiled('theme-components.scss')
 

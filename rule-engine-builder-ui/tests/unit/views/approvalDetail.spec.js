@@ -63,10 +63,17 @@ vi.mock('vue-router', () => ({
 }))
 
 import { flushPromises, shallowMount } from '@test-utils'
+import { ElMessage } from 'element-plus'
+import * as definitionApi from '@/api/definition'
+import { approveGovernanceRequest } from '@/api/governance'
 import { clearCurrentUser, setCurrentUser } from '@/security/permissionState'
 import ApprovalDetail from '@/views/approval/ApprovalDetail.vue'
 
 describe('统一审批详情', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   afterEach(() => {
     clearCurrentUser()
   })
@@ -195,5 +202,63 @@ describe('统一审批详情', () => {
       initialNodeId: 27,
       initialDirection: 'ALL'
     })
+  })
+
+  test('规则审批可直接打开对应冻结修订设计', async() => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({
+      data: [{
+        id: 21,
+        definitionId: 29,
+        state: 'REVIEW',
+        governanceRequestId: 12
+      }]
+    })
+    const wrapper = shallowMount(ApprovalDetail, {
+      global: { directives: { permission: {} } }
+    })
+    await flushPromises()
+    wrapper.vm.detail = {
+      ...wrapper.vm.detail,
+      request: {
+        ...wrapper.vm.detail.request,
+        resourceType: 'RULE',
+        resourceId: 29,
+        submittedSnapshotJson: JSON.stringify({
+          id: 29,
+          modelType: 'RULE_SET'
+        })
+      }
+    }
+    await wrapper.vm.$nextTick()
+
+    const button = wrapper.findAll('el-button-stub')
+      .find(item => item.text().trim() === '打开规则设计')
+    expect(button).toBeDefined()
+    await button.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.vm.navigation.push).toHaveBeenCalledWith({
+      name: 'RuleSet',
+      params: { id: '29' },
+      query: { sourceType: 'REVISION', sourceId: '21' }
+    })
+  })
+
+  test('审批时发现内容漂移提示已生成可编辑草稿', async() => {
+    approveGovernanceRequest.mockResolvedValueOnce({
+      data: { status: 'CONFLICT' }
+    })
+    const wrapper = shallowMount(ApprovalDetail, {
+      global: { directives: { permission: {} } }
+    })
+    await flushPromises()
+    wrapper.vm.activeAction = 'approve'
+
+    await wrapper.vm.confirmAction()
+
+    expect(ElMessage.warning).toHaveBeenCalledWith(
+      '审批内容或依赖已变化，已生成可编辑草稿，请重新提交审批'
+    )
+    expect(ElMessage.success).not.toHaveBeenCalled()
   })
 })

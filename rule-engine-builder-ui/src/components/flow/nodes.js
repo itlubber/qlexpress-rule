@@ -180,8 +180,8 @@ function ScriptTaskFactory(RectNode, RectNodeModel) {
           height,
           rx: radius,
           ry: radius,
-          fill: '#EAF2FF',
-          stroke: '#2F54EB',
+          fill: 'var(--tianshu-flow-node-bg)',
+          stroke: 'var(--tianshu-flow-node-border)',
           strokeWidth: 2
         }),
         h('text', {
@@ -189,7 +189,7 @@ function ScriptTaskFactory(RectNode, RectNodeModel) {
           y: y + 1,
           textAnchor: 'middle',
           dominantBaseline: 'central',
-          fill: '#1D39C4',
+          fill: 'var(--tianshu-flow-node-text)',
           fontSize: 13,
           fontWeight: 'bold'
         }, name.length > 10 ? name.substr(0, 10) + '...' : name)
@@ -218,8 +218,8 @@ function ScriptTaskFactory(RectNode, RectNodeModel) {
     }
     getNodeStyle() {
       const style = super.getNodeStyle()
-      style.stroke = '#2F54EB'
-      style.fill = '#EAF2FF'
+      style.stroke = 'var(--tianshu-flow-node-border)'
+      style.fill = 'var(--tianshu-flow-node-bg)'
       style.radius = 6
       return style
     }

@@ -515,13 +515,18 @@ public class RuleLifecycleService {
             throw governance(409, "SOURCE_REVIEW_REQUIRES_RETURN",
                     "REVIEW 修订需先退回 DRAFT");
         }
-        if (!RuleRevisionState.APPROVED.name().equals(source.getState())
+        boolean rejected = RuleRevisionState.REJECTED.name()
+                .equals(source.getState());
+        if (!rejected
+                && !RuleRevisionState.APPROVED.name().equals(source.getState())
                 && !RuleRevisionState.PUBLISHED.name().equals(source.getState())
                 && !RuleRevisionState.OFFLINE.name().equals(source.getState())) {
             throw governance(400, "SOURCE_NOT_FOUND", "来源不存在或不属于当前规则");
         }
-        draft.setBaseRevisionId(source.getId());
-        draft.setBaseArtifactId(source.getArtifactId());
+        draft.setBaseRevisionId(rejected
+                ? source.getBaseRevisionId() : source.getId());
+        draft.setBaseArtifactId(rejected
+                ? source.getBaseArtifactId() : source.getArtifactId());
         draft.setModelJson(source.getModelJson());
         draft.setCompiledScript(source.getCompiledScript());
         draft.setCompiledType(source.getCompiledType());

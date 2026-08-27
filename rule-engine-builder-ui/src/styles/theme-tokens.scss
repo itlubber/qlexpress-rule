@@ -37,6 +37,13 @@
   --tianshu-table-status-border: rgba(var(--el-color-primary-rgb), 0.22);
   --tianshu-table-scope-global-bg: rgba(var(--el-color-primary-rgb), 0.14);
   --tianshu-table-scope-global-border: rgba(var(--el-color-primary-rgb), 0.32);
+  --tianshu-designer-accent-bg: rgba(var(--el-color-primary-rgb), 0.08);
+  --tianshu-designer-accent-border: rgba(var(--el-color-primary-rgb), 0.24);
+  --tianshu-designer-alt-bg: rgba(var(--tianshu-color-secondary-rgb), 0.08);
+  --tianshu-designer-alt-border: rgba(var(--tianshu-color-secondary-rgb), 0.24);
+  --tianshu-flow-node-bg: rgba(var(--el-color-primary-rgb), 0.1);
+  --tianshu-flow-node-border: var(--el-color-primary);
+  --tianshu-flow-node-text: var(--el-color-primary-dark-2);
   --tianshu-sidebar-bg: #191f3a;
   --tianshu-sidebar-bg-hover: #262d4f;
   --tianshu-sidebar-bg-active: var(--tianshu-brand-background);
@@ -111,6 +118,13 @@
   --tianshu-table-status-border: rgba(var(--el-color-primary-rgb), 0.36);
   --tianshu-table-scope-global-bg: rgba(var(--el-color-primary-rgb), 0.26);
   --tianshu-table-scope-global-border: rgba(var(--el-color-primary-rgb), 0.5);
+  --tianshu-designer-accent-bg: rgba(var(--el-color-primary-rgb), 0.18);
+  --tianshu-designer-accent-border: rgba(var(--el-color-primary-rgb), 0.42);
+  --tianshu-designer-alt-bg: rgba(var(--tianshu-color-secondary-rgb), 0.16);
+  --tianshu-designer-alt-border: rgba(var(--tianshu-color-secondary-rgb), 0.38);
+  --tianshu-flow-node-bg: rgba(var(--el-color-primary-rgb), 0.2);
+  --tianshu-flow-node-border: var(--el-color-primary-light-2);
+  --tianshu-flow-node-text: var(--el-color-primary-light-5);
   --tianshu-border: #34415d;
   --tianshu-border-subtle: #28344d;
   --tianshu-border-strong: #53617d;

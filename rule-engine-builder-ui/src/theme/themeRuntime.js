@@ -3,14 +3,14 @@ import {
   createPrimaryScale,
   mixThemeColors,
   normalizeThemeConfig,
-  resolveAccentPreset,
+  resolveThemeAccent,
 } from './themeConfig'
 
 export const LOCAL_THEME_STORAGE_KEY = 'tianshu-ui-theme-v1'
 
 export function applyTheme(config, root = document.documentElement) {
   const normalized = normalizeThemeConfig(config)
-  const preset = resolveAccentPreset(normalized.accentPreset)
+  const preset = resolveThemeAccent(normalized)
   const scale = createPrimaryScale(preset.primary)
   const secondaryScale = createPrimaryScale(preset.secondary)
   const hintPalette = createHintPalette(
@@ -25,6 +25,7 @@ export function applyTheme(config, root = document.documentElement) {
 
   root.dataset.theme = normalized.colorScheme.toLowerCase()
   root.dataset.sidebarTheme = normalized.sidebarTheme.toLowerCase()
+  root.dataset.navigationLayout = normalized.navigationLayout.toLowerCase()
   root.classList.toggle(
     'theme-content--fixed',
     normalized.contentWidth === 'FIXED'
@@ -57,6 +58,18 @@ export function applyTheme(config, root = document.documentElement) {
   }
   setProperty(root, '--tianshu-focus-ring', `rgba(${scale.rgb}, 0.18)`)
   setProperty(root, '--tianshu-primary-shadow', `rgba(${scale.rgb}, 0.16)`)
+  setProperty(
+    root,
+    '--tianshu-scrollbar-thumb',
+    `linear-gradient(90deg, ${preset.primary} 0%, ${preset.secondary} 100%)`
+  )
+  setProperty(root, '--tianshu-scrollbar-thumb-solid', preset.primary)
+  setProperty(
+    root,
+    '--tianshu-scrollbar-track',
+    `rgba(${scale.rgb}, ${normalized.colorScheme === 'DARK' ? 0.12 : 0.08})`
+  )
+  setProperty(root, '--tianshu-scrollbar-glow', `rgba(${scale.rgb}, 0.42)`)
 
   if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
     window.dispatchEvent(new CustomEvent('tianshu-theme-change', {
@@ -152,27 +165,34 @@ function createHintTone(scale, dark, strength) {
 }
 
 function createActionPalette(primary, colorScheme) {
-  const themedBases = {
-    edit: primary,
-    detail: '#0B6BFF',
-    execute: '#FF5A00',
-    inspect: '#E000C5',
-    configure: '#7A18FF',
-    version: '#3154F4',
-    compare: '#F04400',
-    rollback: '#F0006B',
-    global: '#F00083',
-    publish: '#FF7900',
-    reset: '#0052FF',
-    disable: '#D500E6',
-    add: '#A600FF',
-    docs: '#D800B6',
-    delete: '#F00024',
-  }
   const dark = colorScheme === 'DARK'
+  const colors = {
+    edit: ensureActionContrast(primary, dark),
+  }
+  colors.delete = selectActionColor(
+    'delete',
+    [
+      '#F00024',
+      '#B00000',
+      '#A60038',
+      '#FF3F00',
+      '#C02000',
+    ],
+    colors,
+    dark
+  )
 
-  return Object.fromEntries(Object.entries(themedBases).map(([role, base]) => {
-    const color = ensureActionContrast(base, dark)
+  for (const role of actionAssignmentOrder) {
+    colors[role] = selectActionColor(
+      role,
+      preferredActionCandidates(role),
+      colors,
+      dark
+    )
+  }
+
+  return Object.fromEntries(actionRoles.map(role => {
+    const color = colors[role]
     return [role, {
       color,
       rgb: createPrimaryScale(color).rgb,
@@ -181,15 +201,165 @@ function createActionPalette(primary, colorScheme) {
 }
 
 function ensureActionContrast(color, dark) {
-  const background = dark ? '#151D31' : '#FFFFFF'
-  const target = dark ? '#FFFFFF' : '#111827'
-  if (contrastRatio(color, background) >= 4.5) return color
+  if (hasReadableActionContrast(color, dark)) return color
 
-  for (let weight = 0.08; weight <= 0.8; weight += 0.08) {
-    const candidate = mixThemeColors(color, target, weight)
-    if (contrastRatio(candidate, background) >= 4.5) return candidate
+  let lowerWeight = 0
+  let upperWeight = 1
+  let readableColor = adjustActionLightness(color, dark, upperWeight)
+  for (let iteration = 0; iteration < 16; iteration += 1) {
+    const weight = (lowerWeight + upperWeight) / 2
+    const candidate = adjustActionLightness(color, dark, weight)
+    if (hasReadableActionContrast(candidate, dark)) {
+      readableColor = candidate
+      upperWeight = weight
+    } else {
+      lowerWeight = weight
+    }
   }
-  return target
+  return readableColor
+}
+
+function adjustActionLightness(color, dark, weight) {
+  const { hue, saturation, lightness } = hslColor(color)
+  const targetLightness = dark ? 0.96 : 0.08
+  return hslToHex(
+    hue,
+    saturation,
+    lightness + (targetLightness - lightness) * weight
+  )
+}
+
+const actionRoles = [
+  'edit',
+  'detail',
+  'execute',
+  'inspect',
+  'configure',
+  'version',
+  'compare',
+  'rollback',
+  'global',
+  'publish',
+  'reset',
+  'disable',
+  'add',
+  'docs',
+  'delete',
+]
+
+const actionAssignmentOrder = [
+  'configure',
+  'detail',
+  'execute',
+  'global',
+  'inspect',
+  'reset',
+  'publish',
+  'disable',
+  'version',
+  'docs',
+  'add',
+  'compare',
+  'rollback',
+]
+
+const actionCandidateBases = [
+  '#0052FF',
+  '#2546F5',
+  '#5A1BFF',
+  '#8418FF',
+  '#B100FF',
+  '#D500E6',
+  '#F000B8',
+  '#F00083',
+  '#F0004F',
+  '#F00024',
+  '#FF3600',
+  '#FF6500',
+]
+
+const preferredActionCandidateIndex = {
+  detail: 0,
+  execute: 11,
+  inspect: 6,
+  configure: 3,
+  version: 1,
+  compare: 10,
+  rollback: 8,
+  global: 7,
+  publish: 11,
+  reset: 0,
+  disable: 5,
+  add: 4,
+  docs: 6,
+}
+
+const coexistingActionGroups = [
+  ['edit', 'configure', 'reset', 'publish'],
+  ['edit', 'configure', 'reset', 'disable'],
+  ['configure', 'publish'],
+  ['configure', 'disable'],
+  ['edit', 'delete'],
+  ['execute', 'detail', 'delete'],
+  ['execute', 'edit', 'version', 'delete'],
+  ['inspect', 'compare', 'rollback'],
+  ['detail', 'edit', 'publish', 'global', 'delete'],
+  ['detail', 'edit', 'disable', 'global', 'delete'],
+  ['edit', 'execute', 'inspect', 'delete'],
+  ['edit', 'execute', 'add', 'delete'],
+  ['edit', 'execute', 'delete'],
+  ['detail', 'edit', 'delete'],
+  ['edit', 'detail', 'execute', 'configure', 'global', 'delete'],
+  ['edit', 'configure', 'delete'],
+  ['edit', 'global', 'delete'],
+  ['detail', 'inspect', 'delete'],
+  ['edit', 'detail', 'configure', 'docs', 'delete'],
+]
+
+function preferredActionCandidates(role) {
+  const start = preferredActionCandidateIndex[role]
+  return [
+    ...actionCandidateBases.slice(start),
+    ...actionCandidateBases.slice(0, start),
+  ]
+}
+
+function selectActionColor(role, candidates, selectedColors, dark) {
+  const neighborColors = coexistingActionGroups
+    .filter(group => group.includes(role))
+    .flatMap(group => group)
+    .filter(neighbor => neighbor !== role && selectedColors[neighbor])
+    .map(neighbor => selectedColors[neighbor])
+  const readableCandidates = [...new Set(
+    candidates.map(candidate => ensureActionContrast(candidate, dark))
+  )]
+  if (neighborColors.length === 0) return readableCandidates[0]
+
+  const distinctCandidate = readableCandidates.find(candidate =>
+    neighborColors.every(color => perceptualColorDistance(candidate, color) >= 18)
+  )
+  if (distinctCandidate) return distinctCandidate
+
+  return readableCandidates.reduce((best, candidate) => {
+    const distance = Math.min(...neighborColors.map(color =>
+      perceptualColorDistance(candidate, color)
+    ))
+    return distance > best.distance ? { color: candidate, distance } : best
+  }, { color: readableCandidates[0], distance: -1 }).color
+}
+
+function hasReadableActionContrast(color, dark) {
+  const surface = dark ? '#151D31' : '#FFFFFF'
+  const rowHoverSurface = dark ? '#26324D' : '#EEF2F7'
+  const interactionSurfaces = [
+    surface,
+    rowHoverSurface,
+    mixThemeColors(rowHoverSurface, color, 0.08),
+    mixThemeColors(rowHoverSurface, color, 0.12),
+  ]
+  return interactionSurfaces.every(background =>
+    contrastRatio(color, background) >= 4.5
+  )
 }
 
 function contrastRatio(first, second) {
@@ -201,14 +371,98 @@ function contrastRatio(first, second) {
 }
 
 function relativeLuminance(color) {
-  return String(color)
-    .replace('#', '')
-    .match(/.{2}/g)
-    .map(value => Number.parseInt(value, 16) / 255)
+  return hexChannels(color)
+    .map(value => value / 255)
     .map(channel => channel <= 0.03928
       ? channel / 12.92
       : ((channel + 0.055) / 1.055) ** 2.4)
     .reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0)
+}
+
+function perceptualColorDistance(first, second) {
+  const firstLab = labColor(first)
+  const secondLab = labColor(second)
+  return Math.sqrt(
+    (firstLab.lightness - secondLab.lightness) ** 2 +
+    (firstLab.a - secondLab.a) ** 2 +
+    (firstLab.b - secondLab.b) ** 2
+  )
+}
+
+function labColor(color) {
+  const [red, green, blue] = hexChannels(color).map(value => {
+    const channel = value / 255
+    return channel <= 0.04045
+      ? channel / 12.92
+      : ((channel + 0.055) / 1.055) ** 2.4
+  })
+  const [x, y, z] = [
+    (red * 0.4124 + green * 0.3576 + blue * 0.1805) / 0.95047,
+    red * 0.2126 + green * 0.7152 + blue * 0.0722,
+    (red * 0.0193 + green * 0.1192 + blue * 0.9505) / 1.08883,
+  ].map(value => value > 0.008856
+    ? Math.cbrt(value)
+    : 7.787 * value + 16 / 116)
+
+  return {
+    lightness: 116 * y - 16,
+    a: 500 * (x - y),
+    b: 200 * (y - z),
+  }
+}
+
+function hexChannels(color) {
+  return String(color)
+    .replace('#', '')
+    .match(/.{2}/g)
+    .map(value => Number.parseInt(value, 16))
+}
+
+function hslColor(color) {
+  const channels = hexChannels(color).map(value => value / 255)
+  const maximum = Math.max(...channels)
+  const minimum = Math.min(...channels)
+  const delta = maximum - minimum
+  const lightness = (maximum + minimum) / 2
+  let hue = 0
+
+  if (delta > 0) {
+    if (maximum === channels[0]) {
+      hue = 60 * (((channels[1] - channels[2]) / delta) % 6)
+    } else if (maximum === channels[1]) {
+      hue = 60 * ((channels[2] - channels[0]) / delta + 2)
+    } else {
+      hue = 60 * ((channels[0] - channels[1]) / delta + 4)
+    }
+  }
+
+  return {
+    hue: hue < 0 ? hue + 360 : hue,
+    saturation: delta === 0
+      ? 0
+      : delta / (1 - Math.abs(2 * lightness - 1)),
+    lightness,
+  }
+}
+
+function hslToHex(hue, saturation, lightness) {
+  const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation
+  const segment = hue / 60
+  const intermediate = chroma * (1 - Math.abs((segment % 2) - 1))
+  const [red, green, blue] = [
+    [chroma, intermediate, 0],
+    [intermediate, chroma, 0],
+    [0, chroma, intermediate],
+    [0, intermediate, chroma],
+    [intermediate, 0, chroma],
+    [chroma, 0, intermediate],
+  ][Math.floor(segment) % 6]
+  const offset = lightness - chroma / 2
+  return `#${[red, green, blue]
+    .map(channel => Math.round((channel + offset) * 255)
+      .toString(16)
+      .padStart(2, '0'))
+    .join('')}`.toUpperCase()
 }
 
 function readableForeground(background) {

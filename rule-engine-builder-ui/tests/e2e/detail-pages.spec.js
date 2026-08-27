@@ -3,7 +3,7 @@ const { installDistRoutes } = require('./support/distRoutes.cjs')
 const { createDetailApiData } = require('./support/detailFixtures.cjs')
 const { createDocsApiData } = require('./support/docsFixtures.cjs')
 
-async function openDetailPage(page, path) {
+async function openDetailPage(page, path, apiData = createDetailApiData()) {
   const pageErrors = []
   const consoleErrors = []
   page.on('pageerror', error => pageErrors.push(error.message))
@@ -12,7 +12,7 @@ async function openDetailPage(page, path) {
   })
   await page.setViewportSize({ width: 1440, height: 900 })
   const { assertClean } = await installDistRoutes(page, {
-    apiData: createDetailApiData()
+    apiData
   })
   await page.goto(`http://tianshu.local/index.html#${path}`)
   await expect(page.getByRole('main')).toBeVisible()
@@ -109,6 +109,72 @@ test('规则详情加载输入输出字段且页签可操作', async ({ page }) 
   const outputCode = page.getByText('approved', { exact: true }).first()
   await expect(outputCode).toBeVisible()
   await expectTextSelectable(outputCode, 'approved')
+  await expectNoRootOverflow(page)
+  expect(errors.pageErrors).toEqual([])
+  expect(errors.consoleErrors).toEqual([])
+  errors.assertClean()
+})
+
+test('规则输入和输出的数据对象字段按对象父层和字段子层显示', async ({ page }) => {
+  const apiData = createDetailApiData()
+  const detail = apiData.get('/api/rule/definition/detail/101')
+  const object = {
+    id: 20,
+    objectCode: 'score_f1_fields',
+    objectLabel: '评分字段',
+    scriptName: 'score_f1_fields'
+  }
+  const inputField = {
+    id: 2001,
+    varId: 301,
+    refType: 'DATA_OBJECT',
+    fieldName: 'HYBASE_X115',
+    fieldLabel: 'HYBASE_X115',
+    scriptName: 'score_f1_fields.HYBASE_X115',
+    fieldType: 'DOUBLE',
+    validationRuleIds: '[]'
+  }
+  const outputField = {
+    id: 2002,
+    varId: 302,
+    refType: 'DATA_OBJECT',
+    fieldName: 'risk_result',
+    fieldLabel: '风险结果',
+    scriptName: 'score_f1_fields.risk_result',
+    fieldType: 'STRING'
+  }
+  detail.inputFieldsJson.push(inputField)
+  detail.outputFieldsJson.push(outputField)
+  apiData.set('/api/rule/dataobject/tree/1', [{
+    object,
+    variables: [{
+      id: 301,
+      varCode: 'HYBASE_X115',
+      varLabel: 'HYBASE_X115',
+      scriptName: 'HYBASE_X115',
+      varType: 'DOUBLE'
+    }, {
+      id: 302,
+      varCode: 'risk_result',
+      varLabel: '风险结果',
+      scriptName: 'risk_result',
+      varType: 'STRING'
+    }]
+  }])
+
+  const errors = await openDetailPage(page, '/rule/101', apiData)
+  await page.getByRole('tab', { name: /输入字段/ }).click()
+  const inputHierarchy = page.getByTestId('input-field-hierarchy-2001')
+  await expect(inputHierarchy.locator('.rule-field-hierarchy__object-name')).toHaveText('评分字段')
+  await expect(inputHierarchy.locator('.rule-field-hierarchy__object-code')).toHaveText('score_f1_fields')
+  await expect(inputHierarchy.locator('.rule-field-hierarchy__field-name')).toHaveText('HYBASE_X115')
+  await expect(inputHierarchy.locator('.rule-field-hierarchy__field-path')).toHaveText('score_f1_fields.HYBASE_X115')
+
+  await page.getByRole('tab', { name: /输出字段/ }).click()
+  const outputHierarchy = page.getByTestId('output-field-hierarchy-2002')
+  await expect(outputHierarchy.locator('.rule-field-hierarchy__object-name')).toHaveText('评分字段')
+  await expect(outputHierarchy.locator('.rule-field-hierarchy__field-name')).toHaveText('风险结果')
+  await expect(outputHierarchy.locator('.rule-field-hierarchy__field-path')).toHaveText('score_f1_fields.risk_result')
   await expectNoRootOverflow(page)
   expect(errors.pageErrors).toEqual([])
   expect(errors.consoleErrors).toEqual([])

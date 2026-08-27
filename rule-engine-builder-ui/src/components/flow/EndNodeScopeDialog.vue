@@ -125,13 +125,13 @@ export default {
   }
 
   &.is-checked.scope-current {
-    border-color: #d46b08;
-    background: #fff7e6;
+    border-color: var(--tianshu-warning-border);
+    background: var(--tianshu-warning-bg);
   }
 
   &.is-checked.scope-all {
-    border-color: #cf1322;
-    background: #fff1f0;
+    border-color: var(--tianshu-danger-border);
+    background: var(--tianshu-danger-bg);
   }
 }
 .scope-title {
