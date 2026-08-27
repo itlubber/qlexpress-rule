@@ -7,6 +7,7 @@
     :size="drawerSize"
     :before-close="handleBeforeClose"
     :lock-scroll="false"
+    :modal="false"
     append-to-body
   >
     <div class="theme-settings">

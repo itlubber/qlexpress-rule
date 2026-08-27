@@ -4,7 +4,7 @@ import { DEFAULT_THEME_CONFIG } from '@/theme/themeConfig'
 
 const drawerStub = {
   name: 'ElDrawer',
-  props: ['modelValue', 'beforeClose', 'lockScroll'],
+  props: ['modelValue', 'beforeClose', 'lockScroll', 'modal'],
   template: `
     <section v-if="modelValue" class="drawer-stub">
       <slot />
@@ -43,6 +43,12 @@ function mountDrawer(overrides = {}) {
 }
 
 describe('ThemeSettingsDrawer', () => {
+  test('打开主题抽屉时不显示页面遮罩，便于直接观察实时主题变化', () => {
+    const wrapper = mountDrawer()
+
+    expect(wrapper.getComponent(drawerStub).props('modal')).toBe(false)
+  })
+
   test('打开主题抽屉时不锁定页面滚动，避免工作区宽度变化', () => {
     const wrapper = mountDrawer()
 

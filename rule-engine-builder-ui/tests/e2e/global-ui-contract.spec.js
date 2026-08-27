@@ -43,7 +43,7 @@ test('全局字体、业务文本选择和关键按钮语义可用', async ({ pa
   assertClean()
 })
 
-test('打开主题设置抽屉不会改变页面可视宽度', async ({ page }) => {
+test('打开主题设置抽屉不显示遮罩且不改变页面可视宽度', async ({ page }) => {
   const { assertClean } = await installDistRoutes(page)
   await page.goto('http://tianshu.local/index.html#/project')
   const before = await page.evaluate(() => ({
@@ -56,6 +56,7 @@ test('打开主题设置抽屉不会改变页面可视宽度', async ({ page }) 
   await expect(page.getByRole('menuitem', { name: '退出账号' })).toBeVisible()
   await page.getByRole('menuitem', { name: '主题设置' }).click()
   await expect(page.getByRole('heading', { name: '主题色' })).toBeVisible()
+  await expect(page.locator('.el-overlay:visible')).toHaveCount(0)
   const after = await page.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,
     bodyWidth: document.body.style.width,
