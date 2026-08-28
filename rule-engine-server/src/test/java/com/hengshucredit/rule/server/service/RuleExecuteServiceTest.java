@@ -7,6 +7,7 @@ import com.hengshucredit.rule.model.dto.RuleResult;
 import com.hengshucredit.rule.model.entity.RuleDefinition;
 import com.hengshucredit.rule.model.entity.RuleDefinitionInputField;
 import com.hengshucredit.rule.model.entity.RuleDefinitionOutputField;
+import com.hengshucredit.rule.model.entity.RuleDataObjectField;
 import com.hengshucredit.rule.model.entity.RuleExecutionLog;
 import com.hengshucredit.rule.model.entity.RuleFunction;
 import com.hengshucredit.rule.model.entity.RuleProject;
@@ -36,6 +37,97 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 public class RuleExecuteServiceTest {
+
+    @Test
+    public void publishedExecutionAssemblesMappedObjectFieldAndKeepsExplicitTargetPriority() {
+        RuleExecuteService service = new RuleExecuteService();
+        RuleDefinitionInputField age = new RuleDefinitionInputField();
+        age.setVarId(9L);
+        age.setRefType("VARIABLE");
+        age.setScriptName("age");
+        age.setFieldType("NUMBER");
+        RuleDefinitionInputField requestAge = new RuleDefinitionInputField();
+        requestAge.setVarId(30L);
+        requestAge.setRefType("DATA_OBJECT");
+        requestAge.setScriptName("request.age");
+        requestAge.setFieldType("NUMBER");
+
+        RuleVariable ageVariable = new RuleVariable();
+        ageVariable.setId(9L);
+        ageVariable.setVarCode("age");
+        ageVariable.setVarLabel("年龄");
+        ageVariable.setScriptName("age");
+        ageVariable.setVarType("NUMBER");
+        ageVariable.setVarSource("INPUT");
+        ageVariable.setStatus(1);
+        RuleDataObjectField mappedField = new RuleDataObjectField();
+        mappedField.setId(30L);
+        mappedField.setRefVariableId(9L);
+        DataObjectFieldReferenceResolver delegate =
+                new DataObjectFieldReferenceResolver();
+        DataObjectFieldReferenceResolver.ReferencePlan plan =
+                delegate.resolveSnapshot(
+                        Collections.singletonList(requestAge),
+                        Collections.singletonList(mappedField),
+                        Collections.singletonList(ageVariable));
+
+        RuleDefinitionService definitionService = new FakeDefinitionService() {
+            @Override
+            public List<RuleDefinitionInputField> listInputFields(Long definitionId) {
+                return Collections.singletonList(age);
+            }
+        };
+        RuleFieldAnalyzer analyzer = new RuleFieldAnalyzer() {
+            @Override
+            public List<RuleDefinitionInputField> extractDirectModelInputFields(
+                    String modelJson, String modelType) {
+                return Collections.singletonList(requestAge);
+            }
+        };
+        ReflectionTestUtils.setField(service, "qlExpressEngine", new QLExpressEngine());
+        ReflectionTestUtils.setField(service, "definitionService", definitionService);
+        ReflectionTestUtils.setField(service, "projectService", new FakeProjectService());
+        ReflectionTestUtils.setField(service, "logService", new RecordingLogService());
+        ReflectionTestUtils.setField(service, "functionService", new FakeFunctionService());
+        ReflectionTestUtils.setField(service, "functionRegistrar", new FunctionRegistrar());
+        ReflectionTestUtils.setField(service, "billingService", new RecordingBillingService());
+        ReflectionTestUtils.setField(service, "variableSourceResolver", new PassThroughVariableResolver());
+        ReflectionTestUtils.setField(service, "runtimeRuleInvoker", new NoOpRuntimeInvoker());
+        ReflectionTestUtils.setField(service, "executionParameterBinder", new ExecutionParameterBinder());
+        ReflectionTestUtils.setField(service, "ruleFieldAnalyzer", analyzer);
+        ReflectionTestUtils.setField(service, "dataObjectFieldReferenceResolver",
+                new DataObjectFieldReferenceResolver() {
+                    @Override
+                    public ReferencePlan resolveLive(List<RuleDefinitionInputField> directFields) {
+                        return plan;
+                    }
+                });
+
+        RulePublished published = new RulePublished();
+        published.setDefinitionId(10L);
+        published.setRuleCode("MAPPED_AGE");
+        published.setProjectCode("project_a");
+        published.setVersion(1);
+        published.setModelType("SCRIPT");
+        published.setModelJson("{\"script\":\"request.age\"}");
+        published.setCompiledScript("request.age");
+
+        RuleResult assembled = service.executePublished(
+                published, Collections.<String, Object>singletonMap("age", "18"),
+                1L, "biz-app");
+        Map<String, Object> explicitRequest = new LinkedHashMap<>();
+        explicitRequest.put("age", "21");
+        Map<String, Object> explicitInput = new LinkedHashMap<>();
+        explicitInput.put("age", "18");
+        explicitInput.put("request", explicitRequest);
+        RuleResult explicit = service.executePublished(
+                published, explicitInput, 1L, "biz-app");
+
+        assertTrue(assembled.getErrorMessage(), assembled.isSuccess());
+        assertEquals(Double.valueOf(18D), assembled.getResult());
+        assertTrue(explicit.getErrorMessage(), explicit.isSuccess());
+        assertEquals(Double.valueOf(21D), explicit.getResult());
+    }
 
     @Test
     public void allRulesTerminationReturnsRootOutputContractAsSuccess() {

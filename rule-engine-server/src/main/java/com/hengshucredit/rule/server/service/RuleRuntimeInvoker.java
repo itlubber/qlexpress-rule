@@ -69,6 +69,12 @@ public class RuleRuntimeInvoker {
     @Resource
     private FunctionRegistrar functionRegistrar;
 
+    @Resource
+    private RuleFieldAnalyzer ruleFieldAnalyzer;
+
+    @Resource
+    private DataObjectFieldReferenceResolver dataObjectFieldReferenceResolver;
+
     private final AtomicBoolean registered = new AtomicBoolean(false);
     private final ThreadLocal<RuleExecutionSession> currentSession = new ThreadLocal<>();
 
@@ -355,10 +361,18 @@ public class RuleRuntimeInvoker {
                     ? frozenRule.getInputFields() : runtimeSnapshot == null
                     ? definitionService.listInputFields(targetDefinitionId)
                     : runtimeSnapshot.getInputFields();
+            List<RuleDefinitionInputField> directFields = directInputFields(
+                    childModelJson, definition == null ? null : definition.getModelType());
+            DataObjectFieldReferenceResolver.ReferencePlan referencePlan =
+                    referencePlan(runtimeSnapshot, directFields);
+            Set<String> explicitReferenceTargets =
+                    referencePlan.captureExplicitTargets(session.getValues());
             Set<String> requiredNames = requiredInputNames(childFields);
+            requiredNames.addAll(referencePlan.requiredSourceNames());
             options.setRequiredScriptNames(requiredNames);
             Map<String, Object> boundParams = executionParameterBinder.bindRuleInputs(
-                    childFields, session.getValues(), options);
+                    referencePlan.mergeBindingFields(childFields),
+                    session.getValues(), options);
             session.getValues().putAll(boundParams);
             if (runtimeSnapshot == null) {
                 variableSourceResolver.resolveInto(projectId, session.getValues(), options);
@@ -367,6 +381,7 @@ public class RuleRuntimeInvoker {
                         runtimeSnapshot.getModels(), runtimeSnapshot.getFunctions(),
                         session.getValues(), options);
             }
+            referencePlan.apply(session.getValues(), explicitReferenceTargets);
             RuntimeContextBridge.replaceSourceStates(options.getSourceStates());
             RuleResult result = qlExpressEngine.execute(compiledScript, session.getValues(), true);
             childTrace.setExpressionTrace(result.getTraces() == null
@@ -470,6 +485,28 @@ public class RuleRuntimeInvoker {
             }
         }
         return names;
+    }
+
+    private List<RuleDefinitionInputField> directInputFields(
+            String modelJson, String modelType) {
+        if (ruleFieldAnalyzer == null || modelJson == null || modelJson.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+        return ruleFieldAnalyzer.extractDirectModelInputFields(modelJson, modelType);
+    }
+
+    private DataObjectFieldReferenceResolver.ReferencePlan referencePlan(
+            ArtifactRuntimeSnapshotService.RuntimeSnapshot runtimeSnapshot,
+            List<RuleDefinitionInputField> directFields) {
+        if (dataObjectFieldReferenceResolver == null) {
+            return DataObjectFieldReferenceResolver.ReferencePlan.empty();
+        }
+        if (runtimeSnapshot == null) {
+            return dataObjectFieldReferenceResolver.resolveLive(directFields);
+        }
+        return dataObjectFieldReferenceResolver.resolveSnapshot(
+                directFields, runtimeSnapshot.getDataObjectFields(),
+                runtimeSnapshot.getVariables());
     }
 
     private void registerFrozenFunctions(List<RuleFunction> functions) {

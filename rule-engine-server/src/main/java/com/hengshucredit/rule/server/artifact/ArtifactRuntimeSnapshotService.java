@@ -9,6 +9,7 @@ import com.hengshucredit.rule.model.entity.ArtifactResourceBinding;
 import com.hengshucredit.rule.model.entity.DecisionArtifact;
 import com.hengshucredit.rule.model.entity.RuleDefinitionInputField;
 import com.hengshucredit.rule.model.entity.RuleDefinitionOutputField;
+import com.hengshucredit.rule.model.entity.RuleDataObjectField;
 import com.hengshucredit.rule.model.entity.RuleFunction;
 import com.hengshucredit.rule.model.entity.RuleModel;
 import com.hengshucredit.rule.model.entity.RuleModelInputField;
@@ -208,6 +209,7 @@ public class ArtifactRuntimeSnapshotService {
         private final List<RuleFunction> functions = new ArrayList<>();
         private final List<RuleDefinitionInputField> inputFields = new ArrayList<>();
         private final List<RuleDefinitionOutputField> outputFields = new ArrayList<>();
+        private final List<RuleDataObjectField> dataObjectFields = new ArrayList<>();
         private final List<NestedRuleSnapshot> nestedRules = new ArrayList<>();
         private final Map<String, Long> bindings = new LinkedHashMap<>();
 
@@ -221,6 +223,7 @@ public class ArtifactRuntimeSnapshotService {
         public List<RuleFunction> getFunctions() { return functions; }
         public List<RuleDefinitionInputField> getInputFields() { return inputFields; }
         public List<RuleDefinitionOutputField> getOutputFields() { return outputFields; }
+        public List<RuleDataObjectField> getDataObjectFields() { return dataObjectFields; }
         public List<NestedRuleSnapshot> getNestedRules() { return nestedRules; }
         public Map<String, Long> getBindings() { return bindings; }
 

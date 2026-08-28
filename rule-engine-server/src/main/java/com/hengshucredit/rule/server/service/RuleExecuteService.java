@@ -71,6 +71,9 @@ public class RuleExecuteService {
     @Resource
     private ArtifactRuntimeSnapshotService artifactRuntimeSnapshotService;
 
+    @Resource
+    private DataObjectFieldReferenceResolver dataObjectFieldReferenceResolver;
+
     public RuleResult testExecute(Long definitionId, Map<String, Object> params) {
         return testExecute(definitionId, params, null);
     }
@@ -136,9 +139,15 @@ public class RuleExecuteService {
                                    Long executionProjectId) {
         String funcPrefix = prepareProjectFunctions(executionProjectId, true);
         String fullScript = funcPrefix.isEmpty() ? compiledScript : funcPrefix + "\n" + compiledScript;
+        List<RuleDefinitionInputField> directFields = directInputFields(modelJson, definition.getModelType());
+        DataObjectFieldReferenceResolver.ReferencePlan referencePlan =
+                referencePlan(null, directFields);
+        Set<String> explicitReferenceTargets = referencePlan.captureExplicitTargets(params);
         VariableResolveOptions resolveOptions = withInputFields(
                 VariableResolveOptions.defaults(), inputFields, modelJson, definition.getModelType());
-        Map<String, Object> executeParams = bindInputs(inputFields, params, resolveOptions);
+        includeReferenceSources(resolveOptions, referencePlan);
+        Map<String, Object> executeParams = bindInputs(
+                referencePlan.mergeBindingFields(inputFields), params, resolveOptions);
         Map<String, Object> originalInput = snapshotMap(executeParams);
         String projectCode = null;
         if (executionProjectId != null) {
@@ -154,6 +163,7 @@ public class RuleExecuteService {
         try {
             variableSourceResolver.resolveInto(executionProjectId, executeParams,
                     resolveOptions);
+            referencePlan.apply(executeParams, explicitReferenceTargets);
             RuntimeContextBridge.replaceSourceStates(resolveOptions.getSourceStates());
             result = qlExpressEngine.execute(fullScript, executeParams, true);
         } catch (RuleTerminationSignal e) {
@@ -294,9 +304,16 @@ public class RuleExecuteService {
                 ? published.getModelType() : runtimeSnapshot.getModelType();
         String runtimeScript = runtimeSnapshot == null || runtimeSnapshot.getCompiledScript() == null
                 ? published.getCompiledScript() : runtimeSnapshot.getCompiledScript();
+        List<RuleDefinitionInputField> directFields = directInputFields(
+                runtimeModelJson, runtimeModelType);
+        DataObjectFieldReferenceResolver.ReferencePlan referencePlan =
+                referencePlan(runtimeSnapshot, directFields);
+        Set<String> explicitReferenceTargets = referencePlan.captureExplicitTargets(params);
         VariableResolveOptions effectiveOptions = withInputFields(resolveOptions, inputFields,
                 runtimeModelJson, runtimeModelType);
-        Map<String, Object> executeParams = bindInputs(inputFields, params, effectiveOptions);
+        includeReferenceSources(effectiveOptions, referencePlan);
+        Map<String, Object> executeParams = bindInputs(
+                referencePlan.mergeBindingFields(inputFields), params, effectiveOptions);
         Map<String, Object> originalInput = snapshotMap(executeParams);
         String projectCode = published.getProjectCode();
         if (projectCode == null && executionProjectId != null) {
@@ -328,6 +345,7 @@ public class RuleExecuteService {
                         runtimeSnapshot.getModels(), runtimeSnapshot.getFunctions(),
                         executeParams, effectiveOptions);
             }
+            referencePlan.apply(executeParams, explicitReferenceTargets);
             RuntimeContextBridge.replaceSourceStates(effectiveOptions.getSourceStates());
             result = qlExpressEngine.execute(runtimeScript, executeParams, collectTrace);
         } catch (RuleTerminationSignal e) {
@@ -426,6 +444,38 @@ public class RuleExecuteService {
         if (field != null && field.getScriptName() != null && !field.getScriptName().trim().isEmpty()) {
             names.add(field.getScriptName().trim());
         }
+    }
+
+    private List<RuleDefinitionInputField> directInputFields(
+            String modelJson, String modelType) {
+        if (ruleFieldAnalyzer == null || modelJson == null || modelJson.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+        return ruleFieldAnalyzer.extractDirectModelInputFields(modelJson, modelType);
+    }
+
+    private DataObjectFieldReferenceResolver.ReferencePlan referencePlan(
+            ArtifactRuntimeSnapshotService.RuntimeSnapshot runtimeSnapshot,
+            List<RuleDefinitionInputField> directFields) {
+        if (dataObjectFieldReferenceResolver == null) {
+            return DataObjectFieldReferenceResolver.ReferencePlan.empty();
+        }
+        if (runtimeSnapshot == null) {
+            return dataObjectFieldReferenceResolver.resolveLive(directFields);
+        }
+        return dataObjectFieldReferenceResolver.resolveSnapshot(
+                directFields, runtimeSnapshot.getDataObjectFields(),
+                runtimeSnapshot.getVariables());
+    }
+
+    private void includeReferenceSources(
+            VariableResolveOptions options,
+            DataObjectFieldReferenceResolver.ReferencePlan referencePlan) {
+        Set<String> names = options.getRequiredScriptNames() == null
+                ? new LinkedHashSet<>()
+                : new LinkedHashSet<>(options.getRequiredScriptNames());
+        names.addAll(referencePlan.requiredSourceNames());
+        options.setRequiredScriptNames(names);
     }
 
     private Map<String, Object> bindInputs(List<RuleDefinitionInputField> fields, Map<String, Object> params,

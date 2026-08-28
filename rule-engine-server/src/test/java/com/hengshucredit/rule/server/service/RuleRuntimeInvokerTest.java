@@ -7,6 +7,7 @@ import com.hengshucredit.rule.model.dto.RuleResult;
 import com.hengshucredit.rule.model.dto.RuleTraceFrame;
 import com.hengshucredit.rule.model.entity.RuleDefinition;
 import com.hengshucredit.rule.model.entity.RuleDefinitionContent;
+import com.hengshucredit.rule.model.entity.RuleDataObjectField;
 import com.hengshucredit.rule.model.entity.RuleDefinitionInputField;
 import com.hengshucredit.rule.model.entity.RuleDefinitionOutputField;
 import com.hengshucredit.rule.model.entity.RuleProject;
@@ -36,6 +37,76 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class RuleRuntimeInvokerTest {
+
+    @Test
+    public void childRuleAlsoAssemblesMappedDataObjectField() {
+        RuleRuntimeInvoker invoker = new RuleRuntimeInvoker();
+        QLExpressEngine engine = new QLExpressEngine();
+        RuleDefinitionInputField requestAge = new RuleDefinitionInputField();
+        requestAge.setVarId(30L);
+        requestAge.setRefType("DATA_OBJECT");
+        requestAge.setScriptName("request.age");
+        requestAge.setFieldType("NUMBER");
+        RuleDataObjectField mappedField = new RuleDataObjectField();
+        mappedField.setId(30L);
+        mappedField.setRefVariableId(9L);
+        RuleVariable ageVariable = new RuleVariable();
+        ageVariable.setId(9L);
+        ageVariable.setVarCode("age");
+        ageVariable.setVarLabel("年龄");
+        ageVariable.setScriptName("age");
+        ageVariable.setVarType("NUMBER");
+        ageVariable.setVarSource("INPUT");
+        ageVariable.setStatus(1);
+        DataObjectFieldReferenceResolver delegate =
+                new DataObjectFieldReferenceResolver();
+        DataObjectFieldReferenceResolver.ReferencePlan plan =
+                delegate.resolveSnapshot(
+                        Collections.singletonList(requestAge),
+                        Collections.singletonList(mappedField),
+                        Collections.singletonList(ageVariable));
+
+        ReflectionTestUtils.setField(invoker, "definitionService",
+                new MappingChildDefinitionService());
+        ReflectionTestUtils.setField(invoker, "projectService", new GlobalProjectService());
+        ReflectionTestUtils.setField(invoker, "variableSourceResolver",
+                new PassThroughVariableResolver());
+        ReflectionTestUtils.setField(invoker, "qlExpressEngine", engine);
+        ReflectionTestUtils.setField(invoker, "executionParameterBinder",
+                new ExecutionParameterBinder());
+        ReflectionTestUtils.setField(invoker, "ruleFieldAnalyzer",
+                new RuleFieldAnalyzer() {
+                    @Override
+                    public List<RuleDefinitionInputField> extractDirectModelInputFields(
+                            String modelJson, String modelType) {
+                        return Collections.singletonList(requestAge);
+                    }
+                });
+        ReflectionTestUtils.setField(invoker, "dataObjectFieldReferenceResolver",
+                new DataObjectFieldReferenceResolver() {
+                    @Override
+                    public ReferencePlan resolveLive(
+                            List<RuleDefinitionInputField> directFields) {
+                        return plan;
+                    }
+                });
+        invoker.register(engine.getRunner());
+
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("age", "18");
+        invoker.enter("PARENT", 0L, null, values, true);
+        try {
+            RuleResult result = engine.execute(
+                    "executeRuleById(\"8\")", values, true);
+
+            assertTrue(result.getErrorMessage(), result.isSuccess());
+            assertEquals(Double.valueOf(18D), result.getResult());
+            assertEquals(Double.valueOf(18D),
+                    ((Map<?, ?>) values.get("request")).get("age"));
+        } finally {
+            invoker.exit();
+        }
+    }
 
     @Test
     public void childCurrentRuleReturnAllowsParentToContinue() {
@@ -653,6 +724,41 @@ public class RuleRuntimeInvokerTest {
         @Override
         public List<RuleDefinitionInputField> listInputFields(Long definitionId) {
             return Collections.emptyList();
+        }
+    }
+
+    private static class MappingChildDefinitionService extends RuleDefinitionService {
+        @Override
+        public RuleDefinition getById(Serializable id) {
+            RuleDefinition definition = new RuleDefinition();
+            definition.setId(8L);
+            definition.setProjectId(0L);
+            definition.setRuleCode("MAPPED_CHILD");
+            definition.setRuleName("对象映射子规则");
+            definition.setModelType("SCRIPT");
+            definition.setScope("GLOBAL");
+            definition.setStatus(1);
+            return definition;
+        }
+
+        @Override
+        public RuleDefinitionContent getContent(Long definitionId) {
+            RuleDefinitionContent content = new RuleDefinitionContent();
+            content.setDefinitionId(definitionId);
+            content.setCompileStatus(1);
+            content.setCompiledScript("request.age");
+            content.setModelJson("{\"script\":\"request.age\"}");
+            return content;
+        }
+
+        @Override
+        public List<RuleDefinitionInputField> listInputFields(Long definitionId) {
+            RuleDefinitionInputField age = new RuleDefinitionInputField();
+            age.setVarId(9L);
+            age.setRefType("VARIABLE");
+            age.setScriptName("age");
+            age.setFieldType("NUMBER");
+            return Collections.singletonList(age);
         }
     }
 
