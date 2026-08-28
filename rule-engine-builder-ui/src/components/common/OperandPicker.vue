@@ -185,6 +185,14 @@ export default {
       return this.writableOnly ? 'WRITE_TARGET' : 'READ_EXPRESSION'
     },
   },
+  watch: {
+    value(value) {
+      if (value != null) return
+      this.manualKind = ''
+      this.manualOperand = null
+      this.manualPathCandidates = []
+    },
+  },
   activated() {
     this.consumePendingExpression()
   },

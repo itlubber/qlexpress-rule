@@ -150,13 +150,9 @@
             />
             <el-table-column label="脚本名称" min-width="130">
               <template v-slot="{ row }">
-                <el-input
-                  v-model="row.scriptName"
-                  :disabled="!canEditFields"
-                  size="small"
-                  placeholder="脚本名称"
-                  @blur="onVarScriptNameChange(row)"
-                />
+                <code class="script-name-code">{{
+                  row.scriptName || '—'
+                }}</code>
               </template>
             </el-table-column>
             <el-table-column
@@ -378,113 +374,33 @@
           暂无数据对象，点击「新建对象」或「批量导入」添加
         </div>
         <div v-else v-loading="objLoading">
-          <div
-            v-for="node in paginatedObjectTree"
-            :key="node.object.id"
-            class="var-group-card"
+          <el-table
+            data-testid="data-object-table"
+            :data="paginatedObjectTree"
+            :row-key="objectRowKey"
+            :expand-row-keys="expandedObjectRowKeys"
+            border
+            size="small"
+            style="width: 100%"
+            @expand-change="handleObjectExpandChange"
           >
-            <div class="var-group-header" @click="toggleObjectExpand(node)">
-              <app-icon
-                :name="node._expanded ? 'ArrowDown' : 'ArrowRight'"
-                class="expand-icon"
-              />
-              <span class="var-group-code">{{ node.object.objectCode }}</span>
-              <span
-                v-if="
-                  node.object.objectLabel &&
-                  node.object.objectLabel !== node.object.objectCode
-                "
-                class="var-group-label"
-                >{{ node.object.objectLabel }}</span
-              >
-              <el-tag
-                size="small"
-                :class="
-                  node.object.scope === 'GLOBAL'
-                    ? 'el-tag--scope-global'
-                    : 'el-tag--scope-project'
-                "
-                style="margin-left: 4px"
-                >{{ node.object.scope === 'GLOBAL' ? '全局' : '项目' }}</el-tag
-              >
-              <span
-                v-if="getProjectName(node.object.projectId)"
-                style="font-size: 12px; color: #888; margin-left: 2px"
-                >{{ getProjectName(node.object.projectId) }}</span
-              >
-              <span class="var-group-update-time"
-                >更新时间：{{ formatUpdateTime(node.object.updateTime) }}</span
-              >
-            </div>
-            <div class="var-group-toolbar">
-              <el-input
-                v-model="node.object.scriptName"
-                :disabled="!canEditFields"
-                size="small"
-                placeholder="脚本名称"
-                style="width: 130px; margin-left: 6px"
-                @blur="onObjectScriptNameChange(node.object)"
-                @click.stop
-              />
-              <el-select
-                v-model="node.object.objectType"
-                :disabled="!canEditFields"
-                size="small"
-                style="width: 100px"
-                @change="onObjectTypeChange(node.object)"
-                @click.stop
-              >
-                <el-option label="输入对象" value="INPUT" /><el-option
-                  label="输出对象"
-                  value="OUTPUT"
-                /><el-option label="输入输出" value="INOUT" />
-              </el-select>
-              <el-tag
-                size="small"
-                :type="objTypeColor(node.object.objectType)"
-                >{{ objTypeLabel(node.object.objectType) }}</el-tag
-              >
-              <el-tag size="small" type="info" v-if="node.object.sourceType">{{
-                node.object.sourceType
-              }}</el-tag>
-              <span class="var-group-count"
-                >{{ countObjectFields(node.variables) }} 个字段</span
-              >
-              <el-button
-                v-permission="'field:edit'"
-                link
-                size="small"
-                :icon="ElIconEdit"
-                @click.stop="handleEditObject(node.object)"
-                >编辑</el-button
-              >
-              <el-button
-                v-if="node.object.scope === 'PROJECT'"
-                v-permission="'field:edit'"
-                link
-                size="small"
-                @click.stop="handleObjectToGlobal(node.object)"
-                >转为全局</el-button
-              >
-              <el-button
-                v-permission="'field:edit'"
-                link
-                size="small"
-                :icon="ElIconPlus"
-                style="margin-left: auto"
-                @click.stop="handleAddObjectField(node)"
-                >添加字段</el-button
-              >
-              <el-button
-                v-permission="'field:edit'"
-                link
-                size="small"
-                :icon="ElIconDelete"
-                class="btn-delete"
-                @click.stop="handleDeleteObject(node.object)"
-              />
-            </div>
-            <div v-show="node._expanded" class="var-group-body">
+            <el-table-column type="expand" width="48">
+              <template v-slot="{ row: node }">
+                <div v-if="node && node.object" class="object-field-expansion">
+                  <div class="object-field-expansion__heading">
+                    <div>
+                      <strong>{{ node.object.objectLabel || node.object.objectCode }} · 字段明细</strong>
+                      <span>对象字段按层级展开，引用关系均通过稳定 ID 保存。</span>
+                    </div>
+                    <el-button
+                      v-permission="'field:edit'"
+                      link
+                      size="small"
+                      :icon="ElIconPlus"
+                      @click.stop="handleAddObjectField(node)"
+                      >添加字段</el-button
+                    >
+                  </div>
               <el-table
                 :data="paginatedObjectFields(node)"
                 size="small"
@@ -507,13 +423,9 @@
                 />
                 <el-table-column label="脚本名称" min-width="140">
                   <template v-slot="{ row }">
-                    <el-input
-                      v-model="row.scriptName"
-                      :disabled="!canEditFields"
-                      size="small"
-                      placeholder="脚本名称"
-                      @blur="onObjectFieldScriptNameBlur(row)"
-                    />
+                    <code class="script-name-code">{{
+                      row.scriptName || '—'
+                    }}</code>
                   </template>
                 </el-table-column>
                 <el-table-column
@@ -527,6 +439,17 @@
                       typeLabel(row.varType)
                     }}</el-tag></template
                   >
+                </el-table-column>
+                <el-table-column label="引用变量" min-width="150" show-overflow-tooltip>
+                  <template v-slot="{ row }">
+                    <span v-if="row.refVariableId" class="reference-variable-cell">
+                      <strong>{{ referenceVariableLabel(row.refVariableId) }}</strong>
+                      <code v-if="referenceVariableScriptName(row.refVariableId)">{{
+                        referenceVariableScriptName(row.refVariableId)
+                      }}</code>
+                    </span>
+                    <span v-else class="text-muted">—</span>
+                  </template>
                 </el-table-column>
                 <el-table-column
                   prop="refObjectCode"
@@ -591,8 +514,123 @@
                 layout="total,prev,pager,next"
                 @current-change="(p) => handleObjectFieldPageChange(node, p)"
               />
-            </div>
-          </div>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column prop="object.objectCode" label="对象编码" min-width="150" show-overflow-tooltip>
+              <template v-slot="{ row: node }">
+                <code v-if="node && node.object" class="script-name-code">{{
+                  node.object.objectCode
+                }}</code>
+              </template>
+            </el-table-column>
+            <el-table-column prop="object.objectLabel" label="对象名称" min-width="140" show-overflow-tooltip />
+            <el-table-column label="脚本名称" min-width="140" show-overflow-tooltip>
+              <template v-slot="{ row: node }">
+                <code v-if="node && node.object" class="script-name-code">{{
+                  node.object.scriptName || '—'
+                }}</code>
+              </template>
+            </el-table-column>
+            <el-table-column label="作用范围" width="90" align="center">
+              <template v-slot="{ row: node }">
+                <el-tag
+                  v-if="node && node.object"
+                  size="small"
+                  :class="node.object.scope === 'GLOBAL' ? 'el-tag--scope-global' : 'el-tag--scope-project'"
+                  >{{ node.object.scope === 'GLOBAL' ? '全局' : '项目' }}</el-tag
+                >
+              </template>
+            </el-table-column>
+            <el-table-column label="项目名称" min-width="120" show-overflow-tooltip>
+              <template v-slot="{ row: node }">
+                <span v-if="node && node.object">{{
+                  getProjectName(node.object.projectId) || '—'
+                }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="对象类型" width="130" align="center">
+              <template v-slot="{ row: node }">
+                <el-select
+                  v-if="node && node.object"
+                  v-model="node.object.objectType"
+                  :disabled="!canEditFields"
+                  size="small"
+                  style="width: 108px"
+                  @change="onObjectTypeChange(node.object)"
+                  @click.stop
+                >
+                  <el-option label="输入对象" value="INPUT" />
+                  <el-option label="输出对象" value="OUTPUT" />
+                  <el-option label="输入输出" value="INOUT" />
+                </el-select>
+              </template>
+            </el-table-column>
+            <el-table-column label="来源" width="90" align="center">
+              <template v-slot="{ row: node }">
+                <el-tag v-if="node && node.object && node.object.sourceType" size="small" type="info">{{
+                  node.object.sourceType
+                }}</el-tag>
+                <span v-else-if="node && node.object" class="text-muted">—</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="字段数" width="80" align="center">
+              <template v-slot="{ row: node }">
+                <span v-if="node && node.object">{{
+                  countObjectFields(node.variables)
+                }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="更新时间" min-width="165" align="center">
+              <template v-slot="{ row: node }">
+                <span v-if="node && node.object">{{
+                  formatUpdateTime(node.object.updateTime)
+                }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="250" align="center" fixed="right">
+              <template v-slot="{ row: node }">
+                <template v-if="node && node.object">
+                  <el-button
+                    v-permission="'field:edit'"
+                    link
+                    data-action="edit"
+                    size="small"
+                    :icon="ElIconEdit"
+                    @click.stop="handleEditObject(node.object)"
+                    >编辑</el-button
+                  >
+                  <el-button
+                    v-if="node.object.scope === 'PROJECT'"
+                    v-permission="'field:edit'"
+                    link
+                    data-action="global"
+                    size="small"
+                    @click.stop="handleObjectToGlobal(node.object)"
+                    >转为全局</el-button
+                  >
+                  <el-button
+                    v-permission="'field:edit'"
+                    link
+                    data-action="add"
+                    size="small"
+                    :icon="ElIconPlus"
+                    @click.stop="handleAddObjectField(node)"
+                    >添加字段</el-button
+                  >
+                  <el-button
+                    v-permission="'field:edit'"
+                    link
+                    data-action="delete"
+                    size="small"
+                    :icon="ElIconDelete"
+                    class="btn-delete"
+                    @click.stop="handleDeleteObject(node.object)"
+                  />
+                </template>
+              </template>
+            </el-table-column>
+          </el-table>
           <el-pagination
             style="margin-top: 12px; text-align: right"
             :current-page="objPageNum"
@@ -1254,10 +1292,18 @@
             placeholder="中文名称，如 应纳税额"
           />
         </el-form-item>
+        <el-form-item label="脚本名称" prop="scriptName">
+          <el-input
+            v-model="form.scriptName"
+            data-testid="variable-script-name-input"
+            placeholder="QLExpress 脚本中的引用名，如 taxAmount"
+          />
+        </el-form-item>
         <el-form-item label="数据类型" prop="varType">
           <el-select
             v-model="form.varType"
             style="width: 100%"
+            @change="onObjectFieldTypeChange"
           >
             <el-option
               v-for="opt in varTypeFormOptions"
@@ -1551,6 +1597,32 @@
             v-model="form.defaultValue"
             :placeholder="form.varSource === 'CONSTANT' ? '常量必填' : '可选'"
           />
+        </el-form-item>
+        <el-form-item v-if="isObjectField" label="引用变量">
+          <el-select
+            v-model="form.refVariableId"
+            clearable
+            filterable
+            :loading="objectFieldReferenceLoading"
+            :disabled="!!objectFieldReferenceBlockedReason"
+            placeholder="可选：直接引用已有变量"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="item in objectFieldReferenceOptions"
+              :key="item.id"
+              :label="referenceVariableOptionLabel(item)"
+              :value="item.id"
+            />
+          </el-select>
+          <div class="field-help">
+            <span v-if="objectFieldReferenceBlockedReason">{{
+              objectFieldReferenceBlockedReason
+            }}</span>
+            <span v-else>
+              调用时未传当前对象字段，将从该变量取值；显式传入当前对象字段时优先使用当前字段值。
+            </span>
+          </div>
         </el-form-item>
         <el-form-item
           v-if="
@@ -2442,7 +2514,6 @@ import {
   importJsonObject,
   importDdlTable,
   updateObjectType,
-  updateObjectScriptName,
   toGlobalDataObject,
   deleteDataObject,
   batchValidateRules,
@@ -2609,6 +2680,11 @@ export default {
       objLoading: false,
       objectTree: [],
       objectMap: {},
+      objectFieldOwner: null,
+      objectFieldNode: null,
+      objectFieldReferenceVariables: [],
+      objectFieldReferenceLoading: false,
+      objectReferenceVariableMap: {},
       // 常量列表（分页，与变量接口相同）
       constLoading: false,
       constQp: {
@@ -2793,6 +2869,11 @@ export default {
         _expanded: this.objExpanded[n.object.id] === true,
       }))
     },
+    expandedObjectRowKeys() {
+      return Object.keys(this.objExpanded)
+        .filter((id) => this.objExpanded[id] === true)
+        .map((id) => Number(id))
+    },
     filteredObjectTree() {
       const { scope, projectCode, projectName, sourceType, objectCode } =
         this.objQp
@@ -2848,6 +2929,47 @@ export default {
         listName: item.name,
         listCode: item.code,
       }))
+    },
+    objectFieldReferenceOptions() {
+      const owner = this.objectFieldOwner
+      const fieldType = this.form && this.form.varType
+      if (!owner || !fieldType) return []
+      return this.objectFieldReferenceVariables.filter((item) => {
+        if (!item || item.status !== 1) return false
+        if (String(item.varSource || '').toUpperCase() === 'CONSTANT')
+          return false
+        const scope = String(item.scope || '').toUpperCase()
+        if (String(owner.scope || '').toUpperCase() === 'GLOBAL') {
+          if (scope !== 'GLOBAL') return false
+        } else if (
+          scope !== 'GLOBAL' &&
+          Number(item.projectId) !== Number(owner.projectId)
+        ) {
+          return false
+        }
+        return this.objectFieldReferenceTypeCompatible(
+          fieldType,
+          item.varType
+        )
+      })
+    },
+    objectFieldReferenceBlockedReason() {
+      if (!this.isObjectField || !this.objectFieldNode) return ''
+      const parentId = this.form && this.form.parentFieldId
+      let current = parentId
+      const fields = this.flattenObjectFields(this.objectFieldNode.variables)
+      const byId = Object.fromEntries(fields.map((field) => [field.id, field]))
+      const visited = new Set()
+      while (current && !visited.has(current)) {
+        visited.add(current)
+        const parent = byId[current]
+        if (!parent) return ''
+        if (['LIST', 'ARRAY', 'SET'].includes(String(parent.varType).toUpperCase())) {
+          return '列表元素内部字段不能直接引用变量，请在 LIST 字段上整体引用。'
+        }
+        current = parent.parentFieldId
+      }
+      return ''
     },
     variableConfigurationChecklist() {
       const scoped =
@@ -3009,6 +3131,7 @@ export default {
         listItemTypes: [],
         listReturnMode: 'NUMBER',
         refObjectCode: '',
+        refVariableId: null,
         defaultValue: '',
         valueRange: '',
         exampleValue: '',
@@ -3607,6 +3730,19 @@ export default {
       this.objExpanded[node.object.id] = !this.objExpanded[node.object.id]
       this.saveCachedState()
     },
+    objectRowKey(node) {
+      return node && node.object ? node.object.id : null
+    },
+    handleObjectExpandChange(node, expandedRows) {
+      if (!node || !node.object) return
+      const expanded = Array.isArray(expandedRows)
+        ? expandedRows.some(
+            (item) => item && item.object && item.object.id === node.object.id
+          )
+        : expandedRows === true
+      this.objExpanded[node.object.id] = expanded
+      this.saveCachedState()
+    },
     handleObjPageChange(p) {
       this.objPageNum = p
       this.saveCachedState()
@@ -3675,6 +3811,109 @@ export default {
         (sum, row) => sum + 1 + this.countObjectFields(row.children),
         0
       )
+    },
+    flattenObjectFields(rows) {
+      return (rows || []).flatMap((row) => [
+        row,
+        ...this.flattenObjectFields(row.children),
+      ])
+    },
+    objectFieldReferenceTypeCompatible(fieldType, variableType) {
+      const normalize = (value) => String(value || '').trim().toUpperCase()
+      const left = normalize(fieldType)
+      const right = normalize(variableType)
+      if (left === right) return true
+      const numeric = new Set([
+        'NUMBER',
+        'INTEGER',
+        'INT',
+        'LONG',
+        'DOUBLE',
+        'FLOAT',
+        'DECIMAL',
+        'PROBABILITY',
+      ])
+      return numeric.has(left) && numeric.has(right)
+    },
+    referenceVariableOptionLabel(variable) {
+      const label = variable.varLabel || variable.varCode || variable.scriptName
+      const scriptName = variable.scriptName || variable.varCode
+      return label === scriptName ? label : `${label} / ${scriptName}`
+    },
+    referenceVariableLabel(variableId) {
+      const variable = this.objectReferenceVariableMap[variableId]
+      return variable
+        ? variable.varLabel || variable.varCode || variable.scriptName
+        : `变量 #${variableId}`
+    },
+    referenceVariableScriptName(variableId) {
+      const variable = this.objectReferenceVariableMap[variableId]
+      return variable ? variable.scriptName || variable.varCode || '' : ''
+    },
+    mergeObjectReferenceVariables(variables) {
+      const map = { ...this.objectReferenceVariableMap }
+      ;(variables || []).forEach((variable) => {
+        if (variable && variable.id != null) map[variable.id] = variable
+      })
+      this.objectReferenceVariableMap = map
+    },
+    variableRows(response) {
+      const data = (response && response.data) || response || []
+      return Array.isArray(data) ? data : data.records || []
+    },
+    async loadObjectFieldReferenceVariables(object) {
+      this.objectFieldReferenceLoading = true
+      try {
+        const projectId =
+          String(object && object.scope).toUpperCase() === 'GLOBAL'
+            ? 0
+            : object && object.projectId
+        const response = await listVariablesByProject(projectId || 0)
+        const variables = this.variableRows(response)
+        this.objectFieldReferenceVariables = variables
+        this.mergeObjectReferenceVariables(variables)
+      } catch (error) {
+        this.objectFieldReferenceVariables = []
+        this.$message.error('加载可引用变量失败')
+      } finally {
+        this.objectFieldReferenceLoading = false
+      }
+    },
+    async loadObjectReferenceVariablesForTree(tree) {
+      const projectIds = new Set()
+      ;(tree || []).forEach((node) => {
+        const object = node && node.object
+        projectIds.add(
+          String(object && object.scope).toUpperCase() === 'GLOBAL'
+            ? 0
+            : Number(object && object.projectId) || 0
+        )
+      })
+      try {
+        const responses = await Promise.all(
+          Array.from(projectIds).map((projectId) =>
+            listVariablesByProject(projectId)
+          )
+        )
+        responses.forEach((response) =>
+          this.mergeObjectReferenceVariables(this.variableRows(response))
+        )
+      } catch (error) {
+        this.objectReferenceVariableMap = {}
+      }
+    },
+    onObjectFieldTypeChange() {
+      if (!this.isObjectField || !this.form.refVariableId) return
+      const selected = this.objectReferenceVariableMap[this.form.refVariableId]
+      if (
+        selected &&
+        !this.objectFieldReferenceTypeCompatible(
+          this.form.varType,
+          selected.varType
+        )
+      ) {
+        this.form.refVariableId = null
+      }
     },
     async loadData() {
       this.loading = true
@@ -3761,6 +4000,7 @@ export default {
         // 铁律四：构建 id→objectCode 映射，供前端展示 refObjectId 对应的对象名
         this.objectIdMap = rawData.objectIdMap || {}
         this.objectTree = tree
+        await this.loadObjectReferenceVariablesForTree(tree)
         this.normalizeObjectFieldPages()
         this.objectMap = {}
         this.objectTree.forEach((n) => {
@@ -3783,42 +4023,6 @@ export default {
     async onObjectTypeChange(obj) {
       const response = await updateObjectType(obj.id, obj.objectType)
       this.openApproval(response, '对象类型变更已送审')
-    },
-    async onObjectScriptNameChange(obj) {
-      const response = await updateObjectScriptName(obj.id, obj.scriptName)
-      this.openApproval(response, '对象脚本名变更已送审')
-    },
-    /**
-     * 列表行内修改脚本名：变量走 variable 接口；数据对象字段走 dataobject field 接口。
-     */
-    async onVarScriptNameChange(row) {
-      if (row.objectField) {
-        await this.onObjectFieldScriptNameBlur(row)
-        return
-      }
-      const response = await updateVariable(row)
-      this.openApproval(response, '字段脚本名变更已送审')
-    },
-    /**
-     * 数据对象表格中字段脚本名失焦保存。
-     */
-    async onObjectFieldScriptNameBlur(row) {
-      const response = await updateDataObjectField({
-        id: row.id,
-        projectId: row.projectId,
-        objectId: row.objectId,
-        varCode: row.varCode,
-        varLabel: row.varLabel,
-        scriptName: row.scriptName,
-        varType: row.varType,
-        refObjectCode: row.refObjectCode || null,
-        refObjectId: row.refObjectId || null,
-        genericType: row.genericType || null,
-        parentFieldId: row.parentFieldId || null,
-        sortOrder: row.sortOrder,
-        status: row.status,
-      })
-      this.openApproval(response, '对象字段变更已送审')
     },
     async handleDeleteObject(obj) {
       await this.$confirm(
@@ -3918,17 +4122,21 @@ export default {
       this.isObjectField = true
       this.isConstantCreate = false
       this.objectFieldParentId = obj.id
+      this.objectFieldOwner = obj
+      this.objectFieldNode = node
       this.form = {
         id: null,
-        projectId: this.currentProjectId,
+        projectId: obj.projectId,
         varCode: '',
         varLabel: '',
         scriptName: '',
         varType: 'STRING',
+        refVariableId: null,
         refObjectCode: '',
         sortOrder: nextOrder,
         status: 1,
       }
+      this.loadObjectFieldReferenceVariables(obj)
       this.dialogVisible = true
       this.$nextTick(() => {
         if (this.$refs.form) this.$refs.form.clearValidate()
@@ -3941,6 +4149,8 @@ export default {
       this.isObjectField = true
       this.isConstantCreate = false
       this.objectFieldParentId = node.object.id
+      this.objectFieldOwner = node.object
+      this.objectFieldNode = node
       this.form = {
         id: row.id,
         projectId: row.projectId,
@@ -3948,6 +4158,7 @@ export default {
         varLabel: row.varLabel,
         scriptName: row.scriptName,
         varType: row.varType || 'STRING',
+        refVariableId: row.refVariableId || null,
         refObjectCode: row.refObjectCode || '',
         refObjectId: row.refObjectId || null,
         genericType: row.genericType || '',
@@ -3955,6 +4166,7 @@ export default {
         sortOrder: row.sortOrder != null ? row.sortOrder : 0,
         status: row.status != null ? row.status : 1,
       }
+      this.loadObjectFieldReferenceVariables(node.object)
       this.dialogVisible = true
       this.$nextTick(() => {
         if (this.$refs.form) this.$refs.form.clearValidate()
@@ -4303,6 +4515,7 @@ export default {
             varType: this.form.varType,
             refObjectCode: this.form.refObjectCode || null,
             refObjectId: this.form.refObjectId || null,
+            refVariableId: this.form.refVariableId || null,
             genericType: this.form.genericType || null,
             parentFieldId: this.form.parentFieldId || null,
             sortOrder: this.form.sortOrder,
@@ -5138,62 +5351,55 @@ export default {
   padding-bottom: 6px;
   border-bottom: 1px solid var(--tianshu-border-subtle);
 }
-.var-group-card {
-  border: 1px solid var(--tianshu-border-subtle);
-  border-radius: 6px;
-  margin-bottom: 10px;
-  overflow: hidden;
+.object-field-expansion {
+  padding: 12px 16px 16px;
+  background: var(--tianshu-bg-soft);
 }
-.var-group-header {
+.object-field-expansion__heading {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  background: var(--tianshu-bg-muted);
-  border-bottom: 1px solid var(--tianshu-border-subtle);
-  cursor: pointer;
-  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
 }
-.var-group-header:hover {
-  background: #f0f2f5;
+.object-field-expansion__heading strong,
+.object-field-expansion__heading span {
+  display: block;
 }
-.var-group-header .expand-icon {
-  font-size: 14px;
+.object-field-expansion__heading strong {
+  color: var(--tianshu-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+.object-field-expansion__heading span {
+  margin-top: 4px;
   color: var(--tianshu-text-tertiary);
-  margin-right: 4px;
-  transition: transform 0.2s;
+  font-size: 12px;
 }
-.var-group-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  background: var(--tianshu-bg-muted);
-  border-bottom: 1px solid var(--tianshu-border-subtle);
-  flex-wrap: wrap;
+.reference-variable-cell {
+  display: inline-flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
 }
-.var-group-code {
-  font-weight: bold;
-  font-size: 14px;
+.reference-variable-cell strong {
+  overflow: hidden;
+  color: var(--tianshu-text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+.reference-variable-cell code {
+  overflow: hidden;
+  color: var(--tianshu-text-tertiary);
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  text-overflow: ellipsis;
+}
+.script-name-code {
   color: var(--tianshu-text-primary);
   font-family: Consolas, monospace;
-}
-.var-group-label {
-  color: var(--tianshu-text-tertiary);
-  font-size: 13px;
-}
-.var-group-count {
   font-size: 12px;
-  color: var(--tianshu-text-tertiary);
-}
-.var-group-update-time {
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--tianshu-text-tertiary);
-}
-.var-group-body {
-  padding: 10px;
-  background: var(--tianshu-bg-surface);
 }
 .obj-card {
   border: 1px solid var(--tianshu-border-subtle);

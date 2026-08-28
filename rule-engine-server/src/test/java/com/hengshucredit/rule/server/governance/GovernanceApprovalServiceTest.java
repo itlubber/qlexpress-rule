@@ -169,6 +169,7 @@ public class GovernanceApprovalServiceTest {
         service.request.setAction("UPDATE");
         service.request.setStatus("EDITING");
         service.request.setApplicant("owner");
+        service.request.setRequestNo("GOV-TEST-12");
         service.request.setActiveResourceKey("RULE:7");
         service.request.setDraftSnapshotJson("{\"name\":\"owned\"}");
 
@@ -178,8 +179,12 @@ public class GovernanceApprovalServiceTest {
         draft.setAction("UPDATE");
         draft.setSnapshotJson("{\"name\":\"stolen\"}");
 
-        assertOwnedByAnother(() ->
-                service.createDraft(draft, "other-user"));
+        GovernanceApprovalService.GovernanceStateException conflict =
+                assertOwnedByAnother(() ->
+                        service.createDraft(draft, "other-user"));
+        Assert.assertTrue(conflict.getMessage().contains("owner"));
+        Assert.assertTrue(conflict.getMessage().contains("GOV-TEST-12"));
+        Assert.assertTrue(conflict.getMessage().contains("提交或撤回"));
         Assert.assertEquals("{\"name\":\"owned\"}",
                 service.request.getDraftSnapshotJson());
     }
@@ -647,14 +652,17 @@ public class GovernanceApprovalServiceTest {
         return draft;
     }
 
-    private static void assertOwnedByAnother(Runnable operation) {
+    private static GovernanceApprovalService.GovernanceStateException
+    assertOwnedByAnother(Runnable operation) {
         try {
             operation.run();
             Assert.fail("another user must not mutate an owned draft");
         } catch (GovernanceApprovalService.GovernanceStateException expected) {
             Assert.assertEquals("GOVERNANCE_DRAFT_OWNED_BY_ANOTHER",
                     expected.getCode());
+            return expected;
         }
+        throw new AssertionError("unreachable");
     }
 
     private static class InsertService extends GovernanceApprovalService {

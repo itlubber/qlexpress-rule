@@ -32,7 +32,9 @@ vi.mock('@/api/dataObject', () => ({
   batchValidateRules: vi.fn(),
   batchValidateAll: vi.fn(),
   getVariableTree: vi.fn(),
-  toGlobalDataObject: vi.fn()
+  toGlobalDataObject: vi.fn(),
+  createDataObjectField: vi.fn(),
+  updateDataObjectField: vi.fn()
 }))
 
 vi.mock('@/api/function', () => ({ listAllFunctionsByProject: vi.fn() }))
@@ -86,7 +88,10 @@ function mockProjects() {
 // 带有 clearValidate 方法的 el-form stub
 const FormStub = {
   template: '<form ref="form"><slot /></form>',
-  methods: { clearValidate: vi.fn() }
+  methods: {
+    clearValidate: vi.fn(),
+    validate: vi.fn(callback => callback(true))
+  }
 }
 
 
@@ -121,7 +126,8 @@ async function mountAndWait(routeQuery = {}) {
       'el-form-item': true,
       'el-select': true, 'el-option': true,
       'el-input': true, 'el-button': true, 'el-tag': true,
-      'el-table': true, 'el-table-column': true,
+      'el-table': true,
+      'el-table-column': { template: '<div />' },
       'el-tabs': true, 'el-tab-pane': true,
       'el-dialog': true, 'el-card': true,
       'el-dropdown': true, 'el-dropdown-menu': true, 'el-dropdown-item': true,
@@ -341,7 +347,8 @@ describe('VariableList — 标签方法', () => {
     expect(variableTable).toContain('fixed="right"')
     expect(variableTable).toContain('class="table-secondary-time"')
     expect(variableTable).toContain('formatUpdateTime(row.updateTime)')
-    expect(objectTable).toContain('更新时间：{{ formatUpdateTime(node.object.updateTime) }}')
+    expect(objectTable).toContain('label="更新时间"')
+    expect(objectTable).toContain('formatUpdateTime(node.object.updateTime)')
     expect(constantTable).toContain('label="更新时间"')
     expect(constantTable).toContain('formatUpdateTime(row.updateTime)')
   })
@@ -413,11 +420,15 @@ describe('VariableList — 筛选与搜索', () => {
     expect(wrapper.vm.qp.varCode).toBe('')
   })
 
-  test('onVarScriptNameChange 触发保存', async () => {
-    variableApi.updateVariable.mockResolvedValue({ data: true })
-    const row = { id: 1, varCode: 'age', scriptName: 'age_new' }
-    await wrapper.vm.onVarScriptNameChange(row)
-    expect(variableApi.updateVariable).toHaveBeenCalled()
+  test('脚本名称不再通过列表输入框失焦保存', () => {
+    const source = fs.readFileSync(path.resolve(process.cwd(), 'src/views/variable/VariableList.vue'), 'utf8')
+
+    expect(source).not.toContain('@blur="onVarScriptNameChange(row)"')
+    expect(source).not.toContain('@blur="onObjectScriptNameChange(node.object)"')
+    expect(source).not.toContain('@blur="onObjectFieldScriptNameBlur(row)"')
+    expect(wrapper.vm.onVarScriptNameChange).toBeUndefined()
+    expect(wrapper.vm.onObjectScriptNameChange).toBeUndefined()
+    expect(wrapper.vm.onObjectFieldScriptNameBlur).toBeUndefined()
   })
 })
 
@@ -435,6 +446,16 @@ describe('VariableList — 变量操作', () => {
     expect(wrapper.vm.form.id).toBe(1)
     expect(wrapper.vm.form.varLabel).toBe('年龄')
     expect(wrapper.vm.dialogVisible).toBe(true)
+  })
+
+  test('编辑弹窗提供脚本名称输入框并加载现有值', async () => {
+    const row = { id: 1, varCode: 'age', varLabel: '年龄', varType: 'STRING', varSource: 'INPUT', scriptName: 'age' }
+
+    wrapper.vm.handleEdit(row)
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="variable-script-name-input"]').exists()).toBe(true)
+    expect(wrapper.vm.form.scriptName).toBe('age')
   })
 
   test('常量只能通过编辑弹窗修改且表格没有行内保存', () => {
@@ -530,6 +551,69 @@ describe('VariableList — 变量操作', () => {
     expect(objectDialog).toMatch(/<el-select\s+v-model="objectForm\.scope"\s+:disabled="!!objectForm\.id"/)
   })
 
+  test('数据对象按表格逐行展示并通过展开列查看字段', () => {
+    const source = fs.readFileSync(path.resolve(process.cwd(), 'src/views/variable/VariableList.vue'), 'utf8')
+    const objectPanel = source.slice(source.indexOf('<el-tab-pane label="数据对象"'), source.indexOf('</el-tab-pane>', source.indexOf('<el-tab-pane label="数据对象"')))
+
+    expect(objectPanel).toContain('data-testid="data-object-table"')
+    expect(objectPanel).toMatch(/<el-table-column\s+type="expand"/)
+    expect(objectPanel).not.toContain('class="var-group-card"')
+  })
+
+  test('对象字段引用变量仅展示同范围且类型兼容的启用普通变量', () => {
+    wrapper.vm.objectFieldOwner = { scope: 'PROJECT', projectId: 1 }
+    wrapper.vm.form.varType = 'NUMBER'
+    wrapper.vm.objectFieldReferenceVariables = [
+      { id: 1, scriptName: 'age', varType: 'INTEGER', varSource: 'INPUT', status: 1, scope: 'PROJECT', projectId: 1 },
+      { id: 2, scriptName: 'name', varType: 'STRING', varSource: 'INPUT', status: 1, scope: 'PROJECT', projectId: 1 },
+      { id: 3, scriptName: 'maxAge', varType: 'NUMBER', varSource: 'CONSTANT', status: 1, scope: 'PROJECT', projectId: 1 },
+      { id: 4, scriptName: 'otherAge', varType: 'NUMBER', varSource: 'INPUT', status: 1, scope: 'PROJECT', projectId: 2 },
+      { id: 5, scriptName: 'globalAge', varType: 'DOUBLE', varSource: 'INPUT', status: 1, scope: 'GLOBAL', projectId: 0 },
+      { id: 6, scriptName: 'disabledAge', varType: 'NUMBER', varSource: 'INPUT', status: 0, scope: 'PROJECT', projectId: 1 }
+    ]
+
+    expect(wrapper.vm.objectFieldReferenceOptions.map(item => item.id)).toEqual([1, 5])
+  })
+
+  test('编辑对象字段保留 refVariableId 供直接引用变量', () => {
+    const node = { object: { id: 20, scope: 'PROJECT', projectId: 1 }, variables: [] }
+    wrapper.vm.handleEditObjectField({
+      id: 30,
+      projectId: 1,
+      varCode: 'ageAlias',
+      varLabel: '年龄',
+      scriptName: 'age',
+      varType: 'NUMBER',
+      refVariableId: 9
+    }, node)
+
+    expect(wrapper.vm.form.refVariableId).toBe(9)
+    expect(wrapper.vm.objectFieldOwner).toEqual(node.object)
+  })
+
+  test('提交对象字段时按稳定 ID 保存引用变量', async () => {
+    dataObjectApi.updateDataObjectField.mockResolvedValue({ data: { id: 88 } })
+    const node = { object: { id: 20, scope: 'PROJECT', projectId: 1 }, variables: [] }
+    wrapper.vm.handleEditObjectField({
+      id: 30,
+      objectId: 20,
+      projectId: 1,
+      varCode: 'ageAlias',
+      varLabel: '年龄',
+      scriptName: 'ageAlias',
+      varType: 'NUMBER',
+      refVariableId: 9,
+      status: 1
+    }, node)
+
+    wrapper.vm.handleSubmit()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(dataObjectApi.updateDataObjectField).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 30, objectId: 20, refVariableId: 9 })
+    )
+  })
+
   test('所有字段、常量和数据对象写操作均由字段编辑权限控制', () => {
     const source = fs.readFileSync(path.resolve(process.cwd(), 'src/views/variable/VariableList.vue'), 'utf8')
     const guardedHandlers = [
@@ -552,9 +636,9 @@ describe('VariableList — 变量操作', () => {
         's'
       ))
     })
-    expect(source).toMatch(/v-model="node\.object\.scriptName"[\s\S]*?:disabled="!canEditFields"/)
     expect(source).toMatch(/v-model="node\.object\.objectType"[\s\S]*?:disabled="!canEditFields"/)
-    expect(source).toMatch(/v-model="row\.scriptName"[\s\S]*?:disabled="!canEditFields"/)
+    expect(source).not.toContain('v-model="node.object.scriptName"')
+    expect(source).not.toContain('v-model="row.scriptName"')
   })
 
   test('handleImportCmd 打开对应导入弹窗', () => {

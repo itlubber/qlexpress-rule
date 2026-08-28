@@ -231,6 +231,21 @@ describe('统一 OperandPicker', () => {
     expect(wrapper.vm.editorVisible).toBe(false)
   })
 
+  test('外部清空值时退出手输状态并回到字段选择器', async() => {
+    const wrapper = mountPicker({ expectedType: 'NUMBER' })
+
+    wrapper.vm.openManualInput('LITERAL')
+    wrapper.vm.updateManualValue('600')
+    await wrapper.setProps({
+      value: { kind: 'LITERAL', value: '600', valueType: 'NUMBER' }
+    })
+    await wrapper.setProps({ value: null })
+
+    expect(wrapper.vm.manualKind).toBe('')
+    expect(wrapper.vm.manualOperand).toBeNull()
+    expect(wrapper.find('.operand-manual-editor').exists()).toBe(false)
+  })
+
   test('手输路径在当前选择框录入并按稳定 ID 解析', () => {
     const wrapper = mountPicker({
       allowedKinds: ['PATH', 'REFERENCE'],

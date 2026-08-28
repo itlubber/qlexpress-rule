@@ -68,15 +68,6 @@ export async function updateObjectType(id, objectType) {
   })
 }
 
-/** 更新数据对象的脚本引用名 */
-export async function updateObjectScriptName(id, scriptName) {
-  const aggregate = await loadDataObjectAggregate(id)
-  aggregate.scriptName = scriptName
-  return createResourceDraft('DATA_OBJECT', aggregate, 'UPDATE', {
-    changeSummary: '修改数据对象脚本引用名'
-  })
-}
-
 export function deleteDataObject(id) {
   return createResourceDraft('DATA_OBJECT', null, 'DELETE', {
     resourceId: id,

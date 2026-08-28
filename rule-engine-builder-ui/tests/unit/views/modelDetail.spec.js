@@ -440,6 +440,22 @@ describe('ModelDetail — 输入字段编辑', () => {
     expect(field1._editing).toBe(false)
   })
 
+  test('已配置的默认值可以恢复为未配置状态', () => {
+    const field = wrapper.vm.model.inputFields[0]
+    field.defaultOperand = {
+      kind: 'LITERAL',
+      value: '18',
+      valueType: 'NUMBER'
+    }
+    field.defaultValue = '18'
+
+    expect(wrapper.vm.clearDefaultOperand).toBeTypeOf('function')
+    wrapper.vm.clearDefaultOperand(field)
+
+    expect(field.defaultOperand).toBeNull()
+    expect(field.defaultValue).toBe('')
+  })
+
   test('cancelEditInput 恢复原始数据并取消编辑', () => {
     const field = wrapper.vm.model.inputFields[0]
     field._editing = true
@@ -578,6 +594,20 @@ describe('ModelDetail — 字段保存功能', () => {
     })
     expect(modelApi.updateModelOutputField.mock.calls[0][1]).not.toHaveProperty('transformType')
     expect(field._editing).toBe(false)
+  })
+
+  test('请求层已提示输出字段保存失败时不重复报错', async () => {
+    const field = wrapper.vm.model.outputFields[0]
+    const error = new Error('该审批申请由其他用户创建')
+    error.requestErrorNotified = true
+    field._editing = true
+    modelApi.updateModelOutputField.mockRejectedValue(error)
+
+    await wrapper.vm.saveOutputField(field)
+
+    expect(wrapper.vm.$message.error).not.toHaveBeenCalled()
+    expect(field._editing).toBe(true)
+    expect(field._saving).toBe(false)
   })
 })
 

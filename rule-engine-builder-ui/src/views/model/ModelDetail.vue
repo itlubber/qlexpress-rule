@@ -210,20 +210,30 @@
               </el-tooltip>
             </template>
             <template v-slot="{ row }">
-              <operand-picker
-                v-if="row._editing"
-                :value="row.defaultOperand"
-                :vars="varPickerOptions"
-                :functions="projectFunctions"
-                :allowed-kinds="valueOperandKinds"
-                :expected-type="row.fieldType"
-                placeholder="选择默认阈值、路径或字段"
-                width="100%"
-                @input="
-                  (operand) =>
-                    onFieldOperandSelect(row, 'defaultOperand', operand)
-                "
-              />
+              <div v-if="row._editing" class="default-value-editor">
+                <operand-picker
+                  :value="row.defaultOperand"
+                  :vars="varPickerOptions"
+                  :functions="projectFunctions"
+                  :allowed-kinds="valueOperandKinds"
+                  :expected-type="row.fieldType"
+                  placeholder="选择默认阈值、路径或字段"
+                  width="100%"
+                  @input="
+                    (operand) =>
+                      onFieldOperandSelect(row, 'defaultOperand', operand)
+                  "
+                />
+                <el-button
+                  v-if="row.defaultOperand"
+                  link
+                  size="small"
+                  type="info"
+                  @click="clearDefaultOperand(row)"
+                >
+                  恢复未配置
+                </el-button>
+              </div>
               <operand-value-display v-else :operand="row.defaultOperand" />
             </template>
           </el-table-column>
@@ -888,6 +898,7 @@ import {
   Delete as ElIconDelete,
 } from '@element-plus/icons-vue'
 import * as api from '@/api/model'
+import { isRequestErrorNotified } from '@/api/request'
 import { getOnnxTaskLabel } from '@/constants/onnxTasks'
 import { getRuleTestSchema } from '@/api/definition'
 import { listVariablesByProject, listVariables } from '@/api/variable'
@@ -1253,6 +1264,9 @@ export default {
       row['scriptName'] = scriptName || ''
       row['fieldLabel'] =
         (operand && operand.label) || row.fieldLabel || row.fieldName || ''
+    },
+    clearDefaultOperand(row) {
+      this.onFieldOperandSelect(row, 'defaultOperand', null)
     },
     transformFunctionId(row) {
       return row && row.transformOperand
@@ -1789,7 +1803,9 @@ export default {
           this.$router.push('/approval/' + response.data.id)
       } catch (e) {
         row['_saving'] = false
-        this.$message.error('保存失败: ' + (e.message || e))
+        if (!isRequestErrorNotified(e)) {
+          this.$message.error('保存失败: ' + (e.message || e))
+        }
       }
     },
     cancelEditInput(row) {
@@ -1853,7 +1869,9 @@ export default {
           this.$router.push('/approval/' + response.data.id)
       } catch (e) {
         row['_saving'] = false
-        this.$message.error('保存失败: ' + (e.message || e))
+        if (!isRequestErrorNotified(e)) {
+          this.$message.error('保存失败: ' + (e.message || e))
+        }
       }
     },
     cancelEditOutput(row) {
@@ -2371,6 +2389,15 @@ export default {
   margin-left: 4px;
   color: var(--tianshu-text-disabled);
   cursor: help;
+}
+.default-value-editor {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.default-value-editor .operand-picker {
+  width: 100%;
 }
 .transform-editor {
   display: flex;

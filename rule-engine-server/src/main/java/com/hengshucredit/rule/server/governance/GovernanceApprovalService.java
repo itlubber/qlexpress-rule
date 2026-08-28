@@ -1108,9 +1108,15 @@ public class GovernanceApprovalService {
                                   String actor) {
         String operator = requireActor(actor);
         if (!operator.equals(request.getApplicant())) {
+            String requestReference = request.getRequestNo() == null
+                    || request.getRequestNo().isBlank()
+                    ? "#" + request.getId()
+                    : request.getRequestNo();
             throw new GovernanceStateException(
                     "GOVERNANCE_DRAFT_OWNED_BY_ANOTHER",
-                    "该审批申请由其他用户创建，不能修改、提交或撤回");
+                    "审批申请 " + requestReference + " 由用户 "
+                            + request.getApplicant()
+                            + " 创建，请由申请人本人修改、提交或撤回");
         }
     }
 
