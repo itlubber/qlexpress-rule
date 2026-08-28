@@ -3,23 +3,11 @@
     <div class="sp-header" @click="toggleExpand">
       <div class="sp-header-left">
         <el-icon class="sp-icon"><el-icon-s-promotion /></el-icon>
-        <span class="sp-title">编译脚本预览</span>
+        <span class="sp-title">检查脚本预览</span>
         <el-tag :type="statusTag.type" size="small" class="sp-status-tag">
           {{ statusTag.text }}
         </el-tag>
-        <span class="sp-lifecycle-guidance" data-testid="designer-lifecycle-guidance">
-          保存并编译仅更新草稿，审核发布请
-          <button
-            type="button"
-            class="sp-lifecycle-link"
-            aria-label="前往规则生命周期审核发布"
-            title="前往规则生命周期审核发布"
-            @click.stop="$emit('go-lifecycle')"
-          >
-            前往规则生命周期
-          </button>
-          。
-        </span>
+        <span class="sp-check-guidance">由顶部“保存并检查”生成</span>
       </div>
       <div class="sp-header-right" @click.stop>
         <el-tooltip
@@ -53,23 +41,13 @@
             {{ content.compileMessage }}
           </span>
           <div class="sp-statusbar-spacer" />
-          <el-button-group>
-            <el-button
-              size="small"
-              :icon="ElIconRefresh"
-              :loading="compiling"
-              @click="handleCompile"
-            >
-              保存并编译
-            </el-button>
-            <el-button
-              size="small"
-              :icon="ElIconDocumentCopy"
-              @click="copyScript"
-            >
-              复制
-            </el-button>
-          </el-button-group>
+          <el-button
+            size="small"
+            :icon="ElIconDocumentCopy"
+            @click="copyScript"
+          >
+            复制
+          </el-button>
         </div>
 
         <div class="sp-editor-container">
@@ -83,7 +61,7 @@
             v-model="editScript"
             class="sp-editor readonly"
             readonly
-            placeholder="请先点击「保存并编译」生成脚本"
+            placeholder="请先点击顶部“保存并检查”生成脚本"
             spellcheck="false"
             autocomplete="off"
             autocorrect="off"
@@ -112,7 +90,6 @@ import {
   Promotion as ElIconSPromotion,
   CircleClose as ElIconCloseCircle,
   InfoFilled as ElIconInfo,
-  Refresh as ElIconRefresh,
   DocumentCopy as ElIconDocumentCopy,
   ArrowDown as ElIconArrowDown,
   ArrowUp as ElIconArrowUp,
@@ -120,23 +97,19 @@ import {
 
 export default {
   name: 'ScriptPanel',
-  emits: ['go-lifecycle'],
   components: {
     ElIconSPromotion,
     ElIconCloseCircle,
     ElIconInfo,
   },
   props: {
-    definitionId: { type: [String, Number], required: true },
-    onBeforeCompile: { type: Function, default: null },
+    compileResult: { type: Object, default: null },
   },
   data() {
     return {
       expanded: false,
       content: {},
       editScript: '',
-      compiling: false,
-      ElIconRefresh: markRaw(ElIconRefresh),
       ElIconDocumentCopy: markRaw(ElIconDocumentCopy),
     }
   },
@@ -146,52 +119,38 @@ export default {
     },
     statusTag() {
       const status = this.content.compileStatus
-      if (status === 1) return { type: 'success', text: '已编译' }
-      if (status === 2) return { type: 'danger', text: '编译失败' }
-      return { type: 'info', text: '未编译' }
+      if (status === 1) return { type: 'success', text: '脚本已生成' }
+      if (status === 2) return { type: 'danger', text: '脚本生成失败' }
+      return { type: 'info', text: '未生成' }
     },
     expandIcon() {
       return this.expanded ? ElIconArrowDown : ElIconArrowUp
+    },
+  },
+  watch: {
+    compileResult: {
+      immediate: true,
+      handler(result) {
+        this.applyCompileResult(result)
+      },
     },
   },
   methods: {
     toggleExpand() {
       this.expanded = !this.expanded
     },
-    async handleCompile() {
-      if (!this.onBeforeCompile) {
-        this.$message.warning('当前设计器未提供保存编译能力')
-        return null
-      }
-      this.compiling = true
-      try {
-        const response = await this.onBeforeCompile()
-        if (response === false) return false
-        const result =
-          response && response.data !== undefined ? response.data : response
-        this.content = {
-          compileStatus: result?.compileSuccess ? 1 : 2,
-          compileMessage: result?.compileMessage || '',
-        }
-        this.editScript = result?.revision?.compiledScript || ''
-        if (result?.compileSuccess) {
-          this.$message.success('编译成功')
-        } else {
-          this.$message.error(
-            '编译失败: ' + (result?.compileMessage || '未知错误')
-          )
-        }
-        return result
-      } catch (e) {
-        this.$message.error('保存并编译失败: ' + (e.message || '未知错误'))
-        throw e
-      } finally {
-        this.compiling = false
-      }
+    applyCompileResult(result) {
+      this.content = result
+        ? {
+            compileStatus: result.compileSuccess ? 1 : 2,
+            compileMessage: result.compileMessage || '',
+          }
+        : {}
+      this.editScript = result?.revision?.compiledScript || ''
     },
     copyScript() {
       if (!this.editScript) {
-        this.$message.warning('暂无脚本，请先编译')
+        this.$message.warning('暂无脚本，请先保存并检查')
         return
       }
       if (navigator.clipboard) {
@@ -264,23 +223,9 @@ $editor-border: #313244;
   color: var(--tianshu-text-primary);
 }
 
-.sp-lifecycle-guidance {
+.sp-check-guidance {
   color: var(--tianshu-text-tertiary);
   font-size: 12px;
-}
-
-.sp-lifecycle-link {
-  padding: 0;
-  color: var(--el-color-primary);
-  font: inherit;
-  cursor: pointer;
-  background: transparent;
-  border: 0;
-
-  &:hover,
-  &:focus-visible {
-    text-decoration: underline;
-  }
 }
 
 .sp-toggle-btn {

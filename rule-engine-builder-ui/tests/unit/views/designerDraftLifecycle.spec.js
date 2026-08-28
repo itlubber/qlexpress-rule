@@ -265,6 +265,27 @@ describe('九类设计器草稿保护', () => {
     configureQueryApis()
   })
 
+  test.each(designerToolbars)(
+    '%s 使用统一草稿操作栏并仅保留一个主动作',
+    async (_name, component, toolbarSelector) => {
+      definitionApi.listRuleRevisions.mockResolvedValueOnce({ data: [] })
+      definitionApi.getContent.mockResolvedValueOnce({
+        data: { modelJson: '{}' },
+      })
+      const wrapper = mountDesigner(component)
+      await flushPromises()
+
+      const toolbar = wrapper.get(toolbarSelector)
+      expect(
+        toolbar.findComponent({ name: 'RuleDesignerActionBar' }).exists()
+      ).toBe(true)
+      expect(toolbar.text()).toContain('保存并检查')
+      expect(toolbar.text()).not.toContain('临时保存配置')
+      expect(toolbar.text()).not.toContain('编译后测试')
+      wrapper.unmount()
+    }
+  )
+
   test.each(designers)('%s 的保存与编译入口受规则编辑权限控制', async (
     _name,
     component
@@ -650,7 +671,10 @@ describe('九类设计器草稿保护', () => {
     await flushPromises()
 
     expect(wrapper.vm.draftGuardError).toBeInstanceOf(Error)
-    await expect(wrapper.vm.handleTest()).rejects.toThrow('没有可编辑草稿')
+    await expect(wrapper.vm.handleTest()).resolves.toBeUndefined()
+    expect(wrapper.vm.$message.warning).toHaveBeenCalledWith(
+      '请先保存并检查当前内容，通过后再进入测试'
+    )
     expect(definitionApi.saveContent).not.toHaveBeenCalled()
     wrapper.unmount()
   })
@@ -745,6 +769,7 @@ describe('九类设计器草稿保护', () => {
       script: wrapper.vm.script,
       scriptVarRefs: wrapper.vm.scriptVarRefs,
     }).toEqual(scriptModel)
+    await wrapper.vm.handleCompile()
     await wrapper.vm.handleTest()
 
     const payload = definitionApi.saveContent.mock.calls[0][0]

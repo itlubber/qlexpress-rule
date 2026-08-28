@@ -42,6 +42,31 @@ public class OnnxModelExecutionServiceTest {
     }
 
     @Test
+    public void preloadReportsSuccessfulCpuFallback() {
+        OnnxRuntimeSessionManager manager = new OnnxRuntimeSessionManager() {
+            @Override
+            public OrtSession session(byte[] modelBytes, OnnxRuntimeConfig runtimeConfig) {
+                return null;
+            }
+
+            @Override
+            boolean usesCpuFallback(byte[] modelBytes, OnnxRuntimeConfig runtimeConfig) {
+                return true;
+            }
+        };
+        try {
+            OnnxModelExecutionService.PreloadOutcome outcome =
+                    new OnnxModelExecutionService(manager).preloadWithOutcome(
+                            new byte[]{1},
+                            "{\"onnxTaskType\":\"MN3_ANTISPOOF\",\"executionProvider\":\"CUDA\"}");
+
+            assertEquals(OnnxModelExecutionService.PreloadOutcome.CPU_FALLBACK, outcome);
+        } finally {
+            manager.close();
+        }
+    }
+
+    @Test
     public void dispatchesYunetTaskUsingLogicalImageInput() throws Exception {
         byte[] model = OnnxTestAssets.read("onnx/yunet/detector.onnx");
         OnnxRuntimeSessionManager manager = new OnnxRuntimeSessionManager();

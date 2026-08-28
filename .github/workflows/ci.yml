@@ -12,6 +12,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  quality-gates:
+    name: Runtime quality-gate scripts (Node 22)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test runtime quality-gate scripts
+        run: node --test scripts/quality-gates/test/*.test.mjs
+
   backend:
     name: Backend (JDK 17)
     runs-on: ubuntu-latest

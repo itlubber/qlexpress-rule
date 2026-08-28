@@ -51,6 +51,8 @@ spring:
         shutdown-timeout: 200ms
 
 rule-engine:
+  source-resolution:
+    parallelism: ${SOURCE_RESOLUTION_PARALLELISM:4}
   cors:
     # 生产环境必须通过环境变量配置为实际控制台域名，多个来源使用英文逗号分隔
     allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:9090,http://127.0.0.1:9090}
@@ -95,3 +97,19 @@ mybatis-plus:
   global-config:
     db-config:
       id-type: auto
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when-authorized
+      group:
+        liveness:
+          include: livenessState,ping
+        readiness:
+          include: readinessState,db,redis,onnxWarmup

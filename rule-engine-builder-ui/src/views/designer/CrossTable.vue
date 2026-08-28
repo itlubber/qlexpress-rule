@@ -50,29 +50,19 @@
           >
         </el-button-group>
         <el-divider direction="vertical" />
-        <el-button
-          v-permission="'rule:edit'"
-          size="small"
-          :icon="ElIconDocument"
-          @click="handleSave"
-          >临时保存配置</el-button
-        >
-        <el-button
-          v-permission="'rule:edit'"
-          size="small"
-          type="warning"
-          :icon="ElIconCpu"
-          @click="handleCompile"
-          >保存并编译</el-button
-        >
-        <el-button
-          v-permission="'rule:edit'"
-          size="small"
-          type="primary"
-          :icon="ElIconVideoPlay"
-          @click="handleTest"
-          >编译后测试</el-button
-        >
+        <rule-designer-action-bar
+          :can-edit="canEditDraft"
+          :can-test="designerCanTest"
+          :state="designerActionState"
+          :recovery="designerRecoveryCandidate"
+          :report="designerValidationReport"
+          @save="handleSave"
+          @save-check="handleCompile"
+          @test="handleTest"
+          @lifecycle="goRuleLifecycle"
+          @restore="restoreDesignerRecovery"
+          @discard-recovery="discardDesignerRecovery"
+        />
       </div>
     </div>
 
@@ -319,10 +309,7 @@
     <!-- 脚本预览/编辑面板 -->
     <script-panel
       v-if="definitionId"
-      ref="scriptPanel"
-      :definitionId="definitionId"
-      :onBeforeCompile="handleSave"
-      @go-lifecycle="goRuleLifecycle"
+      :compile-result="designerCompileResult"
     />
 
     <designer-test-dialog
@@ -359,6 +346,7 @@ import OperandPicker from '@/components/common/OperandPicker.vue'
 import ScriptPanel from '@/components/common/ScriptPanel.vue'
 import RuleDraftReadOnly from '@/components/rule/RuleDraftReadOnly.vue'
 import RuleDesignerVersionSelect from '@/components/rule/RuleDesignerVersionSelect.vue'
+import RuleDesignerActionBar from '@/components/rule/RuleDesignerActionBar.vue'
 import {
   collectOperandReferences,
   compileOperand,
@@ -400,6 +388,7 @@ export default {
     }
   },
   components: {
+    RuleDesignerActionBar,
     RuleDraftReadOnly,
     RuleDesignerVersionSelect,
     DesignerTestDialog,
@@ -538,6 +527,9 @@ export default {
         this.normalizeModel()
         this.contentLoaded = true
         this._trySyncModelVarRefs()
+        this.$nextTick(() =>
+          this.initializeDesignerDraftTracking(this.serializeDesignerDraft())
+        )
       }
     },
     /** 加载最新变量后，同步 model 中行/列/结果变量的 varCode 和 varLabel */
@@ -654,6 +646,9 @@ export default {
       this.$message.success('草稿已保存')
       return result
     },
+    serializeDesignerDraft() {
+      return JSON.stringify(JSON.parse(JSON.stringify(this.model)))
+    },
     async handleCompile() {
       const result = await this.handleSave()
       return this.completeRuleCompile(result, {
@@ -661,13 +656,7 @@ export default {
       })
     },
     async handleTest() {
-      const result = await this.handleSave()
-      if (!result.compileSuccess) {
-        this.$message.error(
-          '编译失败: ' + (result.compileMessage || '未知错误')
-        )
-        return
-      }
+      if (!this.ensureDesignerReadyForTest()) return
       this.testParamsTemplate = this.buildTestParamsTemplate()
       this.testVisible = true
     },

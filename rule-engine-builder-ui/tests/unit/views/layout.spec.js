@@ -21,6 +21,10 @@ import workspaceTabs from '@/store/modules/workspaceTabs'
 import { DEFAULT_THEME_CONFIG } from '@/theme/themeConfig'
 import { readLocalTheme, writeLocalTheme } from '@/theme/themeRuntime'
 import {
+  clearDesignerLeaveGuards,
+  registerDesignerLeaveGuard,
+} from '@/utils/designerLeaveGuard'
+import {
   SIDEBAR_COMPACT_THRESHOLD,
   SIDEBAR_DEFAULT_WIDTH,
   SIDEBAR_MAX_WIDTH,
@@ -333,6 +337,7 @@ describe('Layout — 全局布局集成', () => {
 
   afterEach(() => {
     vi.clearAllMocks()
+    clearDesignerLeaveGuards()
   })
 
   test('首次进入布局路由时创建并激活工作区页签', async() => {
@@ -513,6 +518,57 @@ describe('Layout — 全局布局集成', () => {
     expect(wrapper.find('[data-account-command="settings"]').exists()).toBe(true)
     expect(wrapper.find('[data-account-command="theme"]').exists()).toBe(true)
     expect(wrapper.find('[data-account-command="logout"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  test('工作区关闭操作在脏设计器拒绝离开时不先删除页签', async() => {
+    const { wrapper, router, store } = mountLayout()
+    await nextTick()
+    const confirmLeave = vi.fn().mockResolvedValue(false)
+    registerDesignerLeaveGuard('/rule', confirmLeave)
+
+    const result = await wrapper.vm.handleTabOperation({
+      operation: 'all',
+      targetPath: '/rule'
+    })
+
+    expect(result).toEqual({ cancelled: true })
+    expect(confirmLeave).toHaveBeenCalledTimes(1)
+    expect(store.getters['workspaceTabs/tabs']).toHaveLength(1)
+    expect(router.push).not.toHaveBeenCalledWith('/dashboard')
+    wrapper.unmount()
+  })
+
+  test('一级菜单导航在脏设计器拒绝离开时不跳转', async() => {
+    const { wrapper, router } = mountLayout()
+    await nextTick()
+    const confirmLeave = vi.fn().mockResolvedValue(false)
+    registerDesignerLeaveGuard('/rule', confirmLeave)
+
+    const result = await wrapper.vm.navigateTo('/variable')
+
+    expect(result).toEqual({ cancelled: true })
+    expect(confirmLeave).toHaveBeenCalledTimes(1)
+    expect(router.push).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  test('工作区页签切换在脏设计器拒绝离开时不提前激活目标页签', async() => {
+    const { wrapper, router, store } = mountLayout()
+    await nextTick()
+    const dispatchSpy = vi.spyOn(store, 'dispatch')
+    const confirmLeave = vi.fn().mockResolvedValue(false)
+    registerDesignerLeaveGuard('/rule', confirmLeave)
+
+    const result = await wrapper.vm.activateTab('/variable')
+
+    expect(result).toEqual({ cancelled: true })
+    expect(confirmLeave).toHaveBeenCalledTimes(1)
+    expect(dispatchSpy).not.toHaveBeenCalledWith(
+      'workspaceTabs/activate',
+      '/variable'
+    )
+    expect(router.push).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 

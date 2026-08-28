@@ -146,7 +146,9 @@ for (const designer of designers) {
     })
     await page.goto(`http://tianshu.local/index.html#${designer.path}`)
 
-    await expectDesignerShell(page, designer.title, '临时保存配置')
+    await expectDesignerShell(page, designer.title, '保存并检查')
+    await expect(page.getByRole('button', { name: '仅保存草稿' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '进入测试' })).toBeDisabled()
     if (designer.loadsVariables) {
       await expect.poll(() => requests.some(request =>
         new URL(request.url).pathname === '/api/rule/variable/project/1'
@@ -263,7 +265,7 @@ for (const designer of designers.filter(item => ['决策树', '决策流'].inclu
     await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y, { steps: 10 })
     await page.mouse.up()
 
-    await page.getByRole('button', { name: '临时保存配置' }).click()
+    await page.getByRole('button', { name: '仅保存草稿' }).click()
     await expect.poll(() => savedPayload).not.toBeNull()
     const savedModel = JSON.parse(savedPayload.modelJson)
     expect(savedModel.logicflow.edges[0]).toMatchObject({
@@ -349,7 +351,9 @@ test('QL 脚本编辑器可加载变量、插入字段并保持工具栏可操�
   })
   await page.goto('http://tianshu.local/index.html#/designer/script/109')
 
-  await expectDesignerShell(page, 'QL脚本编辑器', '临时保存脚本')
+  await expectDesignerShell(page, 'QL脚本编辑器', '保存并检查')
+  await expect(page.getByRole('button', { name: '仅保存草稿' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '进入测试' })).toBeDisabled()
   const variable = page.locator('.se-var-item').filter({ hasText: 'age' }).first()
   await expect(variable).toBeVisible()
   await variable.dblclick()

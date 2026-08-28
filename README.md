@@ -490,6 +490,8 @@ SDK 行为：
 
 ## 11. 开发校验命令
 
+启动就绪、故障降级和容量门禁的可重复流程见[运行质量门禁](docs/quality-gates/runtime-quality-gates.md)。容量报告仅写入被忽略的 `target/quality-gates/`，不得提交本地请求凭据。
+
 后端：
 
 ```bash
@@ -558,6 +560,8 @@ Playwright 首次使用需执行 `npx playwright install chromium`；也可设�
 
 ## 13. 文档索引
 
+- 运行质量门禁：[启动就绪、故障降级与容量验收](docs/quality-gates/runtime-quality-gates.md)
+- 变量来源并行基准：[变量来源分层并行基准](docs/quality-gates/variable-source-resolution-benchmark.md)
 - 生产就绪复盘与路线图：[《天枢决策引擎生产就绪复盘与后续规划》](docs/research/2026-07-22-production-readiness-review.md)
 - 当前实现研究：[《天枢决策引擎当前实现研究报告》](docs/research/2026-07-17-tianshu-decision-engine-current-state.md)
 - 数据库结构：`rule-engine-server/src/main/resources/sql/schema.sql`

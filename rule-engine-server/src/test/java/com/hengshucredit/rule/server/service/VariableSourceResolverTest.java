@@ -1,5 +1,6 @@
 package com.hengshucredit.rule.server.service;
 
+import com.hengshucredit.rule.core.engine.RuntimeContextBridge;
 import com.hengshucredit.rule.model.entity.RuleModel;
 import com.hengshucredit.rule.model.entity.RuleModelInputField;
 import com.hengshucredit.rule.model.entity.RuleModelOutputField;
@@ -19,6 +20,9 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -818,6 +822,107 @@ public class VariableSourceResolverTest {
         assertEquals(requestTime, listService.lastMatchTime);
     }
 
+    @Test
+    public void independentApiAndDbVariablesResolveInTheSameDependencyWave() throws Exception {
+        RuleVariable apiVariable = variable("apiScore", "API",
+                "{\"apiConfigId\":7,\"resultPath\":\"body.score\"}");
+        RuleVariable dbVariable = variable("dbScore", "DB",
+                "{\"dbDatasourceId\":3,\"sql\":\"select score from t\",\"resultPath\":\"0.score\"}");
+        dbVariable.setId(2L);
+        CountDownLatch bothEntered = new CountDownLatch(2);
+        CountDownLatch release = new CountDownLatch(1);
+        ParallelApiService apiService = new ParallelApiService(bothEntered, release);
+        ParallelDbPools dbPools = new ParallelDbPools(bothEntered, release);
+        VariableSourceResolver resolver = resolver(Arrays.asList(apiVariable, dbVariable), apiService, dbPools);
+        SourceResolutionExecutor executor = new SourceResolutionExecutor(2);
+        setField(resolver, "sourceResolutionExecutor", executor);
+        AtomicReference<Map<String, Object>> resolved = new AtomicReference<>();
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        Thread resolution = new Thread(() -> {
+            try {
+                resolved.set(resolver.resolve(1L, Collections.emptyMap()));
+            } catch (Throwable e) {
+                failure.set(e);
+            }
+        });
+        resolution.start();
+
+        boolean enteredTogether;
+        try {
+            enteredTogether = bothEntered.await(1, TimeUnit.SECONDS);
+        } finally {
+            release.countDown();
+            resolution.join(2000);
+            executor.close();
+        }
+
+        assertTrue("independent sources should start before either one finishes", enteredTogether);
+        assertFalse(resolution.isAlive());
+        assertEquals(null, failure.get());
+        assertEquals(88, resolved.get().get("apiScore"));
+        assertEquals(72, resolved.get().get("dbScore"));
+    }
+
+    @Test
+    public void parallelApiVariablesShareOneInvocationForTheSameRequest() throws Exception {
+        RuleVariable scoreV1 = variable("scoreV1", "API",
+                "{\"apiConfigId\":7,\"paramMapping\":{\"requestId\":\"$.requestId\"},\"resultPath\":\"body.v1\"}");
+        RuleVariable scoreV2 = variable("scoreV2", "API",
+                "{\"apiConfigId\":7,\"paramMapping\":{\"requestId\":\"$.requestId\"},\"resultPath\":\"body.v2\"}");
+        scoreV2.setId(2L);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("v1", 61);
+        body.put("v2", 72);
+        FakeApiService apiService = new FakeApiService(responseBody(body));
+        VariableSourceResolver resolver = resolver(Arrays.asList(scoreV1, scoreV2), apiService,
+                new FakeDbPools(Collections.emptyList()));
+        SourceResolutionExecutor executor = new SourceResolutionExecutor(2);
+        setField(resolver, "sourceResolutionExecutor", executor);
+        try {
+            Map<String, Object> resolved = resolver.resolve(1L, singletonMap("requestId", "R1"));
+
+            assertEquals(61, resolved.get("scoreV1"));
+            assertEquals(72, resolved.get("scoreV2"));
+            assertEquals(1, apiService.callCount);
+        } finally {
+            executor.close();
+        }
+    }
+
+    @Test
+    public void parallelWaveMergesSourceStatesAndTraceEventsInVariableOrder() throws Exception {
+        RuleVariable first = variable("firstScore", "DB",
+                "{\"dbDatasourceId\":1,\"sql\":\"select score\",\"resultPath\":\"0.score\"}");
+        RuleVariable second = variable("secondScore", "DB",
+                "{\"dbDatasourceId\":2,\"sql\":\"select score\",\"resultPath\":\"0.score\"}");
+        second.setId(2L);
+        ReverseCompletionDbPools dbPools = new ReverseCompletionDbPools();
+        VariableSourceResolver resolver = resolver(Arrays.asList(first, second),
+                new FakeApiService(Collections.emptyMap()), dbPools);
+        SourceResolutionExecutor executor = new SourceResolutionExecutor(2);
+        setField(resolver, "sourceResolutionExecutor", executor);
+        setField(resolver, "runtimeTraceService", new RuntimeTraceService());
+        VariableResolveOptions options = VariableResolveOptions.defaults();
+        options.setStatusReferenceKeys(new LinkedHashSet<>(Arrays.asList("VARIABLE:1", "VARIABLE:2")));
+        List<Map<String, Object>> events = new java.util.ArrayList<>();
+        RuntimeContextBridge.bindTraceEventListener(events::add);
+        try {
+            Map<String, Object> resolved = resolver.resolve(1L, Collections.emptyMap(), options);
+
+            assertEquals(1, resolved.get("firstScore"));
+            assertEquals(2, resolved.get("secondScore"));
+            assertEquals(Arrays.asList("VARIABLE:1", "VARIABLE:2"),
+                    new java.util.ArrayList<>(options.getSourceStates().keySet()));
+            assertEquals(Arrays.asList("firstScore", "secondScore"), Arrays.asList(
+                    events.get(0).get("resourceCode"), events.get(1).get("resourceCode")));
+            assertEquals("SUCCESS", events.get(0).get("status"));
+            assertEquals("SUCCESS", events.get(1).get("status"));
+        } finally {
+            RuntimeContextBridge.clear();
+            executor.close();
+        }
+    }
+
     private RuleVariable variable(String scriptName, String source, String sourceConfig) {
         RuleVariable variable = new RuleVariable();
         variable.setId(1L);
@@ -990,6 +1095,75 @@ public class VariableSourceResolverTest {
             this.lastDatasourceId = datasourceId;
             this.lastParams = params == null ? Collections.emptyList() : Arrays.asList(params.toArray());
             return rows;
+        }
+    }
+
+    private static class ParallelApiService extends ExternalApiInvokeService {
+        private final CountDownLatch entered;
+        private final CountDownLatch release;
+
+        private ParallelApiService(CountDownLatch entered, CountDownLatch release) {
+            this.entered = entered;
+            this.release = release;
+        }
+
+        @Override
+        public Map<String, Object> invoke(Long apiConfigId, Map<String, Object> params) {
+            entered.countDown();
+            awaitRelease(release);
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("score", 88);
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("body", body);
+            return response;
+        }
+    }
+
+    private static class ParallelDbPools extends DBConnectPools {
+        private final CountDownLatch entered;
+        private final CountDownLatch release;
+
+        private ParallelDbPools(CountDownLatch entered, CountDownLatch release) {
+            this.entered = entered;
+            this.release = release;
+        }
+
+        @Override
+        public List<Map<String, Object>> query(Long datasourceId, String sql,
+                                               List<Object> params, int maxRows) {
+            entered.countDown();
+            awaitRelease(release);
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("score", 72);
+            return Collections.singletonList(row);
+        }
+    }
+
+    private static class ReverseCompletionDbPools extends DBConnectPools {
+        private final CountDownLatch secondCompleted = new CountDownLatch(1);
+
+        @Override
+        public List<Map<String, Object>> query(Long datasourceId, String sql,
+                                               List<Object> params, int maxRows) {
+            if (Long.valueOf(1L).equals(datasourceId)) {
+                awaitRelease(secondCompleted);
+            } else {
+                secondCompleted.countDown();
+            }
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("score", datasourceId.intValue());
+            return Collections.singletonList(row);
+        }
+    }
+
+    private static void awaitRelease(CountDownLatch release) {
+        try {
+            if (!release.await(2, TimeUnit.SECONDS)) {
+                throw new AssertionError("source release timed out");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError(e);
         }
     }
 

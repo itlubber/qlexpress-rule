@@ -29,3 +29,4 @@ docs/superpowers/*
 .codex-run-logs
 assets/
 .codex-jdk17-probe
+scripts/quality-gates/fixtures/request.local.json

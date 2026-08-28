@@ -66,6 +66,7 @@ const apiData = new Map([
     recentExecution: null
   }],
   ['/api/rule/definition/list', { records: [], total: 0 }],
+  ['/api/rule/variable/project/1', []],
   ['/api/rule/runtime-log/list', { records: [], total: 0 }],
   ['/api/rule/model/list', { records: [], total: 0 }],
   ['/api/rule/model/health', { healthy: true }],

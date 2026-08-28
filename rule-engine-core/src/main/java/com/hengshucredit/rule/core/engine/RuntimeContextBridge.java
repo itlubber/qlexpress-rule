@@ -70,6 +70,22 @@ public final class RuntimeContextBridge {
         }
     }
 
+    public static ContextSnapshot captureContext() {
+        return new ContextSnapshot(currentRule(), currentMatchedConditions(), currentSourceStates());
+    }
+
+    public static ContextScope installContext(ContextSnapshot snapshot,
+                                              Consumer<Map<String, Object>> traceEventListener) {
+        ContextScope scope = new ContextScope(
+                CURRENT_RULE.get(), MATCHED_CONDITIONS.get(), SOURCE_STATES.get(),
+                TRACE_EVENT_LISTENER.get());
+        ContextSnapshot effective = snapshot == null ? ContextSnapshot.empty() : snapshot;
+        setRuleContext(effective.rule, effective.matchedConditions);
+        replaceSourceStates(effective.sourceStates);
+        bindTraceEventListener(traceEventListener);
+        return scope;
+    }
+
     public static void addTraceEvent(Map<String, Object> event) {
         Consumer<Map<String, Object>> listener = TRACE_EVENT_LISTENER.get();
         if (listener != null && event != null) {
@@ -378,6 +394,81 @@ public final class RuntimeContextBridge {
             this.path = path;
             this.value = value;
         }
+    }
+
+    public static final class ContextSnapshot {
+        private final Map<String, Object> rule;
+        private final List<String> matchedConditions;
+        private final Map<String, Map<String, Object>> sourceStates;
+
+        private ContextSnapshot(Map<String, Object> rule,
+                                List<String> matchedConditions,
+                                Map<String, Map<String, Object>> sourceStates) {
+            this.rule = rule == null
+                    ? Collections.<String, Object>emptyMap()
+                    : Collections.unmodifiableMap(new LinkedHashMap<>(rule));
+            this.matchedConditions = matchedConditions == null
+                    ? Collections.<String>emptyList()
+                    : Collections.unmodifiableList(new ArrayList<>(matchedConditions));
+            this.sourceStates = copySourceStates(sourceStates);
+        }
+
+        private static ContextSnapshot empty() {
+            return new ContextSnapshot(Collections.emptyMap(), Collections.emptyList(), Collections.emptyMap());
+        }
+    }
+
+    public static final class ContextScope implements AutoCloseable {
+        private final Map<String, Object> previousRule;
+        private final List<String> previousMatchedConditions;
+        private final Map<String, Map<String, Object>> previousSourceStates;
+        private final Consumer<Map<String, Object>> previousTraceEventListener;
+        private boolean closed;
+
+        private ContextScope(Map<String, Object> previousRule,
+                             List<String> previousMatchedConditions,
+                             Map<String, Map<String, Object>> previousSourceStates,
+                             Consumer<Map<String, Object>> previousTraceEventListener) {
+            this.previousRule = previousRule;
+            this.previousMatchedConditions = previousMatchedConditions;
+            this.previousSourceStates = previousSourceStates;
+            this.previousTraceEventListener = previousTraceEventListener;
+        }
+
+        @Override
+        public void close() {
+            if (closed) {
+                return;
+            }
+            restore(CURRENT_RULE, previousRule);
+            restore(MATCHED_CONDITIONS, previousMatchedConditions);
+            restore(SOURCE_STATES, previousSourceStates);
+            restore(TRACE_EVENT_LISTENER, previousTraceEventListener);
+            closed = true;
+        }
+
+        private <T> void restore(ThreadLocal<T> holder, T value) {
+            if (value == null) {
+                holder.remove();
+            } else {
+                holder.set(value);
+            }
+        }
+    }
+
+    private static Map<String, Map<String, Object>> copySourceStates(
+            Map<String, Map<String, Object>> states) {
+        if (states == null || states.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<String, Map<String, Object>> copy = new LinkedHashMap<>();
+        for (Map.Entry<String, Map<String, Object>> entry : states.entrySet()) {
+            Map<String, Object> value = entry.getValue() == null
+                    ? Collections.<String, Object>emptyMap()
+                    : Collections.unmodifiableMap(new LinkedHashMap<>(entry.getValue()));
+            copy.put(entry.getKey(), value);
+        }
+        return Collections.unmodifiableMap(copy);
     }
 
     private static Object snapshotValue(Object value) {

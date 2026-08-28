@@ -27,6 +27,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeoutException;
 
 @Service
@@ -65,6 +67,9 @@ public class VariableSourceResolver {
     @Resource
     private RuntimeTraceService runtimeTraceService;
 
+    @Resource
+    private SourceResolutionExecutor sourceResolutionExecutor;
+
     public Map<String, Object> resolve(Long projectId, Map<String, Object> inputParams) {
         return resolve(projectId, inputParams, VariableResolveOptions.defaults());
     }
@@ -88,9 +93,9 @@ public class VariableSourceResolver {
         List<RuleModel> models = loadProjectModels(projectId);
         Set<String> requiredScriptNames = expandRequiredScriptNames(effectiveOptions.getRequiredScriptNames(),
                 variables, models, effectiveOptions.isRequiredNamesUpstreamOnly(), effectiveOptions);
-        Map<String, Map<String, Object>> apiResponseCache = new LinkedHashMap<>();
+        VariableResolutionInvocationCache invocationCache = new VariableResolutionInvocationCache();
         resolveVariablesAndModels(variables, models, requiredScriptNames, resolvedParams,
-                effectiveOptions, apiResponseCache, Collections.emptyMap());
+                effectiveOptions, invocationCache, Collections.emptyMap());
         return resolvedParams;
     }
 
@@ -119,14 +124,14 @@ public class VariableSourceResolver {
             }
         }
         resolveVariablesAndModels(frozenVariables, frozenModels, requiredScriptNames,
-                resolvedParams, effectiveOptions, new LinkedHashMap<>(), functionMap);
+                resolvedParams, effectiveOptions, new VariableResolutionInvocationCache(), functionMap);
         return resolvedParams;
     }
 
     private void resolveVariablesAndModels(List<RuleVariable> variables, List<RuleModel> models,
                                            Set<String> requiredScriptNames, Map<String, Object> resolvedParams,
                                            VariableResolveOptions effectiveOptions,
-                                           Map<String, Map<String, Object>> apiResponseCache,
+                                           VariableResolutionInvocationCache invocationCache,
                                            Map<Long, RuleFunction> functions) {
         Map<String, RuleVariable> variableMap = buildVariableMap(variables);
         Map<String, RuleModel> modelMap = buildModelMap(models);
@@ -135,6 +140,7 @@ public class VariableSourceResolver {
         while (!pendingVariables.isEmpty() || !pendingModels.isEmpty()) {
             boolean progressed = false;
             List<RuleVariable> delayedVariables = new ArrayList<>();
+            List<RuleVariable> readyVariables = new ArrayList<>();
             for (RuleVariable variable : pendingVariables) {
                 String scriptName = resolveScriptName(variable);
                 if (hasUnresolvedResolvableDependency(scriptName, collectVariableDependencies(variable),
@@ -142,7 +148,10 @@ public class VariableSourceResolver {
                     delayedVariables.add(variable);
                     continue;
                 }
-                resolveOneVariable(variable, scriptName, resolvedParams, effectiveOptions, apiResponseCache);
+                readyVariables.add(variable);
+            }
+            if (!readyVariables.isEmpty()) {
+                resolveVariableWave(readyVariables, resolvedParams, effectiveOptions, invocationCache);
                 progressed = true;
             }
             pendingVariables = delayedVariables;
@@ -163,6 +172,106 @@ public class VariableSourceResolver {
             if (!progressed) {
                 throw new IllegalStateException("变量/模型依赖存在循环或无法解析：" + pendingNames(pendingVariables, pendingModels));
             }
+        }
+    }
+
+    private void resolveVariableWave(List<RuleVariable> variables,
+                                     Map<String, Object> resolvedParams,
+                                     VariableResolveOptions options,
+                                     VariableResolutionInvocationCache invocationCache) {
+        if (sourceResolutionExecutor == null || sourceResolutionExecutor.getParallelism() == 1) {
+            for (RuleVariable variable : variables) {
+                resolveOneVariable(variable, resolveScriptName(variable), resolvedParams,
+                        options, invocationCache);
+            }
+            return;
+        }
+
+        Map<String, Object> paramsSnapshot = Collections.unmodifiableMap(
+                new LinkedHashMap<>(resolvedParams));
+        RuntimeContextBridge.ContextSnapshot contextSnapshot = RuntimeContextBridge.captureContext();
+        List<CompletableFuture<SourceResolutionResult>> futures = new ArrayList<>();
+        for (int i = 0; i < variables.size(); i++) {
+            RuleVariable variable = variables.get(i);
+            String scriptName = resolveScriptName(variable);
+            int order = i;
+            futures.add(sourceResolutionExecutor.submit(() -> resolveVariableTask(
+                    order, variable, scriptName, paramsSnapshot, options,
+                    invocationCache, contextSnapshot)));
+        }
+
+        List<SourceResolutionResult> results = new ArrayList<>();
+        Throwable firstFailure = null;
+        for (CompletableFuture<SourceResolutionResult> future : futures) {
+            try {
+                results.add(joinResolution(future));
+            } catch (RuntimeException | Error e) {
+                if (firstFailure == null) {
+                    firstFailure = e;
+                }
+            }
+        }
+        if (firstFailure instanceof RuntimeException) {
+            throw (RuntimeException) firstFailure;
+        }
+        if (firstFailure instanceof Error) {
+            throw (Error) firstFailure;
+        }
+        results.sort((left, right) -> Integer.compare(left.getOrder(), right.getOrder()));
+        for (SourceResolutionResult result : results) {
+            if (result.isResolved()) {
+                resolvedParams.put(result.getScriptName(), result.getValue());
+            }
+            options.mergeSourceStates(result.getSourceStates());
+            for (Map<String, Object> event : result.getTraceEvents()) {
+                RuntimeContextBridge.addTraceEvent(new LinkedHashMap<>(event));
+            }
+        }
+    }
+
+    private SourceResolutionResult resolveVariableTask(
+            int order, RuleVariable variable, String scriptName,
+            Map<String, Object> paramsSnapshot, VariableResolveOptions options,
+            VariableResolutionInvocationCache invocationCache,
+            RuntimeContextBridge.ContextSnapshot contextSnapshot) {
+        Map<String, Object> localParams = new LinkedHashMap<>(paramsSnapshot);
+        VariableResolveOptions localOptions = copyResolveOptions(options);
+        List<Map<String, Object>> traceEvents = new ArrayList<>();
+        try (RuntimeContextBridge.ContextScope ignored =
+                     RuntimeContextBridge.installContext(contextSnapshot, traceEvents::add)) {
+            resolveOneVariable(variable, scriptName, localParams, localOptions, invocationCache);
+        }
+        return new SourceResolutionResult(order, scriptName,
+                localParams.containsKey(scriptName), localParams.get(scriptName),
+                localOptions.getSourceStates(), traceEvents);
+    }
+
+    private VariableResolveOptions copyResolveOptions(VariableResolveOptions source) {
+        VariableResolveOptions copy = VariableResolveOptions.defaults();
+        copy.setSkipApiSources(source.isSkipApiSources());
+        copy.setForceRefreshSource(source.isForceRefreshSource());
+        copy.setRequiredNamesUpstreamOnly(source.isRequiredNamesUpstreamOnly());
+        copy.setListMatchTime(source.getListMatchTime());
+        copy.setRequiredScriptNames(source.getRequiredScriptNames() == null
+                ? null : new LinkedHashSet<>(source.getRequiredScriptNames()));
+        copy.setStatusReferenceKeys(source.getStatusReferenceKeys() == null
+                ? null : new LinkedHashSet<>(source.getStatusReferenceKeys()));
+        return copy;
+    }
+
+    private SourceResolutionResult joinResolution(
+            CompletableFuture<SourceResolutionResult> future) {
+        try {
+            return future.join();
+        } catch (CompletionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            }
+            if (cause instanceof Error) {
+                throw (Error) cause;
+            }
+            throw e;
         }
     }
 
@@ -207,17 +316,17 @@ public class VariableSourceResolver {
 
     private void resolveOneVariable(RuleVariable variable, String scriptName, Map<String, Object> resolvedParams,
                                     VariableResolveOptions effectiveOptions,
-                                    Map<String, Map<String, Object>> apiResponseCache) {
+                                    VariableResolutionInvocationCache invocationCache) {
         if ("CONSTANT".equals(variable.getVarSource())) {
             return;
         }
         resolveOneSourceVariable(variable, scriptName, parseJsonMap(variable.getSourceConfig()),
-                resolvedParams, effectiveOptions, apiResponseCache);
+                resolvedParams, effectiveOptions, invocationCache);
     }
 
     private void resolveOneSourceVariable(RuleVariable variable, String scriptName, Map<String, Object> config,
                                           Map<String, Object> resolvedParams, VariableResolveOptions effectiveOptions,
-                                          Map<String, Map<String, Object>> apiResponseCache) {
+                                          VariableResolutionInvocationCache invocationCache) {
         try {
             Object value;
             String varSource = variable.getVarSource();
@@ -226,7 +335,7 @@ public class VariableSourceResolver {
                     resolvedParams.put(scriptName, null);
                     return;
                 }
-                value = resolveApiVariable(variable, config, resolvedParams, effectiveOptions, apiResponseCache);
+                value = resolveApiVariable(variable, config, resolvedParams, effectiveOptions, invocationCache);
             } else if ("DB".equals(varSource)) {
                 value = resolveDbVariable(variable, config, resolvedParams, effectiveOptions);
             } else {
@@ -864,7 +973,7 @@ public class VariableSourceResolver {
         Map<String, Object> resolved = new LinkedHashMap<>(params);
         resolveOneSourceVariable(variable, scriptName,
                 parseJsonMap(variable.getSourceConfig()), resolved,
-                options, new LinkedHashMap<>());
+                options, new VariableResolutionInvocationCache());
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("variableId", variable.getId());
         result.put("varCode", variable.getVarCode());
@@ -878,18 +987,15 @@ public class VariableSourceResolver {
 
     private Object resolveApiVariable(RuleVariable variable, Map<String, Object> config, Map<String, Object> params,
                                       VariableResolveOptions options,
-                                      Map<String, Map<String, Object>> apiResponseCache) {
+                                      VariableResolutionInvocationCache invocationCache) {
         Long apiConfigId = longValue(config.get("apiConfigId"));
         if (apiConfigId == null) {
             throw new IllegalArgumentException("API变量缺少 apiConfigId");
         }
         Map<String, Object> requestParams = buildMappedParams(config.get("paramMapping"), params);
         String cacheKey = apiConfigId + ":" + JSON.toJSONString(requestParams);
-        Map<String, Object> response = apiResponseCache.get(cacheKey);
-        if (response == null) {
-            response = externalApiInvokeService.invoke(apiConfigId, requestParams);
-            apiResponseCache.put(cacheKey, response);
-        }
+        Map<String, Object> response = invocationCache.resolve(cacheKey,
+                () -> externalApiInvokeService.invoke(apiConfigId, requestParams));
         recordApiState(variable, response, options);
         String resultPath = stringValue(config.get("resultPath"));
         return hasText(resultPath) ? readPath(response, resultPath) : response.get("body");

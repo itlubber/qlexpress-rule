@@ -41,47 +41,20 @@
           :loading="designerSourcesLoading"
           @change="switchDesignerSource"
         />
-        <el-button
-          v-permission="'rule:edit'"
-          size="small"
-          :icon="ElIconDocument"
-          @click="handleSave"
-          >临时保存脚本</el-button
-        >
-        <el-button
-          v-permission="'rule:edit'"
-          size="small"
-          type="warning"
-          :icon="ElIconCpu"
-          @click="handleCompile"
-          >保存并验证脚本</el-button
-        >
-        <el-button
-          v-permission="'rule:edit'"
-          size="small"
-          type="primary"
-          :icon="ElIconVideoPlay"
-          @click="handleTest"
-          >验证后测试</el-button
-        >
+        <rule-designer-action-bar
+          :can-edit="canEditDraft"
+          :can-test="designerCanTest"
+          :state="designerActionState"
+          :recovery="designerRecoveryCandidate"
+          :report="designerValidationReport"
+          @save="handleSave"
+          @save-check="handleCompile"
+          @test="handleTest"
+          @lifecycle="goRuleLifecycle"
+          @restore="restoreDesignerRecovery"
+          @discard-recovery="discardDesignerRecovery"
+        />
       </div>
-    </div>
-
-    <div
-      class="se-lifecycle-guidance"
-      data-testid="designer-lifecycle-guidance"
-    >
-      保存并验证仅更新草稿，审核发布请
-      <button
-        type="button"
-        class="se-lifecycle-link"
-        aria-label="前往规则生命周期审核发布"
-        title="前往规则生命周期审核发布"
-        @click="goRuleLifecycle"
-      >
-        前往规则生命周期
-      </button>
-      。
     </div>
 
     <div
@@ -348,6 +321,7 @@ import MonacoEditor from '@/components/MonacoEditor'
 import DesignerTestDialog from '@/components/common/DesignerTestDialog.vue'
 import RuleDraftReadOnly from '@/components/rule/RuleDraftReadOnly.vue'
 import RuleDesignerVersionSelect from '@/components/rule/RuleDesignerVersionSelect.vue'
+import RuleDesignerActionBar from '@/components/rule/RuleDesignerActionBar.vue'
 import {
   buildSampleParamsFromCodes,
   collectScriptInputCodes,
@@ -399,6 +373,7 @@ export default {
     }
   },
   components: {
+    RuleDesignerActionBar,
     RuleDraftReadOnly,
     RuleDesignerVersionSelect,
     DesignerTestDialog,
@@ -734,6 +709,9 @@ export default {
         this.$message.error('加载内容失败: ' + (e.message || '未知错误'))
       } finally {
         this.contentLoaded = true
+        this.$nextTick(() =>
+          this.initializeDesignerDraftTracking(this.serializeDesignerDraft())
+        )
       }
     },
     buildModelJson() {
@@ -742,6 +720,16 @@ export default {
         script: this.script,
         scriptVarRefs: this.scriptVarRefs,
       }
+    },
+    serializeDesignerDraft() {
+      const refs = (this.scriptVarRefs || []).filter((ref) => {
+        if (ref.varId == null || !ref.refType || !ref.refCode) return false
+        const regex = new RegExp(
+          '\\b' + this.escapeRegex(ref.refCode) + '\\b'
+        )
+        return regex.test(this.script || '')
+      })
+      return JSON.stringify({ script: this.script, scriptVarRefs: refs })
     },
     async handleSave() {
       // 保存前：从脚本中提取实际引用的变量，更新 scriptVarRefs
@@ -761,13 +749,7 @@ export default {
       })
     },
     async handleTest() {
-      const result = await this.handleSave()
-      if (!result.compileSuccess) {
-        this.$message.error(
-          '脚本验证失败: ' + (result.compileMessage || '未知错误')
-        )
-        return
-      }
+      if (!this.ensureDesignerReadyForTest()) return
       this.testParamsTemplate = this.buildTestParamsTemplate()
       const codes = collectScriptInputCodes(this.script, this.projectRefs)
       this.testParamsJson = JSON.stringify(
@@ -1045,26 +1027,6 @@ $editor-border: #313244;
   flex-wrap: wrap;
   gap: 8px;
   flex-shrink: 0;
-}
-.se-lifecycle-guidance {
-  padding: 6px 20px;
-  color: var(--tianshu-text-tertiary);
-  font-size: 12px;
-  background: var(--tianshu-bg-soft);
-  border-bottom: 1px solid var(--tianshu-border-subtle);
-}
-.se-lifecycle-link {
-  padding: 0;
-  color: var(--el-color-primary);
-  font: inherit;
-  cursor: pointer;
-  background: transparent;
-  border: 0;
-
-  &:hover,
-  &:focus-visible {
-    text-decoration: underline;
-  }
 }
 .se-title-area {
   display: flex;

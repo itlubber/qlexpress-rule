@@ -2,6 +2,10 @@ import { flushPromises, mount } from '@test-utils'
 import { reactive } from 'vue'
 import * as definitionApi from '@/api/definition'
 import ruleDraftMixin from '@/mixins/ruleDraftMixin'
+import {
+  clearDesignerLeaveGuards,
+  confirmDesignerPathsCanClose,
+} from '@/utils/designerLeaveGuard'
 
 function mountHost() {
   return mount({
@@ -42,26 +46,175 @@ function mountCachedHost() {
 describe('ruleDraftMixin', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    window.sessionStorage.clear()
+    clearDesignerLeaveGuards()
   })
 
-  test('保存编译成功后进入规则详情生命周期', async () => {
-    definitionApi.listRuleRevisions.mockResolvedValueOnce({ data: [] })
-    definitionApi.getContent.mockResolvedValueOnce({
-      data: { modelJson: '{}' },
+  test('保存编译成功后执行发布前检查并停留在设计器', async () => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({
+      data: [{ id: 6, definitionId: 30, state: 'DRAFT', lockVersion: 4 }],
+    })
+    definitionApi.preflightRuleRevision.mockResolvedValueOnce({
+      data: { valid: true, errors: [], warnings: [] },
     })
     const wrapper = mountHost()
     await flushPromises()
+    wrapper.vm.initializeDesignerDraftTracking('{}')
+    wrapper.vm.markDesignerDraftSaved('{}')
 
     await wrapper.vm.completeRuleCompile(
-      { compileSuccess: true },
+      { compileSuccess: true, revision: { id: 6 } },
       { successMessage: '编译成功' }
     )
 
-    expect(wrapper.vm.$router.push).toHaveBeenCalledWith({
-      name: 'RuleDetail',
-      params: { id: 30 },
-      query: { focus: 'lifecycle' },
+    expect(definitionApi.preflightRuleRevision).toHaveBeenCalledWith(30, 6)
+    expect(wrapper.vm.designerActionState).toBe('READY_TO_TEST')
+    expect(wrapper.vm.designerCanTest).toBe(true)
+    expect(wrapper.vm.designerValidationReport).toEqual({
+      valid: true,
+      errors: [],
+      warnings: [],
     })
+    expect(wrapper.vm.$router.push).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  test('内容变更后静默记录会话恢复草稿并统一拦截离开', async () => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({
+      data: [{ id: 6, definitionId: 30, state: 'DRAFT', lockVersion: 4 }],
+    })
+    const wrapper = mountHost()
+    await flushPromises()
+    wrapper.vm.initializeDesignerDraftTracking('{"script":"old"}')
+    wrapper.vm.serializeDesignerDraft = () => '{"script":"new"}'
+
+    wrapper.vm.captureDesignerDraftState()
+
+    expect(wrapper.vm.designerActionState).toBe('DIRTY')
+    expect(wrapper.vm.designerHasUnsavedChanges).toBe(true)
+    expect(wrapper.vm.designerRecoveryCandidate).toBeNull()
+    expect(window.sessionStorage.length).toBe(1)
+    await expect(wrapper.vm.confirmDesignerLeave()).resolves.toBe(true)
+    expect(wrapper.vm.$confirm).toHaveBeenCalledWith(
+      '当前设计有未保存修改，放弃修改并离开吗？',
+      '未保存提醒',
+      expect.objectContaining({ type: 'warning' })
+    )
+    wrapper.unmount()
+  })
+
+  test('工作区缓存设计器激活后按当前路由重新注册离开保护', async() => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({
+      data: [{ id: 6, definitionId: 30, state: 'DRAFT', lockVersion: 4 }],
+    })
+    const route = reactive({
+      fullPath: '/designer/table/30',
+      path: '/designer/table/30',
+      name: 'DecisionTable',
+      params: { id: '30' },
+      query: {},
+    })
+    const wrapper = mount({
+      name: 'ActivatedDesignerLeaveGuardHost',
+      mixins: [ruleDraftMixin],
+      data() {
+        return { definitionId: 30 }
+      },
+      template: '<div />',
+    }, {
+      mocks: {
+        $route: route,
+        $router: { push: vi.fn(), replace: vi.fn() },
+      },
+    })
+    await flushPromises()
+    wrapper.vm.initializeDesignerDraftTracking('{"script":"old"}')
+    wrapper.vm.serializeDesignerDraft = () => '{"script":"new"}'
+    wrapper.vm.captureDesignerDraftState()
+    wrapper.vm.$confirm = vi.fn().mockRejectedValueOnce(new Error('cancel'))
+
+    clearDesignerLeaveGuards()
+    ruleDraftMixin.activated.call(wrapper.vm)
+
+    await expect(
+      confirmDesignerPathsCanClose(['/designer/table/30'])
+    ).resolves.toBe(false)
+    expect(wrapper.vm.$confirm).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
+  test('重新进入相同草稿时才展示上次会话的恢复候选', async() => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({
+      data: [{ id: 6, definitionId: 30, state: 'DRAFT', lockVersion: 4 }],
+    })
+    const first = mountHost()
+    await flushPromises()
+    first.vm.initializeDesignerDraftTracking('{"script":"old"}')
+    first.vm.serializeDesignerDraft = () => '{"script":"new"}'
+    first.vm.captureDesignerDraftState()
+    first.unmount()
+
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({
+      data: [{ id: 6, definitionId: 30, state: 'DRAFT', lockVersion: 4 }],
+    })
+    const reopened = mountHost()
+    await flushPromises()
+    reopened.vm.initializeDesignerDraftTracking('{"script":"old"}')
+
+    expect(reopened.vm.designerRecoveryCandidate).toMatchObject({
+      definitionId: '30',
+      revisionId: '6',
+      lockVersion: 4,
+      modelJson: '{"script":"new"}',
+    })
+    reopened.unmount()
+  })
+
+  test('发布前检查存在阻断项时保持不可测试并展示报告', async () => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({
+      data: [{ id: 6, definitionId: 30, state: 'DRAFT', lockVersion: 4 }],
+    })
+    definitionApi.preflightRuleRevision.mockResolvedValueOnce({
+      data: {
+        valid: false,
+        errors: [{ code: 'MISSING_REFERENCE', message: '变量不存在' }],
+        warnings: [],
+      },
+    })
+    const wrapper = mountHost()
+    await flushPromises()
+    wrapper.vm.initializeDesignerDraftTracking('{}')
+    wrapper.vm.markDesignerDraftSaved('{}')
+
+    await wrapper.vm.completeRuleCompile({
+      compileSuccess: true,
+      revision: { id: 6 },
+    })
+
+    expect(wrapper.vm.designerActionState).toBe('CHECK_FAILED')
+    expect(wrapper.vm.designerCanTest).toBe(false)
+    expect(wrapper.vm.designerValidationReport.valid).toBe(false)
+    wrapper.unmount()
+  })
+
+  test('切换设计来源前必须确认放弃未保存修改', async () => {
+    definitionApi.listRuleRevisions.mockResolvedValueOnce({
+      data: [
+        { id: 6, definitionId: 30, state: 'DRAFT', lockVersion: 4 },
+        { id: 5, definitionId: 30, state: 'PUBLISHED', revisionNo: 1 },
+      ],
+    })
+    const wrapper = mountHost()
+    await flushPromises()
+    wrapper.vm.initializeDesignerDraftTracking('{"script":"old"}')
+    wrapper.vm.serializeDesignerDraft = () => '{"script":"new"}'
+    wrapper.vm.captureDesignerDraftState()
+    wrapper.vm.$confirm = vi.fn().mockRejectedValueOnce(new Error('cancel'))
+
+    await wrapper.vm.switchDesignerSource('REVISION:5')
+
+    expect(wrapper.vm.$router.replace).not.toHaveBeenCalled()
+    expect(wrapper.vm.designerActionState).toBe('DIRTY')
     wrapper.unmount()
   })
 

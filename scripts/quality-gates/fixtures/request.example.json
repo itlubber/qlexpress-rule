@@ -1,0 +1,13 @@
+{
+  "method": "POST",
+  "headers": {
+    "content-type": "application/json"
+  },
+  "body": {
+    "ruleCode": "REPLACE_WITH_TEST_RULE_CODE",
+    "params": {
+      "requestId": "capacity-gate-example"
+    }
+  },
+  "timeoutMs": 10000
+}

@@ -12,18 +12,19 @@ public class L1MemoryCache {
 
     private static final Logger log = LoggerFactory.getLogger(L1MemoryCache.class);
     private final Object cacheLock = new Object();
-    private ConcurrentHashMap<String, CachedRule> cache;
+    private volatile ConcurrentHashMap<String, CachedRule> cache;
     private final int maxSize;
 
     public L1MemoryCache(int maxSize) {
+        if (maxSize <= 0) {
+            throw new IllegalArgumentException("L1 cache maxSize must be greater than zero");
+        }
         this.maxSize = maxSize;
         this.cache = new ConcurrentHashMap<>(maxSize);
     }
 
     public CachedRule get(String ruleCode) {
-        synchronized (cacheLock) {
-            return cache.get(ruleCode);
-        }
+        return cache.get(ruleCode);
     }
 
     public void put(CachedRule rule) {
@@ -75,16 +76,13 @@ public class L1MemoryCache {
     }
 
     public int size() {
-        synchronized (cacheLock) {
-            return cache.size();
-        }
+        return cache.size();
     }
 
     public Map<String, Integer> getVersions() {
+        ConcurrentHashMap<String, CachedRule> snapshot = cache;
         Map<String, Integer> versions = new LinkedHashMap<>();
-        synchronized (cacheLock) {
-            cache.forEach((k, v) -> versions.put(k, v.getVersion()));
-        }
+        snapshot.forEach((k, v) -> versions.put(k, v.getVersion()));
         return versions;
     }
 }

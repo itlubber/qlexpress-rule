@@ -48,29 +48,19 @@
           >添加等级</el-button
         >
         <el-divider direction="vertical" />
-        <el-button
-          v-permission="'rule:edit'"
-          size="small"
-          :icon="ElIconDocument"
-          @click="handleSave"
-          >临时保存配置</el-button
-        >
-        <el-button
-          v-permission="'rule:edit'"
-          size="small"
-          type="warning"
-          :icon="ElIconCpu"
-          @click="handleCompile"
-          >保存并编译</el-button
-        >
-        <el-button
-          v-permission="'rule:edit'"
-          size="small"
-          type="primary"
-          :icon="ElIconVideoPlay"
-          @click="openTestDialog"
-          >编译后测试</el-button
-        >
+        <rule-designer-action-bar
+          :can-edit="canEditDraft"
+          :can-test="designerCanTest"
+          :state="designerActionState"
+          :recovery="designerRecoveryCandidate"
+          :report="designerValidationReport"
+          @save="handleSave"
+          @save-check="handleCompile"
+          @test="openTestDialog"
+          @lifecycle="goRuleLifecycle"
+          @restore="restoreDesignerRecovery"
+          @discard-recovery="discardDesignerRecovery"
+        />
       </div>
     </div>
 
@@ -384,10 +374,7 @@
     <!-- 脚本预览/编辑面板 -->
     <script-panel
       v-if="definitionId"
-      ref="scriptPanel"
-      :definitionId="definitionId"
-      :onBeforeCompile="handleSave"
-      @go-lifecycle="goRuleLifecycle"
+      :compile-result="designerCompileResult"
     />
 
     <designer-test-dialog
@@ -425,6 +412,7 @@ import OperandPicker from '@/components/common/OperandPicker.vue'
 import ScriptPanel from '@/components/common/ScriptPanel.vue'
 import RuleDraftReadOnly from '@/components/rule/RuleDraftReadOnly.vue'
 import RuleDesignerVersionSelect from '@/components/rule/RuleDesignerVersionSelect.vue'
+import RuleDesignerActionBar from '@/components/rule/RuleDesignerActionBar.vue'
 import { addCode, buildSampleParamsFromCodes } from '@/utils/testSampleParams'
 import {
   collectOperandReferences,
@@ -494,6 +482,7 @@ export default {
     }
   },
   components: {
+    RuleDesignerActionBar,
     RuleDraftReadOnly,
     RuleDesignerVersionSelect,
     DesignerTestDialog,
@@ -578,6 +567,9 @@ export default {
         this.normalizeModel()
         this.contentLoaded = true
         this._trySyncModelVarRefs()
+        this.$nextTick(() =>
+          this.initializeDesignerDraftTracking(this.serializeDesignerDraft())
+        )
       }
     },
     /** 加载最新变量后，同步 model 中结果变量的 varCode 和 varLabel */
@@ -823,7 +815,15 @@ export default {
       this.model.thresholds.splice(index, 1)
     },
     async handleSave() {
-      this.model.scoreItems.forEach((item) => {
+      const result = await this.saveDraftModel(this.serializeDesignerDraft())
+      this.refreshProjectRefs()
+
+      this.$message.success('草稿已保存')
+      return result
+    },
+    serializeDesignerDraft() {
+      const model = JSON.parse(JSON.stringify(this.model))
+      ;(model.scoreItems || []).forEach((item) => {
         item.condition = this.buildCondition(
           item.condVar,
           item.condOperator,
@@ -831,11 +831,7 @@ export default {
           item.condVarType
         )
       })
-      const result = await this.saveDraftModel(JSON.stringify(this.model))
-      this.refreshProjectRefs()
-
-      this.$message.success('草稿已保存')
-      return result
+      return JSON.stringify(model)
     },
     async handleCompile() {
       const result = await this.handleSave()
@@ -844,13 +840,7 @@ export default {
       })
     },
     async openTestDialog() {
-      const result = await this.handleSave()
-      if (!result.compileSuccess) {
-        this.$message.error(
-          '编译失败: ' + (result.compileMessage || '未知错误')
-        )
-        return
-      }
+      if (!this.ensureDesignerReadyForTest()) return
       const saved = this.model.testParams
       if (saved && saved !== '{}') {
         this.testParamsTemplate = saved

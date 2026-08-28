@@ -36,6 +36,20 @@ public class VariableResolveOptions {
         state.put(dimension.trim().toUpperCase(), value);
     }
 
+    public void mergeSourceStates(Map<String, Map<String, Object>> states) {
+        if (states == null || states.isEmpty()) return;
+        for (Map.Entry<String, Map<String, Object>> entry : states.entrySet()) {
+            Map<String, Object> state = sourceStates.get(entry.getKey());
+            if (state == null) {
+                state = new LinkedHashMap<>();
+                sourceStates.put(entry.getKey(), state);
+            }
+            if (entry.getValue() != null) {
+                state.putAll(entry.getValue());
+            }
+        }
+    }
+
     private String statusKey(String refType, Long refId) {
         return refType.trim().toUpperCase() + ":" + refId;
     }

@@ -66,10 +66,26 @@ test('表达式编辑器从规则设计器打开后可配置、测试、暂存�
   assertClean()
 })
 
-test('多个规则表达式会话返回各自设计器并保留未保存配置', async ({ page }) => {
+test('多个规则表达式会话返回各自设计器并通过草稿安全切换', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
+  const designerApiData = createDesignerApiData()
+  designerApiData.set('POST /api/rule/definition/save', async ({ request }) => {
+    const payload = request.postDataJSON()
+    return {
+      revision: {
+        id: payload.revisionId,
+        definitionId: payload.definitionId,
+        revisionNo: 1,
+        state: 'DRAFT',
+        lockVersion: Number(payload.lockVersion || 0) + 1,
+        modelJson: payload.modelJson
+      },
+      compileSuccess: true,
+      issues: []
+    }
+  })
   const { assertClean } = await installDistRoutes(page, {
-    apiData: createDesignerApiData()
+    apiData: designerApiData
   })
 
   await page.goto('http://tianshu.local/index.html#/designer/table/101')
@@ -88,6 +104,8 @@ test('多个规则表达式会话返回各自设计器并保留未保存配置',
   await page.getByRole('main').getByRole('button', { name: '返回', exact: true }).click()
   await expect(page).toHaveURL(/#\/designer\/table\/101$/)
   await expect(page.getByText('共 1 条规则', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '仅保存草稿', exact: true }).click()
+  await expect(page.getByRole('status')).toContainText('已保存，等待检查')
 
   await page.getByRole('button', { name: '规则集 · 左操作数', exact: true }).click()
   await page.getByRole('main').getByRole('button', { name: '返回', exact: true }).click()

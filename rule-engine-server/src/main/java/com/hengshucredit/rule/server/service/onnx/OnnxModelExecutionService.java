@@ -17,8 +17,14 @@ public class OnnxModelExecutionService {
     }
 
     public void preload(byte[] modelBytes, String configJson) {
+        preloadWithOutcome(modelBytes, configJson);
+    }
+
+    public PreloadOutcome preloadWithOutcome(byte[] modelBytes, String configJson) {
         OnnxTaskConfig config = OnnxTaskConfig.parse(configJson);
         sessionManager.session(modelBytes, config.getRuntimeConfig());
+        return sessionManager.usesCpuFallback(modelBytes, config.getRuntimeConfig())
+                ? PreloadOutcome.CPU_FALLBACK : PreloadOutcome.READY;
     }
 
     public Map<String, Object> execute(byte[] modelBytes, String configJson, Map<String, Object> params) {
@@ -79,5 +85,10 @@ public class OnnxModelExecutionService {
             result.add(copy);
         }
         return result;
+    }
+
+    public enum PreloadOutcome {
+        READY,
+        CPU_FALLBACK
     }
 }

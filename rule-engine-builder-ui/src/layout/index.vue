@@ -144,10 +144,12 @@ import {
   getAvatarInitial,
   isWorkspaceRoute,
   readSidebarState,
+  resolveCloseOperation,
   resolveWorkspaceShortcut,
   routeToTab,
   writeSidebarState,
 } from '@/layout/layoutState'
+import { confirmDesignerPathsCanClose } from '@/utils/designerLeaveGuard'
 import { readWorkspaceTabs } from '@/store/modules/workspaceTabs'
 import {
   getConsoleAuthConfig,
@@ -303,8 +305,14 @@ export default {
       if (!isWorkspaceRoute(this.$route)) return
       this.$store.dispatch('workspaceTabs/open', this.routeTab(this.$route))
     },
-    navigateTo(fullPath) {
+    async navigateTo(fullPath, options = {}) {
       if (!fullPath || fullPath === this.$route.fullPath) return
+      if (
+        !options.skipDesignerGuard &&
+        !(await confirmDesignerPathsCanClose([this.$route.fullPath]))
+      ) {
+        return { cancelled: true }
+      }
       const target = withProjectContext(
         fullPath,
         this.$store.state.currentProject && this.$store.state.currentProject.id
@@ -342,10 +350,12 @@ export default {
         this.$message.error(e.message || '加载项目上下文失败')
       }
     },
-    activateTab(fullPath) {
+    async activateTab(fullPath) {
       if (!fullPath) return
+      const result = await this.navigateTo(fullPath)
+      if (result && result.cancelled) return result
       this.$store.dispatch('workspaceTabs/activate', fullPath)
-      return this.navigateTo(fullPath)
+      return result
     },
     handleWorkspaceShortcut(event) {
       const command = resolveWorkspaceShortcut(
@@ -362,21 +372,43 @@ export default {
     },
     async handleTabOperation({ operation, targetPath }) {
       if (operation === 'refresh') {
+        const affectedPaths = targetPath === this.$route.fullPath
+          ? [targetPath]
+          : [targetPath, this.$route.fullPath]
+        if (!(await confirmDesignerPathsCanClose(affectedPaths))) {
+          return { cancelled: true }
+        }
         if (targetPath !== this.$route.fullPath) {
           this.$store.dispatch('workspaceTabs/activate', targetPath)
-          await this.navigateTo(targetPath)
+          await this.navigateTo(targetPath, { skipDesignerGuard: true })
         }
         await this.$store.dispatch('workspaceTabs/refresh', targetPath)
         return
       }
 
+      const preview = resolveCloseOperation(
+        this.workspaceTabs,
+        this.activeTabPath,
+        targetPath,
+        operation
+      )
+      const retainedPaths = new Set(
+        preview.tabs.map((tab) => tab.fullPath)
+      )
+      const closingPaths = this.workspaceTabs
+        .filter((tab) => !retainedPaths.has(tab.fullPath))
+        .map((tab) => tab.fullPath)
+      if (!(await confirmDesignerPathsCanClose(closingPaths))) {
+        return { cancelled: true }
+      }
       const result = await this.$store.dispatch('workspaceTabs/close', {
         operation,
         targetPath,
       })
       if (result.nextPath !== this.$route.fullPath) {
-        await this.navigateTo(result.nextPath)
+        await this.navigateTo(result.nextPath, { skipDesignerGuard: true })
       }
+      return result
     },
     handleSidebarResize(width) {
       const nextWidth = clampSidebarWidth(width)

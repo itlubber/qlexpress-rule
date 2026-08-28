@@ -165,29 +165,19 @@
         <el-button size="small" :icon="ElIconCircleCheck" @click="handleValidate"
           >验证</el-button
         >
-        <el-button
-          v-permission="'rule:edit'"
-          size="small"
-          :icon="ElIconDocument"
-          @click="handleSave"
-          >临时保存配置</el-button
-        >
-        <el-button
-          v-permission="'rule:edit'"
-          size="small"
-          type="warning"
-          :icon="ElIconCpu"
-          @click="handleCompile"
-          >保存并编译</el-button
-        >
-        <el-button
-          v-permission="'rule:edit'"
-          size="small"
-          type="primary"
-          :icon="ElIconVideoPlay"
-          @click="handleTest"
-          >编译后测试</el-button
-        >
+          <rule-designer-action-bar
+            :can-edit="canEditDraft"
+            :can-test="designerCanTest"
+            :state="designerActionState"
+            :recovery="designerRecoveryCandidate"
+            :report="designerValidationReport"
+            @save="handleSave"
+            @save-check="handleCompile"
+            @test="handleTest"
+            @lifecycle="goRuleLifecycle"
+            @restore="restoreDesignerRecovery"
+            @discard-recovery="discardDesignerRecovery"
+          />
       </div>
     </div>
 
@@ -484,10 +474,7 @@
     <!-- 脚本预览/编辑面板 -->
     <div class="flow-script-area" v-if="definitionId">
       <script-panel
-        ref="scriptPanel"
-        :definitionId="definitionId"
-        :onBeforeCompile="handleSave"
-        @go-lifecycle="goRuleLifecycle"
+        :compile-result="designerCompileResult"
       />
     </div>
 
@@ -586,6 +573,7 @@ import ScriptPanel from '@/components/common/ScriptPanel.vue'
 import DesignerTestDialog from '@/components/common/DesignerTestDialog.vue'
 import RuleDraftReadOnly from '@/components/rule/RuleDraftReadOnly.vue'
 import RuleDesignerVersionSelect from '@/components/rule/RuleDesignerVersionSelect.vue'
+import RuleDesignerActionBar from '@/components/rule/RuleDesignerActionBar.vue'
 import EndNodeScopeDialog from '@/components/flow/EndNodeScopeDialog.vue'
 import ActionBlockEditor from '@/components/flow/ActionBlockEditor.vue'
 import ConditionGroupEditor from '@/components/decision/ConditionGroupEditor.vue'
@@ -699,6 +687,7 @@ export default {
     }
   },
   components: {
+    RuleDesignerActionBar,
     RuleDraftReadOnly,
     RuleDesignerVersionSelect,
     DesignerTestDialog,
@@ -1120,7 +1109,10 @@ export default {
       })
       this.lf.on('node:dbclick', ({ data }) => this.selectNodeData(data))
       this.lf.on('edge:dbclick', ({ data }) => this.selectEdgeData(data))
-      this.lf.on('history:change', () => this.updateZoom())
+      this.lf.on('history:change', () => {
+        this.updateZoom()
+        this.queueDesignerDraftCapture()
+      })
       this.lf.on('graph:rendered', this.onGraphRendered)
       this.lf.on('anchor:mousedown', this.onAnchorMouseDown)
       this.lf.on('anchor:drag', this.onAnchorDrag)
@@ -1674,6 +1666,11 @@ export default {
         this.globalEdgeLineType = 'polyline'
         this.lf.setDefaultEdgeType('polyline')
         this.lf.render(getDefaultFlowData())
+      } finally {
+        this.contentLoaded = true
+        this.$nextTick(() =>
+          this.initializeDesignerDraftTracking(this.serializeDesignerDraft())
+        )
       }
     },
 
@@ -1809,10 +1806,13 @@ export default {
       return map[lfType] || lfType
     },
 
-    buildBackendModel() {
-      if (typeof this.flushActiveEditor === 'function') this.flushActiveEditor()
+    buildBackendModel(flushEditor = true) {
+      if (flushEditor && typeof this.flushActiveEditor === 'function') {
+        this.flushActiveEditor()
+      }
       // 保存前将当前编辑中的 actionData 同步到 LogicFlow 模型，确保配置不丢失
       if (
+        flushEditor &&
         this.activeElement &&
         this.activeElement.baseType === 'node' &&
         this.activeElement.type === 'script-task'
@@ -1825,6 +1825,7 @@ export default {
         })
       }
       if (
+        flushEditor &&
         this.activeElement &&
         this.activeElement.baseType === 'edge' &&
         this.edgeCondMode === 'visual' &&
@@ -1936,6 +1937,10 @@ export default {
       return result
     },
 
+    serializeDesignerDraft() {
+      return JSON.stringify(this.buildBackendModel(false))
+    },
+
     buildRuleCallValidationModel() {
       return this.buildBackendModel()
     },
@@ -1949,14 +1954,7 @@ export default {
     },
 
     async handleTest() {
-      const result = await this.handleSave()
-      if (result === false) return
-      if (!result.compileSuccess) {
-        this.$message.error(
-          '编译失败: ' + (result.compileMessage || '未知错误')
-        )
-        return
-      }
+      if (!this.ensureDesignerReadyForTest()) return
       this.testParamsTemplate = this.buildTestParamsTemplate()
       this.testParamsJson = JSON.stringify(
         this.buildTestParamsTemplate(),

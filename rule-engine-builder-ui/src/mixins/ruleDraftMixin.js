@@ -1,5 +1,12 @@
 import { listRuleRevisions, saveContent } from '@/api/definition'
 import * as definitionApi from '@/api/definition'
+import {
+  clearDraftRecovery,
+  createDraftFingerprint,
+  readDraftRecovery,
+  saveDraftRecovery,
+} from '@/utils/ruleDesignerDraft'
+import { registerDesignerLeaveGuard } from '@/utils/designerLeaveGuard'
 
 function unwrap(response) {
   return response && response.data !== undefined ? response.data : response
@@ -39,6 +46,18 @@ export default {
       designerRevisions: [],
       designerVersions: [],
       designerSourcesLoading: false,
+      designerActionState: 'CLEAN',
+      designerBaselineFingerprint: '',
+      designerCurrentFingerprint: '',
+      designerCheckedFingerprint: '',
+      designerValidationReport: null,
+      designerCompileResult: null,
+      designerRecoveryCandidate: null,
+      designerDraftTrackingReady: false,
+      designerCaptureQueued: false,
+      designerRestoringRecovery: false,
+      designerLeaveUnregister: null,
+      designerLeaveApproved: false,
     }
   },
   computed: {
@@ -112,6 +131,24 @@ export default {
       }
       return [...revisions, ...versions]
     },
+    designerCanTest() {
+      return (
+        this.canEditDraft &&
+        this.designerActionState === 'READY_TO_TEST' &&
+        Boolean(this.designerCheckedFingerprint) &&
+        this.designerCheckedFingerprint === this.designerCurrentFingerprint
+      )
+    },
+    designerHasUnsavedChanges() {
+      return (
+        this.designerActionState === 'SAVING' ||
+        (
+        this.designerDraftTrackingReady &&
+        Boolean(this.designerCurrentFingerprint) &&
+        this.designerCurrentFingerprint !== this.designerBaselineFingerprint
+        )
+      )
+    },
   },
   watch: {
     '$route.query'() {
@@ -127,8 +164,40 @@ export default {
     this.draftGuardRouteKey = this.currentDesignerRouteKey()
     this.startViewedRevisionRefresh(false)
   },
+  mounted() {
+    if (typeof window === 'undefined') return
+    window.addEventListener('keydown', this.handleDesignerSaveShortcut)
+    window.addEventListener('beforeunload', this.handleDesignerBeforeUnload)
+    this.registerDesignerLeaveProtection()
+  },
+  updated() {
+    this.queueDesignerDraftCapture()
+  },
+  beforeUnmount() {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.handleDesignerSaveShortcut)
+      window.removeEventListener('beforeunload', this.handleDesignerBeforeUnload)
+    }
+    if (this.designerLeaveUnregister) this.designerLeaveUnregister()
+  },
+  beforeRouteLeave(to, _from, next) {
+    if (this.designerLeaveApproved) {
+      this.designerLeaveApproved = false
+      next()
+      return
+    }
+    if (this.isOwnExpressionRoute(to)) {
+      next()
+      return
+    }
+    this.confirmDesignerLeave({ discardRecovery: true }).then((confirmed) => {
+      if (confirmed) next()
+      else next(false)
+    })
+  },
   activated() {
     this.draftGuardActive = true
+    this.registerDesignerLeaveProtection()
     if (!this.draftGuardNeedsRefresh || !this.isOwnDesignerRoute()) return
     this.draftGuardNeedsRefresh = false
     this.startViewedRevisionRefresh(true)
@@ -138,6 +207,204 @@ export default {
     this.draftGuardNeedsRefresh = !this.isOwnExpressionRoute()
   },
   methods: {
+    registerDesignerLeaveProtection() {
+      if (!this.isOwnDesignerRoute()) return
+      const path = this.$route?.fullPath || this.$route?.path
+      if (!path) return
+      if (this.designerLeaveUnregister) this.designerLeaveUnregister()
+      this.designerLeaveUnregister = registerDesignerLeaveGuard(path, () =>
+        this.confirmDesignerLeave({ discardRecovery: true })
+      )
+    },
+    designerSessionStorage() {
+      try {
+        return typeof window !== 'undefined' ? window.sessionStorage : null
+      } catch {
+        return null
+      }
+    },
+    designerDraftIdentity(revision = this.draftRevision) {
+      return {
+        definitionId: this.definitionId || this.$route?.params?.id,
+        revisionId: revision?.id,
+        lockVersion: revision?.lockVersion,
+      }
+    },
+    initializeDesignerDraftTracking(modelJson) {
+      if (this.designerRestoringRecovery) return
+      if (!this.canEditDraft) {
+        this.designerDraftTrackingReady = false
+        this.designerRecoveryCandidate = null
+        return
+      }
+      const serialized =
+        typeof modelJson === 'string'
+          ? modelJson
+          : this.serializeDesignerDraft?.()
+      if (typeof serialized !== 'string') return
+      const fingerprint = createDraftFingerprint(serialized)
+      this.designerBaselineFingerprint = fingerprint
+      this.designerCurrentFingerprint = fingerprint
+      this.designerCheckedFingerprint = ''
+      this.designerValidationReport = null
+      this.designerCompileResult = null
+      this.designerActionState = 'CLEAN'
+      this.designerDraftTrackingReady = true
+      const identity = this.designerDraftIdentity()
+      const recovery = readDraftRecovery(this.designerSessionStorage(), identity)
+      this.designerRecoveryCandidate =
+        recovery && recovery.fingerprint !== fingerprint ? recovery : null
+      if (recovery && recovery.fingerprint === fingerprint) {
+        clearDraftRecovery(this.designerSessionStorage(), identity)
+      }
+    },
+    queueDesignerDraftCapture() {
+      if (
+        this.designerCaptureQueued ||
+        !this.designerDraftTrackingReady ||
+        typeof this.serializeDesignerDraft !== 'function'
+      ) {
+        return
+      }
+      this.designerCaptureQueued = true
+      Promise.resolve().then(() => {
+        this.designerCaptureQueued = false
+        this.captureDesignerDraftState()
+      })
+    },
+    captureDesignerDraftState() {
+      if (
+        !this.designerDraftTrackingReady ||
+        !this.canEditDraft ||
+        this.designerActionState === 'SAVING' ||
+        typeof this.serializeDesignerDraft !== 'function'
+      ) {
+        return
+      }
+      let modelJson
+      try {
+        modelJson = this.serializeDesignerDraft()
+      } catch {
+        return
+      }
+      if (typeof modelJson !== 'string') return
+      const fingerprint = createDraftFingerprint(modelJson)
+      if (fingerprint === this.designerCurrentFingerprint) return
+      this.designerCurrentFingerprint = fingerprint
+      if (fingerprint === this.designerBaselineFingerprint) {
+        this.designerActionState =
+          this.designerCheckedFingerprint === fingerprint
+            ? 'READY_TO_TEST'
+            : 'CLEAN'
+        clearDraftRecovery(
+          this.designerSessionStorage(),
+          this.designerDraftIdentity()
+        )
+        this.designerRecoveryCandidate = null
+        return
+      }
+      if (this.designerActionState !== 'SAVE_CONFLICT') {
+        this.designerActionState = 'DIRTY'
+      }
+      this.designerCheckedFingerprint = ''
+      this.designerValidationReport = null
+      this.designerCompileResult = null
+      const recovery = {
+        ...this.designerDraftIdentity(),
+        modelJson,
+        fingerprint,
+        savedAt: new Date().toISOString(),
+      }
+      saveDraftRecovery(this.designerSessionStorage(), recovery)
+    },
+    markDesignerDraftSaved(modelJson) {
+      const fingerprint = createDraftFingerprint(modelJson)
+      this.designerBaselineFingerprint = fingerprint
+      this.designerCurrentFingerprint = fingerprint
+      this.designerCheckedFingerprint = ''
+      this.designerValidationReport = null
+      this.designerCompileResult = null
+      this.designerDraftTrackingReady = true
+      this.designerActionState = 'SAVED_UNCHECKED'
+      clearDraftRecovery(
+        this.designerSessionStorage(),
+        this.designerDraftIdentity()
+      )
+      this.designerRecoveryCandidate = null
+    },
+    async restoreDesignerRecovery() {
+      const recovery = this.designerRecoveryCandidate
+      if (!recovery || typeof this.loadContent !== 'function') return
+      const revision = this.viewRevision
+      const serverModelJson = revision?.modelJson
+      this.designerRestoringRecovery = true
+      try {
+        if (revision) revision.modelJson = recovery.modelJson
+        await this.loadContent()
+        await this.$nextTick()
+      } finally {
+        if (revision) revision.modelJson = serverModelJson
+        this.designerRestoringRecovery = false
+      }
+      this.designerCurrentFingerprint = recovery.fingerprint
+      this.designerActionState = 'DIRTY'
+      this.designerCheckedFingerprint = ''
+      this.designerValidationReport = null
+      this.designerRecoveryCandidate = null
+    },
+    discardDesignerRecovery() {
+      clearDraftRecovery(
+        this.designerSessionStorage(),
+        this.designerDraftIdentity()
+      )
+      this.designerRecoveryCandidate = null
+    },
+    async confirmDesignerLeave(options = {}) {
+      this.captureDesignerDraftState()
+      if (!this.designerHasUnsavedChanges) return true
+      try {
+        await this.$confirm(
+          '当前设计有未保存修改，放弃修改并离开吗？',
+          '未保存提醒',
+          {
+            type: 'warning',
+            confirmButtonText: '放弃并离开',
+            cancelButtonText: '继续编辑',
+          }
+        )
+        if (options.discardRecovery) {
+          this.discardDesignerRecovery()
+          this.designerLeaveApproved = true
+        }
+        return true
+      } catch {
+        return false
+      }
+    },
+    handleDesignerBeforeUnload(event) {
+      this.captureDesignerDraftState()
+      if (!this.designerHasUnsavedChanges) return
+      event.preventDefault()
+      event.returnValue = ''
+    },
+    handleDesignerSaveShortcut(event) {
+      if (
+        !this.canEditDraft ||
+        !this.draftGuardActive ||
+        !(event.ctrlKey || event.metaKey) ||
+        String(event.key || '').toLowerCase() !== 's'
+      ) {
+        return
+      }
+      event.preventDefault()
+      if (this.designerActionState !== 'SAVING') this.handleSave?.()
+    },
+    ensureDesignerReadyForTest() {
+      this.captureDesignerDraftState()
+      if (this.designerCanTest) return true
+      this.$message.warning('请先保存并检查当前内容，通过后再进入测试')
+      return false
+    },
     currentDesignerRouteKey() {
       if (!this.isOwnDesignerRoute()) return ''
       return `${this.draftGuardDefinitionId}:${sourceKey(this.requestedSource)}`
@@ -333,13 +600,19 @@ export default {
     switchDesignerSource(value) {
       const match = /^(REVISION|VERSION):([1-9]\d*)$/.exec(String(value || ''))
       if (!match || value === this.selectedDesignerSource) return
-      this.$router.replace({
-        query: {
-          ...(this.$route?.query || {}),
-          sourceType: match[1],
-          sourceId: match[2],
-        },
-      })
+      const replaceSource = () =>
+        this.$router.replace({
+          query: {
+            ...(this.$route?.query || {}),
+            sourceType: match[1],
+            sourceId: match[2],
+          },
+        })
+      this.captureDesignerDraftState()
+      if (!this.designerHasUnsavedChanges) return replaceSource()
+      return this.confirmDesignerLeave({ discardRecovery: true }).then(
+        (confirmed) => (confirmed ? replaceSource() : null)
+      )
     },
     async forkViewRevision() {
       if (!this.canForkViewRevision) {
@@ -425,15 +698,32 @@ export default {
           allowedExtra[field] = extra[field]
         }
       })
-      const response = await saveContent({
-        ...allowedExtra,
-        definitionId,
-        revisionId: this.draftRevision.id,
-        lockVersion: this.draftRevision.lockVersion,
-        modelJson,
-      })
+      this.designerActionState = 'SAVING'
+      let response
+      try {
+        response = await saveContent({
+          ...allowedExtra,
+          definitionId,
+          revisionId: this.draftRevision.id,
+          lockVersion: this.draftRevision.lockVersion,
+          modelJson,
+        })
+      } catch (error) {
+        this.designerActionState =
+          error?.response?.status === 409 ? 'SAVE_CONFLICT' : 'DIRTY'
+        this.designerCurrentFingerprint = createDraftFingerprint(modelJson)
+        const recovery = {
+          ...this.designerDraftIdentity(),
+          modelJson,
+          fingerprint: this.designerCurrentFingerprint,
+          savedAt: new Date().toISOString(),
+        }
+        saveDraftRecovery(this.designerSessionStorage(), recovery)
+        throw error
+      }
       const result = unwrap(response)
       if (!result?.revision) {
+        this.designerActionState = 'DIRTY'
         if (this.isCurrentDraftAction(action)) {
           this.draftRevision = null
           this.viewRevision = null
@@ -444,22 +734,60 @@ export default {
       this.draftRevision = result.revision
       this.viewRevision = result.revision
       this.draftIssues = Array.isArray(result.issues) ? result.issues : []
+      this.markDesignerDraftSaved(modelJson)
       return result
     },
     async completeRuleCompile(result, options = {}) {
       const successMessage = options.successMessage || '编译成功'
       const errorPrefix = options.errorPrefix || '编译失败'
+      this.designerCompileResult = result || null
       if (!result || !result.compileSuccess) {
+        this.designerActionState = 'CHECK_FAILED'
+        this.designerCheckedFingerprint = ''
+        this.designerValidationReport = {
+          valid: false,
+          errors: (result?.issues || []).filter(
+            (item) => item.severity !== 'WARNING'
+          ),
+          warnings: (result?.issues || []).filter(
+            (item) => item.severity === 'WARNING'
+          ),
+        }
         this.$message.error(
           `${errorPrefix}: ${(result && result.compileMessage) || '未知错误'}`
         )
         return result
       }
-      this.$message.success(successMessage)
+      if (!this.canEditDraft || !result.revision?.id) return result
       if (typeof options.onSuccess === 'function') {
         await options.onSuccess()
       }
-      this.goRuleLifecycle()
+      if (!this.canEditDraft) return result
+      const definitionId = this.definitionId || this.$route.params.id
+      try {
+        const response = await definitionApi.preflightRuleRevision(
+          definitionId,
+          this.draftRevision.id
+        )
+        this.designerValidationReport = unwrap(response)
+      } catch (error) {
+        const report = error?.response?.data?.data
+        if (!report) {
+          this.designerActionState = 'CHECK_FAILED'
+          throw error
+        }
+        this.designerValidationReport = report
+      }
+      if (!this.designerValidationReport?.valid) {
+        this.designerActionState = 'CHECK_FAILED'
+        this.designerCheckedFingerprint = ''
+        this.$message.warning('草稿已保存，但发布前检查存在阻断项')
+        return result
+      }
+      this.designerCheckedFingerprint = this.designerBaselineFingerprint
+      this.designerCurrentFingerprint = this.designerBaselineFingerprint
+      this.designerActionState = 'READY_TO_TEST'
+      this.$message.success(`${successMessage}，发布前检查已通过`)
       return result
     },
     goRuleLifecycle() {

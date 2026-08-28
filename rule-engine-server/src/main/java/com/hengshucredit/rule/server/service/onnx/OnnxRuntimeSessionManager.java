@@ -315,6 +315,15 @@ public class OnnxRuntimeSessionManager {
         return cpuFallbacks.size();
     }
 
+    boolean usesCpuFallback(byte[] modelBytes, OnnxRuntimeConfig runtimeConfig) {
+        if (modelBytes == null || modelBytes.length == 0
+                || runtimeConfig == null || !runtimeConfig.isCuda()) {
+            return false;
+        }
+        String key = sha256(modelBytes) + ':' + runtimeConfig.cacheKey();
+        return cpuFallbacks.containsKey(key);
+    }
+
     private String failureMessage(Throwable failure) {
         if (failure == null) return "未知错误";
         String message = failure.getMessage();
