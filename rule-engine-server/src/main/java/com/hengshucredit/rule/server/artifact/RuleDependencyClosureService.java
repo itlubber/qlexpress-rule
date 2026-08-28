@@ -483,8 +483,13 @@ public class RuleDependencyClosureService {
         snapshot.put("varType", field.getVarType());
         snapshot.put("genericType", field.getGenericType());
         snapshot.put("refObjectId", field.getRefObjectId());
+        snapshot.put("refVariableId", field.getRefVariableId());
         addJsonDependency("DATA_OBJECT:" + fieldId, "DATA_OBJECT", fieldId, null,
                 "data-object-fields/" + fieldId + ".json", "EMBEDDED", snapshot, dependencies);
+        if (field.getRefVariableId() != null) {
+            addVariable("VARIABLE", field.getRefVariableId(), projectId,
+                    path + ".refVariableId", dependencies, issues);
+        }
         if (field.getObjectId() != null) {
             RuleDataObject object = loadDataObject(field.getObjectId());
             if (object == null || !active(object.getStatus())) {

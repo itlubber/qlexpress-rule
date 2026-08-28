@@ -4,6 +4,8 @@ import com.hengshucredit.rule.model.entity.RuleDefinition;
 import com.hengshucredit.rule.model.entity.RuleDefinitionContent;
 import com.hengshucredit.rule.model.entity.RuleDefinitionInputField;
 import com.hengshucredit.rule.model.entity.RuleDefinitionOutputField;
+import com.hengshucredit.rule.model.entity.RuleDataObject;
+import com.hengshucredit.rule.model.entity.RuleDataObjectField;
 import com.hengshucredit.rule.model.entity.RuleFunction;
 import com.hengshucredit.rule.model.entity.RuleModel;
 import com.hengshucredit.rule.model.entity.RuleModelOutputField;
@@ -45,6 +47,53 @@ public class RuleDependencyClosureServiceTest {
         Assert.assertEquals(Integer.valueOf(3), model.getVersion());
         Assert.assertEquals(digest('a'), model.getContentDigest());
         Assert.assertEquals(64, closure.getDependencyDigest().length());
+    }
+
+    @Test
+    public void dataObjectFieldMappingFreezesReferencedVariableById() {
+        FixtureService service = new FixtureService();
+        service.revision.setModelJson("{}");
+        service.inputs = Collections.singletonList(field("DATA_OBJECT", 30L));
+        RuleDataObjectField objectField = new RuleDataObjectField();
+        objectField.setId(30L);
+        objectField.setProjectId(9L);
+        objectField.setScope("PROJECT");
+        objectField.setObjectId(20L);
+        objectField.setVarCode("ageAlias");
+        objectField.setScriptName("ageAlias");
+        objectField.setVarType("NUMBER");
+        objectField.setRefVariableId(7L);
+        objectField.setStatus(1);
+        service.dataObjectFields.put(30L, objectField);
+        RuleDataObject object = new RuleDataObject();
+        object.setId(20L);
+        object.setProjectId(9L);
+        object.setScope("PROJECT");
+        object.setStatus(1);
+        service.dataObjects.put(20L, object);
+        RuleVariable age = variable(7L, 1);
+        age.setProjectId(9L);
+        age.setScope("PROJECT");
+        age.setScriptName("age");
+        age.setVarType("NUMBER");
+        age.setVarSource("INPUT");
+        service.variables.put(7L, age);
+
+        RuleDependencyClosureService.DependencyClosure closure =
+                service.resolve(100L, 200L);
+
+        Assert.assertFalse(closure.getIssues().toString(), closure.hasErrors());
+        Assert.assertTrue(closure.getDependencies().stream()
+                .anyMatch(value -> "DATA_OBJECT:30".equals(value.getComponentId())));
+        Assert.assertTrue(closure.getDependencies().stream()
+                .anyMatch(value -> "VARIABLE:7".equals(value.getComponentId())));
+        ArtifactDependency frozenField = closure.getDependencies().stream()
+                .filter(value -> "DATA_OBJECT:30".equals(value.getComponentId()))
+                .findFirst().orElseThrow();
+        RuleDataObjectField frozen = com.alibaba.fastjson.JSON.parseObject(
+                new String(frozenField.getContent(), java.nio.charset.StandardCharsets.UTF_8),
+                RuleDataObjectField.class);
+        Assert.assertEquals(Long.valueOf(7L), frozen.getRefVariableId());
     }
 
     @Test
@@ -357,6 +406,8 @@ public class RuleDependencyClosureServiceTest {
         private final Map<Long, RuleModel> models = new HashMap<>();
         private final Map<String, RuleModelVersion> versions = new HashMap<>();
         private final Map<Long, RuleFunction> functions = new HashMap<>();
+        private final Map<Long, RuleDataObjectField> dataObjectFields = new HashMap<>();
+        private final Map<Long, RuleDataObject> dataObjects = new HashMap<>();
         private int variableLoadCount;
         private int inputFieldLoadCount;
         private RuleDefinition childDefinition;
@@ -433,6 +484,16 @@ public class RuleDependencyClosureServiceTest {
         @Override
         protected RuleFunction loadFunction(Long functionId) {
             return functions.get(functionId);
+        }
+
+        @Override
+        protected RuleDataObjectField loadDataObjectField(Long fieldId) {
+            return dataObjectFields.get(fieldId);
+        }
+
+        @Override
+        protected RuleDataObject loadDataObject(Long objectId) {
+            return dataObjects.get(objectId);
         }
     }
 }

@@ -91,6 +91,9 @@ public class ArtifactRuntimeSnapshotService {
                 snapshot.functions.add(function);
             } else if ("MODEL".equals(resourceType)) {
                 snapshot.models.add(model(component, executionProjectId));
+            } else if ("DATA_OBJECT".equals(resourceType)) {
+                snapshot.dataObjectFields.add(JSON.parseObject(
+                        component.getContent(), RuleDataObjectField.class));
             } else if ("RULE".equals(resourceType)) {
                 snapshot.nestedRules.add(JSON.parseObject(component.getContent(), NestedRuleSnapshot.class));
             } else if ("rule/input-fields.json".equals(component.getPath())) {

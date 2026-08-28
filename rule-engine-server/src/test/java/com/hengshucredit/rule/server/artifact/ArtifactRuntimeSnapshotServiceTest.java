@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSON;
 import com.hengshucredit.rule.model.entity.ArtifactDeployment;
 import com.hengshucredit.rule.model.entity.ArtifactResourceBinding;
 import com.hengshucredit.rule.model.entity.DecisionArtifact;
+import com.hengshucredit.rule.model.entity.RuleDataObjectField;
 import com.hengshucredit.rule.model.entity.RuleVariable;
 import org.junit.Assert;
 import org.junit.Test;
@@ -12,6 +13,43 @@ import java.util.List;
 import java.util.Map;
 
 public class ArtifactRuntimeSnapshotServiceTest {
+
+    @Test
+    public void loadsFrozenDataObjectFieldVariableMapping() {
+        DecisionArtifactPackage artifactPackage = new DecisionArtifactPackage();
+        artifactPackage.addComponent("data-object-fields/30.json", "application/json",
+                CanonicalJson.writeBytes(Map.of(
+                        "id", 30,
+                        "objectId", 20,
+                        "scriptName", "ageAlias",
+                        "varType", "NUMBER",
+                        "refVariableId", 7)),
+                Map.of("componentId", "DATA_OBJECT:30",
+                        "resourceType", "DATA_OBJECT",
+                        "embeddingMode", "EMBEDDED"));
+        byte[] packageBytes = new DecisionArtifactPackageCodec().encode(artifactPackage);
+        DecisionArtifactPackageCodec.DecodedPackage encoded =
+                new DecisionArtifactPackageCodec().decode(packageBytes);
+        DecisionArtifact artifact = new DecisionArtifact();
+        artifact.setId(1L);
+        artifact.setArtifactDigest(encoded.getArtifactDigest());
+        artifact.setPackageDigest(encoded.getPackageDigest());
+        artifact.setPackageContent(packageBytes);
+        ArtifactRuntimeSnapshotService service = new ArtifactRuntimeSnapshotService() {
+            @Override
+            protected DecisionArtifact loadArtifact(Long artifactId) {
+                return artifact;
+            }
+        };
+
+        ArtifactRuntimeSnapshotService.RuntimeSnapshot snapshot =
+                service.load(1L, 100L, 9L);
+
+        Assert.assertEquals(1, snapshot.getDataObjectFields().size());
+        RuleDataObjectField field = snapshot.getDataObjectFields().get(0);
+        Assert.assertEquals(Long.valueOf(30L), field.getId());
+        Assert.assertEquals(Long.valueOf(7L), field.getRefVariableId());
+    }
 
     @Test
     public void loadsFrozenVariablesAndAppliesExplicitTargetBinding() {
