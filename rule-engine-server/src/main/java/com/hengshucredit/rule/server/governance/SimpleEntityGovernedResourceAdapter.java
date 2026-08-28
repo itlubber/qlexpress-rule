@@ -221,7 +221,7 @@ public class SimpleEntityGovernedResourceAdapter<T>
         return switch (key) {
             case "projectId" -> "PROJECT";
             case "modelId", "refModelId" -> "MODEL";
-            case "variableId", "leftVarId", "rightVarId" ->
+            case "variableId", "refVariableId", "leftVarId", "rightVarId" ->
                     "VARIABLE";
             case "varId", "refId" -> refType(owner.get("refType"));
             case "functionId" -> "FUNCTION";

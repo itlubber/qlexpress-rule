@@ -84,6 +84,7 @@ public class SchemaSyncService {
             ensureModelRuntimeColumns();
             ensureModelScopeConsistency();
             ensureModelFieldForeignKeysRemoved();
+            ensureDataObjectFieldReferenceSchema();
             ensureDataObjectFieldUniqueKey();
             ensureDashboardIndexes();
         } catch (Exception e) {
@@ -886,6 +887,14 @@ public class SchemaSyncService {
         if (!indexExists(table, "uk_object_var_code")) {
             jdbcTemplate.execute("ALTER TABLE `" + table + "` ADD UNIQUE KEY `uk_object_var_code` (`object_id`, `parent_field_id`, `var_code`)");
         }
+    }
+
+    private void ensureDataObjectFieldReferenceSchema() {
+        String table = "rule_data_object_field";
+        if (!tableExists(table)) return;
+        addColumnIfMissing(table, "ref_variable_id",
+                "`ref_variable_id` BIGINT DEFAULT NULL COMMENT '字段值直接引用的变量ID' AFTER `ref_object_id`");
+        addIndexIfMissing(table, "idx_ref_variable_id", "`ref_variable_id`");
     }
 
     private void ensureDashboardIndexes() {

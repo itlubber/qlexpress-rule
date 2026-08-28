@@ -64,10 +64,11 @@ public class GovernanceResourceAdapterConfiguration {
             RuleDataObjectMapper mapper,
             RuleDataObjectFieldMapper fieldMapper,
             RuleDataObjectFieldOptionMapper optionMapper,
-            GovernanceSecretCodec secretCodec) {
+            GovernanceSecretCodec secretCodec,
+            RuleVariableMapper variableMapper) {
         return new DataObjectGovernedResourceAdapter(
                 store(mapper), fieldMapper, optionMapper,
-                secretCodec);
+                secretCodec, variableMapper);
     }
 
     @Bean

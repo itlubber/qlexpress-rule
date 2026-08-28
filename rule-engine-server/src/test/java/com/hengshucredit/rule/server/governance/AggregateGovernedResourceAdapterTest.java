@@ -29,6 +29,7 @@ import com.hengshucredit.rule.server.mapper.RuleExperimentGroupMapper;
 import com.hengshucredit.rule.server.mapper.RuleModelInputFieldMapper;
 import com.hengshucredit.rule.server.mapper.RuleModelOutputFieldMapper;
 import com.hengshucredit.rule.server.mapper.RuleVariableOptionMapper;
+import com.hengshucredit.rule.server.mapper.RuleVariableMapper;
 import com.hengshucredit.rule.server.service.RuleLifecycleService;
 import com.hengshucredit.rule.server.service.RuleDraftService;
 import org.junit.Assert;
@@ -149,6 +150,142 @@ public class AggregateGovernedResourceAdapterTest {
                         ref.targetResourceType())
                         && Long.valueOf(4L).equals(
                         ref.targetResourceId())));
+    }
+
+    @Test
+    public void dataObjectFieldVariableReferenceIsValidatedAndCollected() {
+        RuleDataObject object = dataObject(4L, "PROJECT", 2L);
+        RuleDataObjectField field = dataObjectField(8L, 4L, "INTEGER", 7L);
+        RuleVariable variable = referencedVariable(7L, "GLOBAL", 0L, "NUMBER", 1);
+        DataObjectGovernedResourceAdapter adapter = dataObjectAdapter(
+                object, field, variable);
+
+        ResourceSnapshot snapshot = adapter.loadEffective(4L);
+
+        Assert.assertTrue(adapter.validate(snapshot, "UPDATE").isEmpty());
+        Assert.assertTrue(adapter.collectDependencies(snapshot).stream()
+                .anyMatch(ref -> "VARIABLE".equals(ref.targetResourceType())
+                        && Long.valueOf(7L).equals(ref.targetResourceId())));
+    }
+
+    @Test
+    public void globalDataObjectRejectsProjectVariableReference() {
+        RuleDataObject object = dataObject(4L, "GLOBAL", 0L);
+        RuleDataObjectField field = dataObjectField(8L, 4L, "STRING", 7L);
+        RuleVariable variable = referencedVariable(7L, "PROJECT", 2L, "STRING", 1);
+        DataObjectGovernedResourceAdapter adapter = dataObjectAdapter(
+                object, field, variable);
+
+        List<GovernanceIssue> issues = adapter.validate(
+                adapter.loadEffective(4L), "UPDATE");
+
+        Assert.assertTrue(issues.stream().anyMatch(issue ->
+                "DATA_OBJECT_FIELD_VARIABLE_SCOPE_MISMATCH".equals(issue.code())));
+    }
+
+    @Test
+    public void dataObjectFieldRejectsDisabledOrIncompatibleVariable() {
+        RuleDataObject object = dataObject(4L, "PROJECT", 2L);
+        RuleDataObjectField field = dataObjectField(8L, 4L, "STRING", 7L);
+        RuleVariable variable = referencedVariable(7L, "PROJECT", 2L, "NUMBER", 0);
+        DataObjectGovernedResourceAdapter adapter = dataObjectAdapter(
+                object, field, variable);
+
+        List<GovernanceIssue> issues = adapter.validate(
+                adapter.loadEffective(4L), "UPDATE");
+
+        Assert.assertTrue(issues.stream().anyMatch(issue ->
+                "DATA_OBJECT_FIELD_VARIABLE_DISABLED".equals(issue.code())));
+        variable.setStatus(1);
+        issues = adapter.validate(adapter.loadEffective(4L), "UPDATE");
+        Assert.assertTrue(issues.stream().anyMatch(issue ->
+                "DATA_OBJECT_FIELD_VARIABLE_TYPE_MISMATCH".equals(issue.code())));
+    }
+
+    @Test
+    public void listElementChildRejectsDirectVariableReference() {
+        RuleDataObject object = dataObject(4L, "PROJECT", 2L);
+        RuleDataObjectField list = dataObjectField(8L, 4L, "LIST", null);
+        RuleDataObjectField child = dataObjectField(9L, 4L, "STRING", 7L);
+        child.setParentFieldId(8L);
+        RuleVariable variable = referencedVariable(7L, "PROJECT", 2L, "STRING", 1);
+        DataObjectGovernedResourceAdapter adapter = dataObjectAdapter(
+                object, List.of(list, child), variable);
+
+        List<GovernanceIssue> issues = adapter.validate(
+                adapter.loadEffective(4L), "UPDATE");
+
+        Assert.assertTrue(issues.stream().anyMatch(issue ->
+                "DATA_OBJECT_FIELD_LIST_CHILD_REFERENCE_UNSUPPORTED".equals(issue.code())));
+    }
+
+    private DataObjectGovernedResourceAdapter dataObjectAdapter(
+            RuleDataObject object, RuleDataObjectField field,
+            RuleVariable variable) {
+        return dataObjectAdapter(object, List.of(field), variable);
+    }
+
+    private DataObjectGovernedResourceAdapter dataObjectAdapter(
+            RuleDataObject object, List<RuleDataObjectField> fields,
+            RuleVariable variable) {
+        RuleDataObjectFieldMapper fieldMapper =
+                mapper(RuleDataObjectFieldMapper.class,
+                        Map.of("selectList", fields),
+                        new ArrayList<>());
+        RuleDataObjectFieldOptionMapper optionMapper =
+                mapper(RuleDataObjectFieldOptionMapper.class,
+                        Map.of("selectList", List.of()),
+                        new ArrayList<>());
+        RuleVariableMapper variableMapper =
+                mapper(RuleVariableMapper.class,
+                        Map.of("selectById", variable),
+                        new ArrayList<>());
+        return new DataObjectGovernedResourceAdapter(
+                store(object, RuleDataObject::setId),
+                fieldMapper, optionMapper, codec(), variableMapper);
+    }
+
+    private RuleDataObject dataObject(Long id, String scope, Long projectId) {
+        RuleDataObject object = new RuleDataObject();
+        object.setId(id);
+        object.setObjectCode("request");
+        object.setObjectLabel("请求");
+        object.setScope(scope);
+        object.setProjectId(projectId);
+        object.setObjectType("INPUT");
+        object.setStatus(1);
+        return object;
+    }
+
+    private RuleDataObjectField dataObjectField(
+            Long id, Long objectId, String type, Long refVariableId) {
+        RuleDataObjectField field = new RuleDataObjectField();
+        field.setId(id);
+        field.setObjectId(objectId);
+        field.setProjectId(2L);
+        field.setScope("PROJECT");
+        field.setVarCode("age");
+        field.setVarLabel("年龄");
+        field.setScriptName("age");
+        field.setVarType(type);
+        field.setRefVariableId(refVariableId);
+        field.setStatus(1);
+        return field;
+    }
+
+    private RuleVariable referencedVariable(
+            Long id, String scope, Long projectId, String type, int status) {
+        RuleVariable variable = new RuleVariable();
+        variable.setId(id);
+        variable.setScope(scope);
+        variable.setProjectId(projectId);
+        variable.setVarCode("age");
+        variable.setVarLabel("年龄");
+        variable.setScriptName("age");
+        variable.setVarType(type);
+        variable.setVarSource("INPUT");
+        variable.setStatus(status);
+        return variable;
     }
 
     @Test

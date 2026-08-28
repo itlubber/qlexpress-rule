@@ -132,6 +132,16 @@ public class RuleDataObjectServiceTest {
     }
 
     @Test
+    public void variableRowKeepsStableReferencedVariableId() {
+        RuleDataObjectField field = field(8L, null, "age", "INTEGER");
+        field.setRefVariableId(77L);
+
+        Map<String, Object> row = RuleDataObjectService.toVariableRow(field);
+
+        assertEquals(Long.valueOf(77L), row.get("refVariableId"));
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     public void objectManagementQueriesOrderByLatestUpdateThenId() {
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new Configuration(), ""), RuleDataObject.class);

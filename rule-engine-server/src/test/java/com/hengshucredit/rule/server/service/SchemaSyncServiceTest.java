@@ -367,6 +367,24 @@ public class SchemaSyncServiceTest {
     }
 
     @Test
+    public void dataObjectFieldsAddStableVariableReferenceWhenMissing() throws Exception {
+        SchemaSyncService service = new SchemaSyncService();
+        FakeJdbcTemplate jdbcTemplate = new FakeJdbcTemplate("ref_variable_id");
+        jdbcTemplate.missingIndexes.add("idx_ref_variable_id");
+        setField(service, "jdbcTemplate", jdbcTemplate);
+
+        Method method = SchemaSyncService.class.getDeclaredMethod(
+                "ensureDataObjectFieldReferenceSchema");
+        method.setAccessible(true);
+        method.invoke(service);
+
+        assertTrue(containsSql(jdbcTemplate.sqlList,
+                "ADD COLUMN `ref_variable_id` BIGINT DEFAULT NULL"));
+        assertTrue(containsSql(jdbcTemplate.sqlList,
+                "ADD INDEX `idx_ref_variable_id` (`ref_variable_id`)"));
+    }
+
+    @Test
     public void globalModelOwnershipIsRepairedIdempotently() throws Exception {
         SchemaSyncService service = new SchemaSyncService();
         FakeJdbcTemplate jdbcTemplate = new FakeJdbcTemplate();
