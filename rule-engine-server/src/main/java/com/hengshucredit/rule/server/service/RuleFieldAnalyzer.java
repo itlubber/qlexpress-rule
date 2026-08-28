@@ -1126,6 +1126,7 @@ public class RuleFieldAnalyzer {
                 meta.put("varCode", f.getVarCode());
                 meta.put("varSource", "dataObject");
                 meta.put("refType", "DATA_OBJECT");
+                meta.put("refVariableId", f.getRefVariableId());
                 map.put(key, meta);
             }
         }
@@ -1539,6 +1540,17 @@ public class RuleFieldAnalyzer {
             return;
         }
 
+        if ("DATA_OBJECT".equals(refType) && meta != null
+                && meta.get("refVariableId") instanceof Long) {
+            Map<String, Object> referencedMeta = findMetaById(
+                    (Long) meta.get("refVariableId"), "VARIABLE", varMetaMap);
+            if (referencedMeta != null) {
+                expandFieldRecursive(inputFieldFromMeta(referencedMeta),
+                        varMetaMap, seen, visited, result);
+                return;
+            }
+        }
+
         // 防环：同一 (refType:scriptName) 只展开一次，避免变量/模型相互引用导致死循环
         String visitKey = (refType != null ? refType : "NONE") + ":" + (scriptName != null ? scriptName.toLowerCase() : "null");
         boolean alreadyVisited = !visited.add(visitKey);
@@ -1577,6 +1589,23 @@ public class RuleFieldAnalyzer {
         // 叶子字段（INPUT / CONSTANT / DATA_OBJECT / 未知引用 / 无法解析的依赖）：保留
         addInputFieldIfAbsent(result, seen, field);
         visited.remove(visitKey);
+    }
+
+    private RuleDefinitionInputField inputFieldFromMeta(Map<String, Object> meta) {
+        RuleDefinitionInputField field = new RuleDefinitionInputField();
+        field.setVarId((Long) meta.get("id"));
+        field.setRefType(normalizeRefType((String) meta.get("refType")));
+        field.setFieldName(firstNonBlank(
+                (String) meta.get("varCode"), (String) meta.get("scriptName")));
+        field.setFieldLabel(firstNonBlank(
+                (String) meta.get("varLabel"), field.getFieldName()));
+        field.setScriptName((String) meta.get("scriptName"));
+        field.setFieldType(firstNonBlank((String) meta.get("varType"), "STRING"));
+        field.setDefaultValue((String) meta.get("defaultValue"));
+        field.setExampleValue((String) meta.get("exampleValue"));
+        field.setStatus(1);
+        field.setCreateTime(LocalDateTime.now());
+        return field;
     }
 
     private void expandModelOrOutputFields(RuleDefinitionInputField field, Map<String, Object> meta,

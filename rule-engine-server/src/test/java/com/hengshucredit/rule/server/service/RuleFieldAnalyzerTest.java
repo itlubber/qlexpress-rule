@@ -213,6 +213,74 @@ public class RuleFieldAnalyzerTest {
     }
 
     @Test
+    public void dataObjectFieldReferenceExpandsToVariableByStableId() throws Exception {
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new Configuration(), ""), RuleVariable.class);
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new Configuration(), ""), RuleDataObject.class);
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new Configuration(), ""), RuleDataObjectField.class);
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new Configuration(), ""), RuleModel.class);
+
+        RuleVariable age = inputVariable(9L, "age");
+        age.setProjectId(4L);
+        age.setScope("PROJECT");
+        age.setVarType("NUMBER");
+
+        RuleDataObject request = new RuleDataObject();
+        request.setId(20L);
+        request.setProjectId(4L);
+        request.setScope("PROJECT");
+        request.setObjectCode("request");
+        request.setScriptName("request");
+        request.setStatus(1);
+
+        RuleDataObjectField ageAlias = new RuleDataObjectField();
+        ageAlias.setId(30L);
+        ageAlias.setProjectId(4L);
+        ageAlias.setScope("PROJECT");
+        ageAlias.setObjectId(20L);
+        ageAlias.setVarCode("ageAlias");
+        ageAlias.setScriptName("ageAlias");
+        ageAlias.setVarLabel("对象年龄");
+        ageAlias.setVarType("NUMBER");
+        ageAlias.setRefVariableId(9L);
+        ageAlias.setStatus(1);
+
+        setField(analyzer, "ruleVariableMapper", mapper(
+                RuleVariableMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.singletonList(age) : null));
+        setField(analyzer, "dataObjectMapper", mapper(
+                RuleDataObjectMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.singletonList(request) : null));
+        setField(analyzer, "dataObjectFieldMapper", mapper(
+                RuleDataObjectFieldMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.singletonList(ageAlias) : null));
+        setField(analyzer, "modelMapper", mapper(
+                RuleModelMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.emptyList() : null));
+        setField(analyzer, "modelOutputFieldMapper", mapper(
+                RuleModelOutputFieldMapper.class,
+                (proxy, method, args) -> "selectList".equals(method.getName())
+                        ? Collections.emptyList() : null));
+
+        RuleDefinitionInputField objectField = inputField(
+                "request.ageAlias", "DATA_OBJECT", "DATA_OBJECT", 30L);
+
+        List<RuleDefinitionInputField> resolved =
+                analyzer.resolveInputFields(Collections.singletonList(objectField), 4L);
+
+        assertEquals(Collections.singletonList("age"), names(resolved));
+        assertEquals(Long.valueOf(9L), resolved.get(0).getVarId());
+        assertEquals("VARIABLE", resolved.get(0).getRefType());
+    }
+
+    @Test
     public void unifiedOperandsContributeInputAndOutputDependencies() {
         String json = "{\"rules\":[{"
                 + "\"conditionRoot\":{\"type\":\"group\",\"children\":[{\"type\":\"leaf\",\"leftOperand\":{\"kind\":\"PATH\",\"value\":\"request.score\"},\"operator\":\">=\",\"rightOperand\":{\"kind\":\"LITERAL\",\"value\":\"600\",\"valueType\":\"NUMBER\"}}]},"
